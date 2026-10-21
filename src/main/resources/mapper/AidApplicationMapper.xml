@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.AidApplicationMapper">
+
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.AidApplication">
+        <id column="id" property="id"/>
+        <result column="student_id" property="studentId"/>
+        <result column="aid_type" property="aidType"/>
+        <result column="level" property="level"/>
+        <result column="amount" property="amount"/>
+        <result column="reason" property="reason"/>
+        <result column="evidence" property="evidence"/>
+        <result column="status" property="status"/>
+        <result column="approver_id" property="approverId"/>
+        <result column="approve_note" property="approveNote"/>
+        <result column="academic_year" property="academicYear"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <!-- P11 家庭经济困难学生认定新增列 -->
+        <result column="poverty_level" property="povertyLevel"/>
+        <result column="review_stage" property="reviewStage"/>
+        <result column="cert_year" property="certYear"/>
+        <result column="publicity_start" property="publicityStart"/>
+        <result column="publicity_end" property="publicityEnd"/>
+        <result column="objection_deadline" property="objectionDeadline"/>
+        <result column="committee_note" property="committeeNote"/>
+        <result column="report_note" property="reportNote"/>
+        <result column="recheck_result" property="recheckResult"/>
+        <result column="rechecked_at" property="recheckedAt"/>
+        <result column="materials" property="materials"/>
+        <result column="family_note" property="familyNote"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="approver_name" property="approverName"/>
+        <result column="gender" property="gender"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        d.id, d.student_id, d.aid_type, d.level, d.amount, d.reason, d.evidence, d.status,
+        d.approver_id, d.approve_note, d.academic_year, d.created_at, d.updated_at, d.deleted,
+        d.poverty_level, d.review_stage, d.cert_year, d.publicity_start, d.publicity_end,
+        d.objection_deadline, d.committee_note, d.report_note, d.recheck_result, d.rechecked_at,
+        d.materials, d.family_note,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(sp.student_no, u.student_id) AS student_no,
+        COALESCE(sp.class_name, u.class_name) AS class_name,
+        COALESCE(NULLIF(a.real_name, ''), a.username) AS approver_name,
+        IFNULL(sp.gender, '') AS gender
+    </sql>
+
+    <sql id="Joined_From">
+        FROM aid_application d
+        LEFT JOIN users u ON u.id = d.student_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = d.student_id AND sp.deleted = 0
+        LEFT JOIN users a ON a.id = d.approver_id
+    </sql>
+
+    <!-- 收件箱筛选：与 countInbox 共用，保证列表与计数口径一致 -->
+    <sql id="Inbox_Filters">
+        <if test="status != null and status != ''">AND d.status = #{status}</if>
+        <if test="aidType != null and aidType != ''">AND d.aid_type = #{aidType}</if>
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.student_no LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.class_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR d.reason LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.AidApplication"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO aid_application
+            (student_id, aid_type, level, amount, reason, evidence, status,
+             academic_year, created_at, updated_at)
+        VALUES
+            (#{studentId}, #{aidType}, #{level}, #{amount}, #{reason}, #{evidence}, #{status},
+             #{academicYear}, NOW(), NOW())
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE d.id = #{id} AND d.deleted = 0
+    </select>
+
+    <select id="listMine" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE d.student_id = #{studentId} AND d.deleted = 0
+        AND d.aid_type != 'need'
+        <if test="status != null and status != ''">AND d.status = #{status}</if>
+        ORDER BY d.created_at DESC, d.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countMine" resultType="int">
+        SELECT COUNT(*) FROM aid_application d
+        WHERE d.student_id = #{studentId} AND d.deleted = 0
+        AND d.aid_type != 'need'
+        <if test="status != null and status != ''">AND d.status = #{status}</if>
+    </select>
+
+    <select id="listInbox" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE d.deleted = 0
+        AND d.aid_type != 'need'
+        <include refid="Inbox_Filters"/>
+        ORDER BY FIELD(d.status, 'pending') DESC, d.created_at DESC, d.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countInbox" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE d.deleted = 0
+        AND d.aid_type != 'need'
+        <include refid="Inbox_Filters"/>
+    </select>
+
+    <update id="updateStatus">
+        UPDATE aid_application
+        SET status = #{to},
+            approver_id = #{approverId},
+            approve_note = #{approveNote},
+            updated_at = NOW()
+            <if test="amount != null">, amount = #{amount}</if>
+        WHERE id = #{id} AND status = #{from} AND deleted = 0
+    </update>
+
+    <update id="cancel">
+        UPDATE aid_application
+        SET status = 'cancelled', updated_at = NOW()
+        WHERE id = #{id} AND student_id = #{studentId} AND status = 'pending' AND deleted = 0
+    </update>
+
+    <select id="countGroupByStatus" resultType="java.util.Map">
+        SELECT d.status AS status, COUNT(*) AS cnt
+        <include refid="Joined_From"/>
+        WHERE d.deleted = 0
+        AND d.aid_type != 'need'
+        <if test="studentId != null">AND d.student_id = #{studentId}</if>
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+        GROUP BY d.status
+    </select>
+
+    <!-- 重复提交闸：同一学生 + 同一学年 + 同一项目是否已有在办/已批准的申请。
+         直接在 SQL 里判定，避免「只扫前 N 条历史申请」的分页上限漏判。 -->
+    <select id="countOccupying" resultType="int">
+        SELECT COUNT(*)
+        FROM aid_application
+        WHERE deleted = 0
+          AND status IN ('pending', 'approved')
+          AND student_id = #{studentId}
+          AND aid_type = #{aidType}
+          AND academic_year = #{academicYear}
+    </select>
+
+    <!-- =====================================================================
+         P11 家庭经济困难学生认定（aid_type IN ('need','困难认定')）
+         约定：
+           * 所有写语句都是 CAS（WHERE 里带 review_stage = #{fromStage}），
+             返回受影响行数，服务层用 0 行判定「非法流转」→ 400；
+           * 认定行的 aid_type 统一写 'need'（与 P5 的英文码一致，见报告口径说明）。
+         ===================================================================== -->
+
+    <!-- 认定申请：新流程允许的筛选条件（列表与计数共用，保证行数口径一致） -->
+    <sql id="Review_Filters">
+        AND d.aid_type IN ('need', '困难认定')
+        <if test="stage != null and stage != ''">AND d.review_stage = #{stage}</if>
+        <if test="certYear != null and certYear != ''">AND d.cert_year = #{certYear}</if>
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.student_no LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.class_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR d.reason LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <insert id="insertReview" parameterType="com.umi.nest.entity.AidApplication"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO aid_application
+            (student_id, aid_type, level, amount, reason, evidence, materials, family_note,
+             status, academic_year, cert_year, review_stage, created_at, updated_at, deleted)
+        VALUES
+            (#{studentId}, #{aidType}, #{level}, #{amount}, #{reason}, #{evidence}, #{materials}, #{familyNote},
+             #{status}, #{academicYear}, #{certYear}, #{reviewStage}, NOW(), NOW(), 0)
+    </insert>
+
+    <!-- 同一学年是否已提交过认定申请（重复提交闸，任何状态都算占用） -->
+    <select id="countCertApplications" resultType="int">
+        SELECT COUNT(*)
+        FROM aid_application
+        WHERE deleted = 0
+          AND student_id = #{studentId}
+          AND aid_type IN ('need', '困难认定')
+          AND cert_year = #{certYear}
+    </select>
+
+    <select id="listMineReview" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE d.deleted = 0 AND d.student_id = #{studentId}
+          AND d.aid_type IN ('need', '困难认定')
+        ORDER BY d.created_at DESC, d.id DESC
+    </select>
+
+    <select id="listReview" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE d.deleted = 0
+        <include refid="Review_Filters"/>
+        ORDER BY FIELD(d.review_stage, 'apply', 'committee', 'workgroup', 'publicity', 'objection',
+                       'report', 'center', 'leader', 'approved', 'rejected'),
+                 d.created_at DESC, d.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countReview" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE d.deleted = 0
+        <include refid="Review_Filters"/>
+    </select>
+
+    <!-- 认定统计：一条 GROUP BY 查出所有阶段计数（service 映射成 6 个键，不循环查 6 次） -->
+    <select id="countByStage" resultType="java.util.LinkedHashMap">
+        SELECT d.review_stage AS review_stage, COUNT(*) AS cnt
+        <include refid="Joined_From"/>
+        WHERE d.deleted = 0
+        <include refid="Review_Filters"/>
+        GROUP BY d.review_stage
+    </select>
+
+    <!-- 公示名单：只取脱敏三要素（service 层再收敛成 name/gender/level 三个键） -->
+    <select id="listPublicity" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE d.deleted = 0
+          AND d.aid_type IN ('need', '困难认定')
+          AND d.review_stage IN ('publicity', 'objection')
+          AND d.publicity_start IS NOT NULL
+          AND d.status = 'pending'
+        <if test="certYear != null and certYear != ''">AND d.cert_year = #{certYear}</if>
+        ORDER BY FIELD(d.poverty_level, '特困', '贫困'), d.id
+    </select>
+
+    <!-- 学期复查名单：本学年已批准的认定学生 -->
+    <select id="listRecheck" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE d.deleted = 0
+          AND d.aid_type IN ('need', '困难认定')
+          AND d.status = 'approved'
+        <if test="certYear != null and certYear != ''">AND d.cert_year = #{certYear}</if>
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+        ORDER BY d.rechecked_at IS NULL DESC, d.id
+    </select>
+
+    <!-- 民主评议：写结论 + 推进到院系工作组 -->
+    <update id="committeePass">
+        UPDATE aid_application
+        SET committee_note = #{note}, review_stage = #{toStage}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND review_stage = #{fromStage}
+    </update>
+
+    <!-- 院系工作组定级：写级别 + 意见，推进到公示阶段 -->
+    <update id="setLevel">
+        UPDATE aid_application
+        SET poverty_level = #{level}, approve_note = #{note},
+            review_stage = #{toStage}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND review_stage = #{fromStage}
+    </update>
+
+    <!-- 单独调级（复议采纳 / 复查调整），不动阶段 -->
+    <update id="updatePovertyLevel">
+        UPDATE aid_application
+        SET poverty_level = #{level}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <!-- 发布公示：写公示窗口（publicity_start / publicity_end / objection_deadline）；
+         publicity_start IS NULL 保证同一轮公示只发布一次 -->
+    <update id="startPublicity">
+        UPDATE aid_application
+        SET publicity_start = #{start}, publicity_end = #{end}, objection_deadline = #{end},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND review_stage = #{fromStage}
+          AND publicity_start IS NULL
+    </update>
+
+    <!-- 有未答复复议 → 进入 objection 阶段；答复完最后一条 → 回到 publicity -->
+    <update id="advanceStage">
+        UPDATE aid_application
+        SET review_stage = #{toStage}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND review_stage = #{fromStage}
+    </update>
+
+    <!-- 院系书面评审报告：写报告 + 推进到资助管理中心 -->
+    <update id="toReport">
+        UPDATE aid_application
+        SET report_note = #{note}, review_stage = #{toStage}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND review_stage = #{fromStage}
+    </update>
+
+    <!-- 资助中心审核 / 领导小组审批：记审批人与意见，推进阶段 -->
+    <update id="approveStage">
+        UPDATE aid_application
+        SET approver_id = #{approverId}, approve_note = #{note},
+            review_stage = #{toStage}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND review_stage = #{fromStage}
+    </update>
+
+    <!-- 审批通过（定终态）：写终态级别、审批人、意见 -->
+    <update id="approveFinal">
+        UPDATE aid_application
+        SET status = 'approved', approver_id = #{approverId}, approve_note = #{note},
+            poverty_level = #{level}, review_stage = 'approved', updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND review_stage = #{fromStage}
+    </update>
+
+    <!-- 十类情形 / 各环节驳回：一律终态 rejected 并留原因 -->
+    <update id="rejectApplication">
+        UPDATE aid_application
+        SET status = 'rejected', approve_note = #{note},
+            review_stage = 'rejected', updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND review_stage = #{fromStage}
+    </update>
+
+    <!-- 学期复查：写结论，可调整级别，可留意见 -->
+    <update id="updateRecheck">
+        UPDATE aid_application
+        SET recheck_result = #{result}, rechecked_at = NOW(),
+            <if test="newLevel != null and newLevel != ''">poverty_level = #{newLevel},</if>
+            <if test="note != null and note != ''">approve_note = #{note},</if>
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = 'approved'
+        <if test="certYear != null and certYear != ''">AND cert_year = #{certYear}</if>
+    </update>
+
+</mapper>

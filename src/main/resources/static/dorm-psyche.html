@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html data-theme="nestlight" lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+  <title>学工平台 · 心理特征提取工作台</title>
+  <link href="/manifest.webmanifest" rel="manifest"/>
+  <meta content="#3e63dd" name="theme-color"/>
+  <link href="/icons/icon-192.png" rel="icon" sizes="192x192" type="image/png"/>
+  <link href="/icons/apple-touch-icon.png" rel="apple-touch-icon"/>
+  <meta content="yes" name="apple-mobile-web-app-capable"/>
+  <meta content="default" name="apple-mobile-web-app-status-bar-style"/>
+  <meta content="学工平台" name="apple-mobile-web-app-title"/>
+  <script defer src="/pwa.js"></script>
+  <!--
+    主题必须在样式表之前定下来。放到 defer 的共享脚本里会先按浅色画一帧、
+    再翻成深色 —— 也就是俗称的「闪白」，比没有深色模式更难受。
+    所以这段必须内联，且必须排在 <link rel="stylesheet"> 前面。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+<link rel="stylesheet" href="/css/nest-art3.css">
+  <style>
+    .mono { font-variant-numeric: tabular-nums; }
+    table.grid-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    table.grid-table th { text-align: left; font-weight: 600; color: var(--nx-muted); padding: .5rem .75rem; border-bottom: 1px solid var(--nx-sep); white-space: nowrap; }
+    table.grid-table td { padding: .5rem .75rem; border-bottom: 1px solid var(--nx-sep); vertical-align: top; }
+    .dim-bar { height: 6px; border-radius: 9999px; background: rgba(62,99,221,.10); overflow: hidden; }
+    .dim-bar > i { display: block; height: 100%; background: #3e63dd; }
+  </style>
+</head>
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content selection:bg-primary/30">
+<div class="relative z-10 flex min-h-screen flex-col">
+  <header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none px-6 py-2 md:px-20">
+    <div class="navbar-start w-auto min-w-0 flex-1 items-center gap-3">
+      <div class="text-primary"><span class="material-symbols-outlined text-3xl">psychology</span></div>
+      <div>
+        <h2 class="nx-brand text-xl leading-tight">学工平台 <span class="text-primary">宿舍分配</span></h2>
+        <p class="text-xs nx-muted">对话式心理与生活习惯特征采集 · 管理端</p>
+      </div>
+    </div>
+    <div class="navbar-end w-auto flex-none items-center gap-1 md:gap-2">
+      <button onclick="location.href='dorm-admin.html'" class="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-primary/10 transition-colors">
+        <span class="material-symbols-outlined text-xl">apartment</span><span class="text-sm font-medium hidden md:inline">分配工作台</span></button>
+      <button onclick="probe()" class="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-primary/10 transition-colors">
+        <span class="material-symbols-outlined text-xl">network_check</span><span class="text-sm font-medium hidden md:inline">大模型自检</span></button>
+    </div>
+  </header>
+
+  <main class="flex-1 px-6 pb-16 pt-10 md:px-20">
+    <div class="max-w-7xl mx-auto nx-rise">
+      <header class="mb-8 border-b border-base-300 pb-6">
+        <p class="nx-kicker">Residence / Psychometrics</p>
+        <h1 class="mt-2 font-serif text-3xl leading-tight sm:text-4xl">心理特征提取工作台</h1>
+        <p class="mt-3 max-w-3xl text-sm leading-relaxed nx-muted">问卷 + 自述 → 规则与大模型双路提取 → 逐维带证据 → 过置信度阈值 → 采用到特征表。</p>
+      </header>
+
+      <div class="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 md:grid-cols-4" id="stats"></div>
+
+      <nav class="mb-8 flex flex-wrap gap-1.5 rounded-box border border-base-300 bg-base-200 p-1.5">
+        <button data-tab="students" class="tab-btn tab-active nx-tab"><span class="material-symbols-outlined align-middle text-base">group</span> 学生与素材</button>
+        <button data-tab="work"     class="tab-btn nx-tab"><span class="material-symbols-outlined align-middle text-base">tune</span> 提取与采用</button>
+        <button data-tab="eval"     class="tab-btn nx-tab"><span class="material-symbols-outlined align-middle text-base">fact_check</span> 提取器评测</button>
+        <button data-tab="catalog"  class="tab-btn nx-tab"><span class="material-symbols-outlined align-middle text-base">menu_book</span> 维度与题库</button>
+        <button data-tab="raw"      class="tab-btn nx-tab"><span class="material-symbols-outlined align-middle text-base">data_object</span> 原始响应</button>
+      </nav>
+
+      <div id="panel-students" class="panel"></div>
+      <div id="panel-work" class="panel hidden"></div>
+      <div id="panel-eval" class="panel hidden"></div>
+      <div id="panel-catalog" class="panel hidden"></div>
+      <div id="panel-raw" class="panel hidden"><pre id="raw-out" class="max-h-[70vh] overflow-auto rounded-box border border-base-300 bg-base-300 p-4 font-mono text-xs"></pre></div>
+    </div>
+  </main>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let DESC = null, CATALOG = null, QUIZ = null, DETAIL = null, SEL = null;
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function num(x,d=3){return x==null||Number.isNaN(Number(x))?'—':Number(x).toFixed(d);}
+function pct(x){return x==null?'—':(Number(x)*100).toFixed(1)+'%';}
+function raw(o){ $('raw-out').textContent = JSON.stringify(o,null,2); }
+function toast(m,bad){const d=document.createElement('div');
+  d.className='fixed bottom-6 right-6 z-[100] rounded-box px-5 py-3 text-sm font-medium shadow-lg '+(bad?'bg-error text-error-content':'bg-neutral text-neutral-content');
+  d.textContent=m;document.body.appendChild(d);setTimeout(()=>d.remove(),bad?6000:3000);}
+async function api(u,o){const r=await fetch(u,Object.assign({headers:{'Content-Type':'application/json'}},o||{}));
+  let j;try{j=await r.json();}catch(e){throw new Error('HTTP '+r.status+' 返回非 JSON');}
+  if(j.code!==200)throw new Error(j.message||('HTTP '+r.status));return j.data;}
+const post=(u,b)=>api(u,{method:'POST',body:JSON.stringify(b||{})});
+async function guard(fn){try{return await fn();}catch(e){toast(e.message,true);console.error(e);}}
+
+// ── 统一对话框的页内兜底（nest-ui.js 是 defer 加载的，所以调用时才看 window.NestUI） ──
+function nxConfirm(message, options) {
+  if (window.NestUI && NestUI.dialog) return NestUI.dialog.confirm(message, options);
+  return Promise.resolve(window.confirm(message));
+}
+function nxPrompt(message, options) {
+  if (window.NestUI && NestUI.dialog) return NestUI.dialog.prompt(message, options);
+  return Promise.resolve(window.prompt(message, options && options.defaultValue != null ? options.defaultValue : ''));
+}
+function card(t,i,b,x){return `<div class="p-6 mb-6 ${x||''} nx-panel">
+  <div class="flex items-center gap-2 mb-4"><span class="material-symbols-outlined text-primary">${i}</span><h3 class="font-bold text-lg">${esc(t)}</h3></div>${b}</div>`;}
+function statCard(l,v,s,i){return `<div class="flex flex-col gap-1 bg-base-100 p-6">
+  <div class="flex items-center gap-3 mb-1"><span class="material-symbols-outlined text-primary text-xl">${i}</span><span class="text-xs nx-muted">${esc(l)}</span></div>
+  <div class="text-xl font-black">${v}</div><div class="text-xs mt-1 nx-muted">${esc(s||'')}</div></div>`;}
+
+document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>guard(async()=>{
+  document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('tab-active'));b.classList.add('tab-active');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.add('hidden'));
+  const t=b.dataset.tab;$('panel-'+t).classList.remove('hidden');
+  if(t==='students')await renderStudents();
+  if(t==='work')renderWork();
+  if(t==='eval')renderEval();
+  if(t==='catalog')await renderCatalog();
+})));
+
+async function probe(){
+  await guard(async()=>{
+    toast('正在请求大模型…');
+    const r=await api('/api/dorm/psyche/probe');raw(r);
+    toast(r.ok?('连通正常，模型回复：'+r.reply+'（'+r.elapsedMs+'ms）'):('失败：'+r.error),!r.ok);
+  });
+}
+
+// ── 学生与素材 ──────────────────────────────────────────
+async function renderStudents() {
+  const list = await api('/api/dorm/psyche/students?limit=100');
+  raw(list);
+  const rows = (list||[]).map(s => {
+    const has = s.method != null || s.coverage != null;
+    return `<tr>
+      <td class="mono">${s.id}</td><td>${esc(s.name)}</td><td class="mono">${esc(s.student_no||'')}</td>
+      <td class="mono">${esc(s.gender||'')}</td><td>${esc(s.grade||'')}</td><td>${esc(s.major_cluster||'')}</td>
+      <td class="mono ${s.text_count?'text-primary font-bold':''}">${s.text_count||0}</td>
+      <td class="mono ${s.answer_count?'text-primary font-bold':''}">${s.answer_count||0}</td>
+      <td class="mono">${has?(s.method||''):'—'}</td>
+      <td class="mono">${has?pct(s.coverage):'—'}</td>
+      <td>${s.applied?'<span class="text-success font-bold text-xs">已采用</span>':'<span class="text-xs nx-muted">未采用</span>'}</td>
+      <td><button onclick="select(${s.id})" class="text-primary text-xs font-bold">选定</button></td></tr>`;
+  }).join('');
+  $('panel-students').innerHTML = card('学生列表（前 100 名）', 'group',
+    `<p class="text-sm nx-muted mb-3">有素材才能提取。选中一名学生后到「提取与采用」页操作。</p>
+     <div class="overflow-auto max-h-[60vh]"><table class="grid-table">
+     <thead><tr><th>id</th><th>姓名</th><th>学号</th><th>性别</th><th>年级</th><th>专业大类</th><th>文本</th><th>答题</th><th>方法</th><th>覆盖率</th><th>采用</th><th></th></tr></thead>
+     <tbody>${rows||'<tr><td colspan="12" class="nx-muted">宿舍域还没有学生数据，先去分配工作台生成或导入。</td></tr>'}</tbody></table></div>`);
+}
+async function select(id){ SEL = id; toast('已选定学生 ' + id);
+  document.querySelector('[data-tab=work]').click(); }
+
+// ── 提取与采用 ──────────────────────────────────────────
+function renderWork() {
+  DESC = DESC || {};
+  $('panel-work').innerHTML =
+  card('选择学生', 'person_search', `
+    <div class="flex flex-wrap gap-3 items-end mb-2">
+      <label class="block w-40"><span class="text-xs nx-muted">学生 id</span>
+        <input id="w-id" type="number" value="${SEL||''}" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2"/></label>
+      <button onclick="loadDetail()" class="nx-btn nx-btn-primary">加载</button>
+      <button onclick="linkUser()" class="px-5 py-2.5 rounded-full border border-primary/30 text-primary font-bold hover:bg-primary/5">绑定登录账号</button>
+    </div>
+    <p class="text-xs nx-muted">绑定后该学生可以用自己的账号登录学生门户、看解释、提申诉。</p>
+    <div id="detail-out" class="mt-4"></div>`) +
+  card('① 录入素材（原始材料，永不因重新分配而丢）', 'edit_note', `
+    <div class="flex flex-wrap gap-3 mb-3">
+      <label class="block w-52"><span class="text-xs nx-muted">类型</span>
+        <select id="t-kind" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2">
+          <option value="SELF_INTRO">自述 SELF_INTRO</option><option value="CHAT">聊天记录 CHAT</option>
+          <option value="ESSAY">作文 ESSAY</option><option value="COUNSELOR">辅导员记录 COUNSELOR</option></select></label>
+      <label class="block w-40"><span class="text-xs nx-muted">是否授权提取</span>
+        <select id="t-consent" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2">
+          <option value="true">授权</option><option value="false">不授权（只留档）</option></select></label>
+    </div>
+    <textarea id="t-content" rows="5" class="w-full rounded-md border-primary/20 bg-base-200 px-4 py-3"
+      placeholder="我一般凌晨两点才睡，早上七点半起。室友打游戏的声音我受不了，必须安静才能睡。我不抽烟，也不希望室友抽。"></textarea>
+    <button onclick="addText()" class="mt-3 nx-btn nx-btn-primary">保存素材</button>
+    <p class="text-xs mt-2 nx-muted">授权=0 的素材不参与任何提取（隐私开关）。主语是「室友/同学/别人」的句子会被规则那一路自动排除。</p>`) +
+  card('② 代录问卷作答', 'quiz', `
+    <p class="text-sm nx-muted mb-3">问卷答案权重高于文本推断——它是学生自己明确说的。作息题填<strong>小时原生值</strong>，其余 0..1。</p>
+    <div id="quiz-inputs" class="grid grid-cols-1 md:grid-cols-2 gap-x-6">加载题库中…</div>
+    <button onclick="submitAnswers()" class="mt-4 nx-btn nx-btn-primary">保存作答</button>`) +
+  card('③ 运行提取', 'auto_awesome', `
+    <div class="flex flex-wrap gap-3 items-end mb-4">
+      <label class="block w-56"><span class="text-xs nx-muted">提取器</span>
+        <select id="x-llm" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2">
+          <option value="true">融合（规则 + 大模型）</option><option value="false">仅本地规则（快、可离线）</option></select></label>
+      <button onclick="runExtract()" class="nx-btn nx-btn-primary">开始提取</button>
+    </div>
+    <div id="extract-out"></div>`) +
+  card('④ 采用到特征表', 'check_circle', `
+    <p class="text-sm nx-muted mb-3">
+      提取只产生快照，<strong>采用才真正改写待分配特征</strong>。采用时按置信度阈值逐维筛选：低于阈值的维度丢弃，保留原有值（不会被清零）。
+      写入后 <code>dorm_student_feature.source</code> 记为 <code>AGENT_LLM</code> 或 <code>RULE</code>——数据库里记的必须是真实发生过的事。</p>
+    <div class="flex flex-wrap gap-3 items-end mb-3">
+      <label class="block w-56"><span class="text-xs nx-muted">置信度阈值</span>
+        <input id="ap-min" type="number" step="0.05" value="0.35" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2"/></label>
+      <button onclick="runApply()" class="nx-btn nx-btn-primary">采用</button>
+    </div>
+    <div id="apply-out"></div>`);
+  loadDetail(); loadQuizInputs();
+}
+async function loadQuizInputs() {
+  QUIZ = QUIZ || await api('/api/dorm/psyche/questionnaire');
+  raw(QUIZ);
+  const items = (QUIZ.items||[]).filter(i => i.kind !== 'TEXT');
+  $('quiz-inputs').innerHTML = items.map(it =>
+    `<label class="block py-2"><span class="text-xs nx-muted">${it.no}. ${esc(it.prompt)}
+      <span class="nx-muted">（${esc(it.dimension||'—')}，${esc(it.kind)}）</span></span>
+     <input data-code="${esc(it.code)}" type="number" step="0.01" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-1.5 text-sm"/></label>`).join('');
+}
+async function loadDetail() {
+  const id = Number($('w-id').value); if (!id) { toast('请填写学生 id', true); return; }
+  SEL = id;
+  await guard(async () => {
+    DETAIL = await api('/api/dorm/psyche/students/' + id); raw(DETAIL);
+    const st = DETAIL.student || {};
+    const texts = (DETAIL.texts||[]).map(t => `<div class="p-3 rounded-md bg-primary/5 mb-2">
+      <div class="flex justify-between text-xs mb-1 nx-muted"><span>${esc(t.kind)} · ${t.char_count} 字 · ${esc(t.source||'')}</span>
+      <span>${t.consent?'已授权':'<span class="text-warning">未授权</span>'}
+        <button onclick="delText(${t.id})" class="ml-2 text-error font-bold">删除</button></span></div>
+      <div class="text-sm whitespace-pre-wrap">${esc(t.content)}</div></div>`).join('');
+    const ans = DETAIL.answers ? Object.entries(DETAIL.answers).map(([k,v]) =>
+      `<span class="inline-block mr-2 mb-1 px-2 py-1 rounded-full bg-primary/5 text-xs">${esc(k)} = <b class="mono">${esc(v)}</b></span>`).join('') : '';
+    $('detail-out').innerHTML = `
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        ${statCard('学生', esc(st.name||''), (st.studentNo||'')+' · '+(st.grade||''), 'person')}
+        ${statCard('素材段数', (DETAIL.texts||[]).length, '仅统计已授权', 'article')}
+        ${statCard('作答题数', Object.keys(DETAIL.answers||{}).length, '', 'quiz')}
+        ${statCard('画像', DETAIL.profile ? (DETAIL.profile.method||'—') : '无', DETAIL.profile ? ('覆盖 '+pct(DETAIL.profile.coverage)+'，'+(DETAIL.profile.applied?'已采用':'未采用')) : '还没提取过', 'psychology')}
+      </div>
+      <h4 class="font-bold text-sm mb-2">已录素材</h4>${texts||'<p class="text-sm nx-muted">还没有素材。</p>'}
+      <h4 class="font-bold text-sm mt-4 mb-2">已作答</h4>${ans||'<p class="text-sm nx-muted">还没有作答。</p>'}
+      ${renderProfileBlock(DETAIL.profile)}`;
+  });
+}
+function renderProfileBlock(p) {
+  if (!p) return '';
+  const ev = (p.evidence||[]).map(e => `<tr><td>${esc(e.dimension)}</td><td class="text-xs">${esc(e.source)}</td>
+    <td class="text-xs italic">「${esc(e.quote)}」</td><td class="text-xs">${esc(e.reasoning)}</td>
+    <td class="mono">${num(e.weight,2)}</td></tr>`).join('');
+  const cur = p.features || {};
+  const dims = Object.keys(cur).map(k => {
+    const v = cur[k], c = (p.confidence||{})[k];
+    const w = v == null ? 0 : Math.max(0, Math.min(100, v*100));
+    const low = c != null && c < 0.35;
+    return `<tr><td>${esc(k)}</td><td class="mono ${v==null?'nx-muted':''}">${v==null?'未提取':num(v,3)}</td>
+      <td class="mono ${low?'text-warning':''}">${c==null?'—':num(c,2)}</td>
+      <td class="w-40"><div class="dim-bar"><i style="width:${w}%"></i></div></td>
+      <td class="text-xs">${low?'<span class="text-warning">低于阈值，采用时会丢弃</span>':''}</td></tr>`;
+  }).join('');
+  return card('提取结果与逐维证据', 'fact_check', `
+    <div class="p-3 rounded-md bg-primary/5 mb-4 text-sm leading-relaxed">${esc(p.narrative||'')}</div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+      ${statCard('方法', esc(p.method||''), p.llmUsed?'调用过大模型':'纯本地规则', 'auto_awesome')}
+      ${statCard('覆盖率', pct(p.coverage), (p.valueCount||0)+' / 11 维', 'donut_large')}
+      ${statCard('素材', (p.textChars||0)+' 字', (p.answeredItems||0)+' 道题', 'article')}
+      ${statCard('令牌', (p.promptTokens||0)+' / '+(p.completionTokens||0), 'prompt / completion', 'token')}
+    </div>
+    <h4 class="font-bold text-sm mb-2">11 维取值与置信度</h4>
+    <table class="grid-table mb-4"><thead><tr><th>维度</th><th>取值</th><th>置信度</th><th></th><th></th></tr></thead><tbody>${dims}</tbody></table>
+    <h4 class="font-bold text-sm mb-2">证据（${(p.evidence||[]).length} 条）</h4>
+    <table class="grid-table"><thead><tr><th>维度</th><th>来源</th><th>原文</th><th>理由</th><th>权重</th></tr></thead>
+      <tbody>${ev||'<tr><td colspan="5" class="nx-muted">本次提取没有留下证据。</td></tr>'}</tbody></table>`
+    + ((p.followUps||[]).length ? `<h4 class="font-bold text-sm mt-4 mb-2">建议追问</h4>
+        <ol class="list-decimal ml-5 text-sm">${p.followUps.map(f=>'<li>'+esc(f)+'</li>').join('')}</ol>` : ''));
+}
+async function addText() {
+  const id = SEL; if (!id) { toast('请先选定学生', true); return; }
+  const content = $('t-content').value;
+  if (content.trim().length < 10) { toast('素材太短，至少十个字', true); return; }
+  await guard(async () => {
+    const r = await post('/api/dorm/psyche/text', { studentId: id, kind: $('t-kind').value, content: content, consent: $('t-consent').value === 'true' });
+    raw(r); $('t-content').value = ''; toast('已保存素材 #' + (r.textId||''));
+    await loadDetail();
+  });
+}
+async function delText(tid) {
+  if (!(await nxConfirm('删除这条素材？'))) return;
+  await guard(async () => { await api('/api/dorm/psyche/text/' + tid, { method: 'DELETE' }); toast('已删除'); await loadDetail(); });
+}
+async function submitAnswers() {
+  const id = SEL; if (!id) { toast('请先选定学生', true); return; }
+  const answers = {};
+  document.querySelectorAll('#quiz-inputs input[data-code]').forEach(i => {
+    if (i.value !== '') answers[i.dataset.code] = Number(i.value);
+  });
+  if (!Object.keys(answers).length) { toast('没有填写任何答案', true); return; }
+  await guard(async () => {
+    const r = await post('/api/dorm/psyche/answers', { studentId: id, answers });
+    raw(r); toast('已保存 ' + (r.saved||0) + ' 题'); await loadDetail();
+  });
+}
+async function runExtract() {
+  const id = SEL; if (!id) { toast('请先选定学生', true); return; }
+  $('extract-out').innerHTML = '<div class="text-sm text-primary">提取中…（大模型那一路约 3–10 秒）</div>';
+  await guard(async () => {
+    const t0 = Date.now();
+    const r = await post('/api/dorm/psyche/extract', { studentId: id, useLlm: $('x-llm').value === 'true' });
+    raw(r);
+    $('extract-out').innerHTML = `<div class="text-xs mb-2 nx-muted">提取器 ${esc(r.extractor||'')} · 请求 ${r.requested} 人 · 走大模型 ${r.llmUsed} 人 · 纯规则 ${r.ruleOnly} 人 · 耗时 ${Date.now()-t0} ms</div>`;
+    await loadDetail();
+  });
+}
+async function runApply() {
+  const id = SEL; if (!id) { toast('请先选定学生', true); return; }
+  await guard(async () => {
+    const r = await post('/api/dorm/psyche/apply', { studentId: id, minConfidence: Number($('ap-min').value) });
+    raw(r);
+    $('apply-out').innerHTML = `<div class="p-4 rounded-md bg-primary/5 text-sm">
+      <div class="mb-2">已采用 <b>${r.applied}</b> 维，来源标记 <b>${esc(r.source||'')}</b>，方法 ${esc(r.method||'')}，阈值 ${r.minConf}；
+      丢弃 <b>${r.dropped}</b> 维（置信度不足）。</div>
+      <div class="text-xs nx-muted mb-2">采用维度：${esc((r.appliedDimensions||[]).join('、'))}</div>
+      <div class="text-xs">${esc(r.message||'')}</div>
+      <pre class="text-xs mt-2 overflow-auto">${esc(JSON.stringify(r.currentFeatures||{},null,2))}</pre></div>`;
+    toast('已采用 ' + r.applied + ' 维');
+    await loadDetail();
+  });
+}
+async function linkUser() {
+  const id = SEL; if (!id) { toast('请先选定学生', true); return; }
+  const no = await nxPrompt('输入该学生的学号（与 users 表的 student_id 或 username 匹配）：');
+  if (!no) return;
+  await guard(async () => { const r = await post('/api/dorm/psyche/link', { studentId: id, studentNo: no }); raw(r); toast('绑定结果：' + JSON.stringify(r)); });
+}
+
+// ── 维度与题库 ──────────────────────────────────────────
+async function renderCatalog() {
+  DESC = DESC || await api('/api/dorm/psyche/describe');
+  CATALOG = CATALOG || await api('/api/dorm/psyche/questionnaire');
+  raw({ describe: DESC, questionnaire: CATALOG });
+  const dims = (DESC.dimensions||[]).map(d => `<tr><td>${esc(d.index ?? '')}</td><td><b>${esc(d.label||d.name||'')}</b></td>
+    <td class="text-xs">${esc(d.description||d.note||'')}</td><td>${d.hourScale?'小时（跨零点 +24）':'0..1'}</td></tr>`).join('');
+  const pipe = (DESC.pipeline||[]).map((s,i) => `<li>${esc(typeof s === 'string' ? s : JSON.stringify(s))}</li>`).join('');
+  const items = (CATALOG.items||[]).map(it => `<tr><td class="mono">${it.no}</td><td class="mono">${esc(it.code)}</td>
+    <td>${esc(it.dimension||'—')}</td><td>${esc(it.kind)}</td><td class="text-xs">${esc(it.prompt)}</td>
+    <td class="text-xs">${(it.options||[]).map(o=>esc(o.label)+'('+o.value+')').join(' / ')}</td></tr>`).join('');
+  $('panel-catalog').innerHTML =
+    card('模块状态', 'info', `<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      ${statCard('大模型', DESC.llmReady?'就绪':'未就绪', esc(DESC.llmModel||''), 'smart_toy')}
+      ${statCard('接口', esc(DESC.llmBaseUrl||''), '并发上限 '+esc(DESC.llmMaxConcurrent??''), 'cloud')}
+      ${statCard('默认提取器', esc(DESC.extractor||''), '阈值 '+esc(DESC.minConfidence??''), 'auto_awesome')}
+      ${statCard('单段上限', esc(DESC.llmMaxTextChars??''), '字符', 'straighten')}</div>
+      <p class="text-xs mt-3 nx-muted">${esc(DESC.notice||'')}</p>`)
+    + (pipe ? card('提取流程', 'account_tree', `<ol class="list-decimal ml-5 text-sm space-y-1">${pipe}</ol>`) : '')
+    + card('11 维特征口径', 'straighten', `<table class="grid-table"><thead><tr><th>#</th><th>维度</th><th>说明</th><th>量纲</th></tr></thead><tbody>${dims}</tbody></table>`)
+    + card('问卷题库（' + (CATALOG.items||[]).length + ' 题）', 'quiz',
+      `<p class="text-xs mb-3 nx-muted">${esc(CATALOG.note||'')}</p>
+       <table class="grid-table"><thead><tr><th>#</th><th>代码</th><th>维度</th><th>类型</th><th>题目</th><th>选项</th></tr></thead><tbody>${items}</tbody></table>`);
+}
+
+// ── 提取器评测 ──────────────────────────────────────────
+// 把服务端返回的 Markdown 表格画成 HTML。刻意不引第三方 markdown 库：
+// 这里只有"表格 + 标题 + 引用行"三种形状，自己解析反而不会出意外。
+function mdRender(md) {
+  const out = [];
+  let rows = [], header = false;
+  const flush = () => {
+    if (!rows.length) return;
+    const body = rows.map((r, i) => `<tr>${r.map(c =>
+      (i === 0 && header) ? `<th>${esc(c)}</th>` : `<td>${esc(c)}</td>`).join('')}</tr>`).join('');
+    out.push(`<div class="overflow-auto"><table class="grid-table">${body}</table></div>`);
+    rows = []; header = false;
+  };
+  String(md || '').split('\n').forEach(line => {
+    const t = line.trim();
+    if (t.startsWith('|')) {
+      const cells = t.replace(/^\||\|$/g, '').split('|').map(s => s.trim());
+      if (cells.every(c => /^-{2,}$/.test(c))) { header = true; return; }
+      rows.push(cells);
+      return;
+    }
+    flush();
+    if (!t) return;
+    if (t.startsWith('#')) out.push(`<h4 class="font-bold mt-5 mb-2">${esc(t.replace(/^#+\s*/, ''))}</h4>`);
+    else if (t.startsWith('>')) out.push(`<p class="text-xs mt-2 nx-muted">${esc(t.slice(1).trim())}</p>`);
+    else out.push(`<p class="text-sm">${esc(t)}</p>`);
+  });
+  flush();
+  return out.join('');
+}
+
+let EVAL = null;
+
+async function renderEval() {
+  const hist = await api('/api/dorm/psyche/eval/history?limit=20').catch(() => []);
+  const histRows = (hist || []).map(h => `<tr>
+    <td class="mono text-xs">${esc(h.id)}</td><td>${esc(h.extractor)}</td><td>${esc(h.variant)}</td>
+    <td>${esc(h.cases)}</td><td>${num(h.mae_hour)}</td><td>${num(h.mae01)}</td>
+    <td>${num(h.pearson_mean)}</td><td>${num(h.spearman_mean)}</td>
+    <td>${num(h.collapse)}</td><td>${pct(h.coverage)}</td>
+    <td class="text-xs">${esc(String(h.created_at || '').replace('T', ' ').slice(0, 19))}</td></tr>`).join('');
+
+  let res = '';
+  if (EVAL) {
+    const d = EVAL;
+    const head = `<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+      ${statCard('参评学生', d.students, '种子 ' + d.seed, 'group')}
+      ${statCard('大模型支路', d.llmUsed ? '已启用' : '未启用', esc(d.llmNote || ''), 'smart_toy')}
+      ${statCard('大模型人数', d.llmStudents, '每人 2 次采样', 'repeat')}
+      ${statCard('总耗时', d.elapsedMs + ' ms', '含造数据', 'timer')}</div>`;
+    const sample = d.sampleText ? card('出题样例：文字在左，答案在右', 'school',
+      `<div class="grid md:grid-cols-2 gap-4">
+        <pre class="text-xs whitespace-pre-wrap p-3 rounded bg-slate-900 text-slate-100 max-h-72 overflow-auto">${esc(d.sampleText.selfIntro || '')}</pre>
+        <pre class="text-xs whitespace-pre-wrap p-3 rounded bg-slate-900 text-slate-100 max-h-72 overflow-auto">${esc(d.sampleText.chatLog || '')}</pre>
+      </div>
+      <p class="text-xs mt-2 nx-muted">提取器只能看到这些文字；真特征那串数字它永远看不到——评分就是这么来的。</p>`) : '';
+    res = card('本次结果', 'assessment', head + mdRender(d.headline))
+      + (d.ablation ? card('消融：剔除他人与助手发言，值几个点', 'science', mdRender(d.ablation)) : '')
+      + card('逐维明细', 'table_chart', mdRender(d.detail) + (d.detailFull ? mdRender(d.detailFull) : ''))
+      + sample;
+  }
+
+  $('panel-eval').innerHTML =
+    card('这是个什么问题', 'help',
+      `<p class="text-sm nx-muted leading-relaxed">
+        「你怎么知道大模型提取的性格是准的」——这个页就是答案。<br>
+        做法：先给每个虚拟学生抽一份<b>真特征</b>，再把真特征<b>反写成一段学生口吻的自述与聊天记录</b>，
+        然后只把这段<b>文字</b>喂给提取器，最后拿提取结果与真特征比。
+        提取器全程只看得到文字，看不到答案，所以这里量的是真实的语义理解误差，不是抄写误差。<br>
+        全流程用合成学生，不涉及任何真实学生的信息。</p>`)
+    + card('跑一次', 'play_circle',
+      `<div class="flex flex-wrap items-end gap-4 mb-3">
+        <label class="text-sm">学生数 <input id="eval-n" type="number" value="60" min="4" max="2000"
+          class="ml-2 w-24 px-3 py-1.5 rounded border border-primary/20 bg-base-200"></label>
+        <label class="text-sm">大模型人数 <input id="eval-llmn" type="number" value="8" min="0" max="60"
+          class="ml-2 w-20 px-3 py-1.5 rounded border border-primary/20 bg-base-200"></label>
+      </div>
+      <div class="flex flex-wrap gap-3">
+        <button id="eval-rule" class="px-5 py-2.5 rounded-full text-sm font-medium bg-primary text-white">只跑规则（约 1 秒）</button>
+        <button id="eval-llm" class="px-5 py-2.5 rounded-full text-sm font-medium border border-primary/30 hover:bg-primary/5">带大模型跑（按人头计费，约 1 分钟）</button>
+      </div>
+      <p class="text-xs mt-3 nx-muted">带大模型那一档每个人要采样 2 次（第一次温度 0，第二次 0.35），
+      两次的差就是「不确定性估计」：分歧太大会把置信度压下去，最终被阈值挡掉。</p>`)
+    + res
+    + card('历史记录', 'history',
+      histRows ? `<div class="overflow-auto"><table class="grid-table"><thead><tr>
+        <th>#</th><th>提取器</th><th>口径</th><th>样本</th><th>MAE 作息</th><th>MAE 其余</th>
+        <th>|Pearson|</th><th>|Spearman|</th><th>收敛比</th><th>覆盖</th><th>时间</th></tr></thead>
+        <tbody>${histRows}</tbody></table></div>`
+        : '<p class="text-sm nx-muted">还没有评测记录。上面点一次就会留档。</p>');
+
+  const run = (useLlm) => guard(async () => {
+    const n = Number($('eval-n').value) || 60;
+    const ln = Number($('eval-llmn').value) || 0;
+    toast(useLlm ? '正在跑，大模型每个人要十几秒，请等一等…' : '正在跑…');
+    const r = await post('/api/dorm/psyche/eval', {
+      students: n, llmStudents: ln, useLlm: useLlm, ablation: !useLlm
+    });
+    EVAL = r; raw(r);
+    toast('评测完成');
+    await renderEval();
+  });
+  $('eval-rule').addEventListener('click', () => run(false));
+  $('eval-llm').addEventListener('click', () => run(true));
+}
+
+guard(async () => {
+  DESC = await api('/api/dorm/psyche/describe'); raw(DESC);
+  $('stats').innerHTML =
+    statCard('大模型', DESC.llmReady ? '就绪' : '未就绪', esc(DESC.llmModel||''), 'smart_toy') +
+    statCard('默认提取器', esc(DESC.extractor||''), '融合双路', 'auto_awesome') +
+    statCard('置信度阈值', esc(DESC.minConfidence??''), '低于此值丢弃', 'filter_alt') +
+    statCard('特征维度', (DESC.dimensions||[]).length || 11, 'dorm_student_feature', 'straighten');
+  await renderStudents();
+});
+</script>
+  <script defer src="/js/nest-ui.js"></script>
+    <script defer src="/libs/animejs/anime.umd.min.js"></script>
+    <script defer src="/libs/countup/countUp.umd.js"></script>
+    <script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+    <script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+    <script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+</body>
+</html>

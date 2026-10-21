@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="nestlight">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的奖惩记录 · 学工平台</title>
+  <!--
+    主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
+    daisyUI 的组件颜色跟的是 [data-theme] 属性（不是 .dark 类），两处都必须写，
+    与 nest-ui.js 的 paintTheme() 保持一致。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <script src="/pwa.js" defer></script>
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/nest-art3.css">
+</head>
+
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content">
+
+<header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none border-0 p-0">
+  <div class="navbar mx-auto min-h-0 w-full max-w-7xl gap-3 px-5 py-2 md:px-8">
+    <div class="navbar-start gap-3">
+      <a class="flex items-center gap-3" href="dashboard.html">
+        <span class="nx-logo">
+          <span class="material-symbols-outlined text-xl">terminal</span>
+        </span>
+        <span class="hidden text-lg font-black uppercase tracking-tight sm:inline">学工平台</span>
+      </a>
+      <span class="hidden h-5 w-px bg-base-300 lg:block"></span>
+      <span class="hidden font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65 lg:block">§ 06 · Student affairs / Awards</span>
+    </div>
+    <div class="navbar-end gap-1.5">
+      <a class="btn btn-ghost btn-sm gap-2 rounded-full" href="dashboard.html">
+        <span class="material-symbols-outlined text-lg">dashboard</span>
+        <span class="hidden md:inline">工作台</span>
+      </a>
+      <button aria-label="切换深色 / 浅色模式" class="nx-icon-btn" data-nx-theme-toggle title="切换深色 / 浅色模式" type="button">
+        <span class="material-symbols-outlined nx-theme-icon-light text-xl">dark_mode</span>
+        <span class="material-symbols-outlined nx-theme-icon-dark text-xl">light_mode</span>
+      </button>
+      <a class="nx-icon-btn" href="settings.html" title="设置">
+        <span class="material-symbols-outlined text-xl">settings</span>
+      </a>
+      <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="logout-btn" type="button">
+        <span class="material-symbols-outlined text-lg">logout</span>
+        <span class="hidden md:inline">退出登录</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="flex-1 px-5 py-8 md:px-8 md:py-12">
+  <div class="mx-auto w-full max-w-7xl">
+
+    <!-- ── 刊头：等宽小标 + 衬线大标题 + 发丝分隔线 ───────────────────── -->
+    <header class="mb-8 border-b border-base-300 pb-6">
+      <p class="nx-kicker">§ 06 · Student / Awards</p>
+      <h1 data-nx-split="1" class="mt-2 font-serif text-3xl leading-tight sm:text-4xl lg:text-5xl">我的奖惩记录</h1>
+      <p class="mt-4 max-w-2xl text-sm text-base-content/70">
+        奖励与处分由辅导员或管理员录入，学生端只读。记录、文号与金额都属学工归档材料，
+        如果有误请联系辅导员更正，不要自行处理。
+      </p>
+    </header>
+
+    <!-- ── 汇总发丝格 ─────────────────────────────────────────────── -->
+    <section id="award-stats" class="mb-10 grid grid-cols-3 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300"></section>
+
+    <div id="award-message" class="alert hidden mb-6 items-start gap-2"></div>
+
+    <!-- ── 记录列表 ──────────────────────────────────────────────── -->
+    <section id="award-list" class="grid gap-6 md:grid-cols-2" data-nx-autoanimate="1"></section>
+
+    <p id="award-empty" class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60">
+      还没有奖惩记录。获得奖励或被处分后，辅导员会在这里录入。
+    </p>
+
+  </div>
+</main>
+
+<footer class="nx-hairline-t border-base-300 px-5 py-6 md:px-8">
+  <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
+    <p class="font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65">学工平台 · Awards &amp; Discipline</p>
+    <p class="text-xs text-base-content/60">奖惩记录属于学生事务归档材料，请如实反映。</p>
+  </div>
+</footer>
+
+<script>
+  // ─────────────────────────────── 状态 ───────────────────────────────
+  const KIND_TEXT = { award: '奖励', punishment: '处分' };
+  const KIND_BADGE = { award: 'badge-success', punishment: 'badge-error' };
+  const LEVEL_TEXT = { national: '国家级', provincial: '省级', school: '校级', college: '院级' };
+
+  function escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  async function callApi(url, options) {
+    const response = await fetch(url, options);
+    return response.json();
+  }
+
+  function showMessage(text, type) {
+    const box = document.getElementById('award-message');
+    const tone = type === 'success' ? 'alert-success' : 'alert-error';
+    const icon = type === 'success' ? 'check_circle' : 'error';
+    box.classList.remove('hidden');
+    box.className = 'alert items-start gap-2 ' + tone;
+    box.innerHTML = '<span class="material-symbols-outlined text-lg">' + icon
+        + '</span><span class="text-sm">' + escapeHtml(text) + '</span>';
+  }
+
+  function clearMessage() {
+    document.getElementById('award-message').classList.add('hidden');
+  }
+
+  // ─────────────────────────────── 读数据 ─────────────────────────────
+  async function checkAuth() {
+    try {
+      const result = await callApi('/api/auth/me');
+      if (result.code !== 200) { window.location.href = 'login.html'; return null; }
+      const role = result.data && result.data.role;
+      if (role !== 'student') { window.location.href = 'award-manage.html'; return null; }
+      return result.data;
+    } catch (error) {
+      window.location.href = 'login.html';
+      return null;
+    }
+  }
+
+  function statCell(label, count) {
+    return '<div class="flex flex-col gap-1 bg-base-100 p-6">'
+        + '<dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">' + label + '</dt>'
+        + '<dd class="mt-1 font-serif text-2xl">' + count + '</dd></div>';
+  }
+
+  function renderStats(stats) {
+    const host = document.getElementById('award-stats');
+    const data = stats || {};
+    host.innerHTML = statCell('奖励', data.award || 0)
+        + statCell('处分', data.punishment || 0)
+        + statCell('合计', data.total || 0);
+  }
+
+  function moneyText(amount) {
+    if (amount === null || amount === undefined || amount === '') { return '—'; }
+    return '¥ ' + amount;
+  }
+
+  function recordHtml(item) {
+    const badge = KIND_BADGE[item.kind] || 'badge-ghost';
+    const kindText = KIND_TEXT[item.kind] || '记录';
+    const level = LEVEL_TEXT[item.level] || '—';
+    const rows = [
+      ['级别', level],
+      ['日期', item.grantedOn || '—'],
+      ['文号', item.docNo || '—'],
+      ['金额', moneyText(item.amount)]
+    ];
+    return '<article class="card rounded-box border border-base-300 bg-base-200 p-6 shadow-xl">'
+        + '<div class="flex items-start justify-between gap-3">'
+        + '<h2 class="text-lg font-bold leading-snug">' + escapeHtml(item.title) + '</h2>'
+        + '<span class="badge ' + badge + ' badge-sm whitespace-nowrap">' + kindText + '</span>'
+        + '</div>'
+        + '<dl class="mt-4 grid grid-cols-2 gap-x-6 gap-y-3">'
+        + rows.map(function (row) {
+          return '<div><dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">'
+              + row[0] + '</dt><dd class="mt-0.5 text-sm">' + escapeHtml(row[1]) + '</dd></div>';
+        }).join('')
+        + '</dl>'
+        + (item.reason ? '<p class="mt-4 border-t border-base-300 pt-4 text-sm text-base-content/75">' + escapeHtml(item.reason) + '</p>' : '')
+        + (item.revokedOn ? '<p class="mt-2 text-xs text-base-content/60">解除日期：' + escapeHtml(item.revokedOn) + '</p>' : '')
+        + '</article>';
+  }
+
+  async function load() {
+    const result = await callApi('/api/award-punishment/my?size=50');
+    if (result.code !== 200) {
+      showMessage(result.message || '读不到奖惩记录', 'error');
+      return;
+    }
+    renderStats(result.data.stats);
+    const items = result.data.items || [];
+    document.getElementById('award-list').innerHTML = items.map(recordHtml).join('');
+    const empty = document.getElementById('award-empty');
+    if (items.length === 0) { empty.classList.remove('hidden'); } else { empty.classList.add('hidden'); }
+  }
+
+  function logout() {
+    callApi('/api/auth/logout', { method: 'POST' }).then(function () {
+      window.location.href = 'login.html';
+    });
+  }
+
+  document.getElementById('logout-btn').addEventListener('click', logout);
+  document.addEventListener('DOMContentLoaded', async function () {
+    clearMessage();
+    const me = await checkAuth();
+    if (!me) { return; }
+    await load();
+  });
+</script>
+<script defer src="/js/nest-ui.js"></script>
+<script defer src="/libs/animejs/anime.umd.min.js"></script>
+<script defer src="/libs/countup/countUp.umd.js"></script>
+<script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+<script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+<script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+</body>
+</html>

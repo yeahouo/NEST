@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.PartyPublicityMapper">
+
+    <!--
+      公示留痕（学工 P16）。
+
+      硬口径（P15 E2E 缺陷 D2 的教训）：
+        * publish 只接受 {draft}  —— WHERE ... AND status = #{fromStatus}，服务层传 'draft'。
+        * close   只接受 {publicizing}；
+          **已结束（closed）再 close 必须 400**，绝不能靠「WHERE 恒真」放出幂等 200。
+        * 服务层先显式前置校验再 CAS，两处口径一致（见 PartyService.publishPublicity/closePublicity）。
+        * node_type 只登记有来源的三类节点（S22 第 11/14/25 步）：training_student / develop_party /
+          probation_convert —— 无来源的公示节点不臆造。
+        * objection_channel 只写校级受理渠道，**不写支部个人联系方式**（§11.2-6）。
+        * onlyOpen=true（学生端）时只看 publicizing / closed，草稿不外泄。
+      本 XML 无裸 '<'。
+    -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.PartyPublicity">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="node_type" property="nodeType"/>
+        <result column="title" property="title"/>
+        <result column="stage" property="stage"/>
+        <result column="start_date" property="startDate"/>
+        <result column="end_date" property="endDate"/>
+        <result column="workdays" property="workdays"/>
+        <result column="notice_text" property="noticeText"/>
+        <result column="objection_channel" property="objectionChannel"/>
+        <result column="status" property="status"/>
+        <result column="result" property="result"/>
+        <result column="published_at" property="publishedAt"/>
+        <result column="closed_at" property="closedAt"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="user_name" property="userName"/>
+        <result column="student_no" property="studentNo"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        p.id, p.user_id, p.node_type, p.title, p.stage, p.start_date, p.end_date, p.workdays,
+        p.notice_text, p.objection_channel, p.status, p.result, p.published_at, p.closed_at,
+        p.created_by, p.created_at, p.updated_at, p.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.username) AS user_name,
+        u.student_id AS student_no
+    </sql>
+
+    <sql id="Joined_From">
+        FROM party_publicity p
+        LEFT JOIN users u ON u.id = p.user_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = p.user_id AND sp.deleted = 0
+    </sql>
+
+    <sql id="List_Filters">
+        <if test="userId != null">AND p.user_id = #{userId}</if>
+        <!-- 辅导员范围：只见 student_profile.counselor_id 名下学生（§11.2-5） -->
+        <if test="counselorId != null">AND sp.counselor_id = #{counselorId}</if>
+        <if test="nodeType != null and nodeType != ''">AND p.node_type = #{nodeType}</if>
+        <if test="status != null and status != ''">AND p.status = #{status}</if>
+        <!-- 学生端：草稿不外泄 -->
+        <if test="onlyOpen">
+            AND p.status IN ('publicizing', 'closed')
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.PartyPublicity" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO party_publicity
+            (user_id, node_type, title, stage, start_date, end_date, workdays,
+             notice_text, objection_channel, status, result, published_at, closed_at,
+             created_by, created_at, updated_at, deleted)
+        VALUES
+            (#{userId}, #{nodeType}, #{title}, #{stage}, #{startDate}, #{endDate}, #{workdays},
+             #{noticeText}, #{objectionChannel}, #{status}, #{result}, #{publishedAt}, #{closedAt},
+             #{createdBy}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE p.id = #{id} AND p.deleted = 0
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE p.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY p.start_date DESC, p.id DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE p.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <!-- 增量修改 CAS on status（服务层只允许草稿态修改，传 'draft'） -->
+    <update id="update">
+        UPDATE party_publicity
+        SET node_type = #{publicity.nodeType},
+            title = #{publicity.title},
+            stage = #{publicity.stage},
+            user_id = #{publicity.userId},
+            start_date = #{publicity.startDate},
+            end_date = #{publicity.endDate},
+            workdays = #{publicity.workdays},
+            notice_text = #{publicity.noticeText},
+            objection_channel = #{publicity.objectionChannel},
+            status = #{publicity.status},
+            result = #{publicity.result},
+            updated_at = NOW()
+        WHERE id = #{publicity.id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- publish：只接受 draft（CAS） -->
+    <update id="publish">
+        UPDATE party_publicity
+        SET status = 'publicizing',
+            published_at = #{publishedAt},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- close：只接受 publicizing（CAS）；已结束再 close 会命中 0 行 ⇒ 服务层返回 400，不做幂等 200 -->
+    <update id="close">
+        UPDATE party_publicity
+        SET status = 'closed',
+            result = #{result},
+            closed_at = #{closedAt},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <select id="countGroupByStatus" resultType="java.util.LinkedHashMap">
+        SELECT p.status AS status, COUNT(*) AS total
+        FROM party_publicity p
+        WHERE p.deleted = 0
+        GROUP BY p.status
+        ORDER BY p.status
+    </select>
+
+    <select id="countGroupByNodeType" resultType="java.util.LinkedHashMap">
+        SELECT p.node_type AS node_type, COUNT(*) AS total
+        FROM party_publicity p
+        WHERE p.deleted = 0
+        GROUP BY p.node_type
+        ORDER BY p.node_type
+    </select>
+
+</mapper>

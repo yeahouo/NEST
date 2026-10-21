@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.SecondClassActivityMapper">
+
+    <!-- 第二课堂活动（学工 P18，S26）。categoryName 由 JOIN 带出，recordCount 是子查询统计（均非表字段）。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.SecondClassActivity">
+        <id column="id" property="id"/>
+        <result column="category_id" property="categoryId"/>
+        <result column="title" property="title"/>
+        <result column="organizer" property="organizer"/>
+        <result column="level" property="level"/>
+        <result column="start_date" property="startDate"/>
+        <result column="end_date" property="endDate"/>
+        <result column="hours" property="hours"/>
+        <result column="credit" property="credit"/>
+        <result column="location" property="location"/>
+        <result column="description" property="description"/>
+        <result column="status" property="status"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="category_name" property="categoryName"/>
+        <result column="record_count" property="recordCount"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        t.id, t.category_id, t.title, t.organizer, t.level, t.start_date, t.end_date, t.hours, t.credit,
+        t.location, t.description, t.status, t.created_by, t.created_at, t.updated_at, t.deleted,
+        c.name AS category_name,
+        (SELECT COUNT(*) FROM second_class_record r WHERE r.activity_id = t.id AND r.deleted = 0) AS record_count
+    </sql>
+
+    <sql id="Joined_From">
+        FROM second_class_activity t
+        LEFT JOIN second_class_category c ON c.id = t.category_id AND c.deleted = 0
+    </sql>
+
+    <sql id="Filter_Where">
+        WHERE t.deleted = 0
+        <if test="categoryId != null">AND t.category_id = #{categoryId}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (t.title LIKE CONCAT('%', #{keyword}, '%')
+                 OR t.organizer LIKE CONCAT('%', #{keyword}, '%')
+                 OR t.location LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <select id="listPublished" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        <include refid="Filter_Where"/>
+        AND t.status = 'published'
+        ORDER BY t.start_date DESC, t.id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countPublished" resultType="long">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        <include refid="Filter_Where"/>
+        AND t.status = 'published'
+    </select>
+
+    <select id="listForAdmin" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        <include refid="Filter_Where"/>
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+        ORDER BY t.id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countForAdmin" resultType="long">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        <include refid="Filter_Where"/>
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.id = #{id} AND t.deleted = 0
+    </select>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.SecondClassActivity"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO second_class_activity
+            (category_id, title, organizer, level, start_date, end_date, hours, credit, location,
+             description, status, created_by, deleted)
+        VALUES
+            (#{categoryId}, #{title}, #{organizer}, #{level}, #{startDate}, #{endDate}, #{hours},
+             #{credit}, #{location}, #{description}, #{status}, #{createdBy}, 0)
+    </insert>
+
+    <update id="update" parameterType="java.util.Map">
+        UPDATE second_class_activity
+        <set>
+            <if test="a.categoryId != null">category_id = #{a.categoryId},</if>
+            <if test="a.title != null">title = #{a.title},</if>
+            <if test="a.organizer != null">organizer = #{a.organizer},</if>
+            <if test="a.level != null">level = #{a.level},</if>
+            <if test="a.startDate != null">start_date = #{a.startDate},</if>
+            <if test="a.endDate != null">end_date = #{a.endDate},</if>
+            <if test="a.hours != null">hours = #{a.hours},</if>
+            <if test="a.location != null">location = #{a.location},</if>
+            <if test="a.description != null">description = #{a.description},</if>
+            <!-- 学分允许清空回「不计学分」：表单整份提交，所以整体覆盖而不是动态 set。 -->
+            credit = #{a.credit},
+            updated_at = NOW()
+        </set>
+        WHERE id = #{a.id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE second_class_activity
+        SET status = #{toStatus}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <select id="countRecordsByActivity" resultType="long">
+        SELECT COUNT(*) FROM second_class_record WHERE activity_id = #{activityId} AND deleted = 0
+    </select>
+
+</mapper>

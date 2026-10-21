@@ -1,0 +1,132 @@
+{
+  "port": 9222,
+  "clearCache": true,
+  "page": {
+    "url": "http://127.0.0.1:8080/art.html?cb=art3",
+    "width": 1440,
+    "height": 1000,
+    "waitMs": 3000
+  },
+  "steps": [
+    {
+      "name": "clean-light",
+      "eval": "try{localStorage.setItem('nest-theme','light');localStorage.removeItem('nest-art-motion');}catch(e){};location.reload();'reloading'",
+      "waitMs": 4000
+    },
+    {
+      "name": "state-light",
+      "eval": "(()=>{const host=document.querySelector('[data-art-shader=\"hero\"]');const m=host&&host.paperShaderMount;const band=document.querySelector('[data-art-shader=\"band\"]');const bm=band&&band.paperShaderMount;const A=window.NestArt||{};return JSON.stringify({page:location.pathname,title:document.title,art:{v:A.version,state:A.state,theme:A.theme,motion:A.motion,canvases:A.canvases,webgl:A.webgl,error:A.error},heroBox:host?[host.clientWidth,host.clientHeight]:null,bandBox:band?[band.clientWidth,band.clientHeight]:null,heroFrame:m?Math.round(m.currentFrame):null,bandSpeed:bm?bm.currentSpeed:null,htmlDark:document.documentElement.classList.contains('dark'),static:document.documentElement.classList.contains('art-static'),bodyBg:getComputedStyle(document.body).backgroundColor,fontSerif:document.fonts.check('400 16px \"Instrument Serif\"'),fontItalic:document.fonts.check('italic 400 16px \"Instrument Serif\"'),lenisLoaded:typeof window.Lenis,revealed:document.querySelectorAll('[data-art-reveal].is-in').length,revealTotal:document.querySelectorAll('[data-art-reveal]').length,docH:document.documentElement.scrollHeight,themeBtn:document.getElementById('artTheme').textContent+'|'+document.getElementById('artTheme').getAttribute('aria-pressed'),motionBtn:document.getElementById('artMotion').textContent+'|'+document.getElementById('artMotion').getAttribute('aria-pressed')});})()"
+    },
+    {
+      "name": "font-evidence",
+      "eval": "JSON.stringify({ready:document.fonts.status,faces:Array.from(document.fonts).map(f=>f.family+'/'+f.weight+'/'+f.style+'/'+f.status),fetched:Array.from(performance.getEntriesByType('resource')).filter(e=>/instrument-serif/.test(e.name)).map(e=>e.name.split('/').pop()),widths:(function(){function mk(ff){var s=document.createElement('span');s.textContent='NEST安居 Aa Ww 123';s.style.cssText='position:fixed;left:-9999px;top:0;font-size:80px;white-space:nowrap;font-family:'+ff;document.body.appendChild(s);var w=s.getBoundingClientRect().width;s.remove();return Math.round(w*10)/10;}return {serif:mk(\"'Instrument Serif', serif\"),genericSerif:mk('serif'),sans:mk(\"'Public Sans', sans-serif\"),genericSans:mk('sans-serif')};})()})",
+      "waitMs": 400
+    },
+    {
+      "name": "shader-pixels",
+      "eval": "(async()=>{const M=await import('/libs/paper-shaders/shader-mount.js?v=3');const F=await import('/libs/paper-shaders/shaders/mesh-gradient.js?v=3');const S=await import('/libs/paper-shaders/shader-sizing.js?v=3');const C=await import('/libs/paper-shaders/get-shader-color-from-string.js?v=3');const SIZING={u_fit:S.ShaderFitOptions[S.defaultObjectSizing.fit],u_scale:S.defaultObjectSizing.scale,u_rotation:S.defaultObjectSizing.rotation,u_offsetX:S.defaultObjectSizing.offsetX,u_offsetY:S.defaultObjectSizing.offsetY,u_originX:S.defaultObjectSizing.originX,u_originY:S.defaultObjectSizing.originY,u_worldWidth:S.defaultObjectSizing.worldWidth,u_worldHeight:S.defaultObjectSizing.worldHeight,u_imageAspectRatio:1};const host=document.createElement('div');host.style.cssText='position:fixed;left:0;top:0;width:320px;height:180px;opacity:0.01;pointer-events:none';document.body.appendChild(host);const colors=['#eef1fd','#8ea5f7','#3e63dd','#9b6fd6','#f6c67a'].map(C.getShaderColorFromString);const m=new M.ShaderMount(host,F.meshGradientFragmentShader,Object.assign({u_colors:colors,u_colorsCount:5,u_distortion:0.85,u_swirl:0.26,u_grainMixer:0.14,u_grainOverlay:0.05},SIZING),{preserveDrawingBuffer:true},0.8,0,1,320*180);await new Promise(r=>setTimeout(r,1200));const gl=m.gl,w=m.canvasElement.width,h=m.canvasElement.height;const px=new Uint8Array(w*h*4);gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,px);const sum=[0,0,0],min=[255,255,255],max=[0,0,0];let n=0,sq=0;for(let i=0;i<px.length;i+=4*7){const r=px[i],g=px[i+1],b=px[i+2];sum[0]+=r;sum[1]+=g;sum[2]+=b;for(let k=0;k<3;k++){const v=px[i+k];if(v<min[k])min[k]=v;if(v>max[k])max[k]=v;}const lum=0.2126*r+0.7152*g+0.0722*b;sq+=lum*lum;n++;}const mean=sum.map(s=>Math.round(s/n));const meanLum=0.2126*mean[0]+0.7152*mean[1]+0.0722*mean[2];const out={glSize:[w,h],mean,min,max,meanLum:Math.round(meanLum),sdLum:Math.round(Math.sqrt(Math.max(0,sq/n-meanLum*meanLum))),inViewport:m.isInViewport,currentSpeed:m.currentSpeed,alphaFirst:px[3]};m.dispose();host.remove();return JSON.stringify(out);})()"
+    },
+    {
+      "name": "reveal-all",
+      "eval": "document.querySelectorAll('[data-art-reveal]').forEach(e=>e.classList.add('is-in'));'ok'",
+      "waitMs": 700
+    },
+    {
+      "name": "shot-light",
+      "shot": true,
+      "file": "target/zz-art-light-full.png"
+    },
+    {
+      "name": "hero-only-on",
+      "eval": "document.querySelectorAll('.art-sec,.art-foot,.art-progress').forEach(e=>e.style.display='none');window.scrollTo(0,0);'ok'",
+      "waitMs": 500
+    },
+    {
+      "name": "shot-hero-light",
+      "shot": true,
+      "file": "target/zz-art-hero-light.png"
+    },
+    {
+      "name": "theme-toggle-dark",
+      "eval": "document.getElementById('artTheme').click();'clicked'",
+      "waitMs": 1100
+    },
+    {
+      "name": "state-dark",
+      "eval": "(()=>{const A=window.NestArt;const t=document.querySelector('.art-title-lat');return JSON.stringify({theme:A.theme,htmlDark:document.documentElement.classList.contains('dark'),aria:document.getElementById('artTheme').getAttribute('aria-pressed'),btn:document.getElementById('artTheme').textContent,bodyBg:getComputedStyle(document.body).backgroundColor,titleColor:getComputedStyle(t).color,heroSpeed:A.speed,frame:Math.round(A.frame)});})()"
+    },
+    {
+      "name": "shot-hero-dark",
+      "shot": true,
+      "file": "target/zz-art-hero-dark.png"
+    },
+    {
+      "name": "sections-on",
+      "eval": "document.querySelectorAll('.art-sec,.art-foot,.art-progress').forEach(e=>e.style.display='');'ok'",
+      "waitMs": 400
+    },
+    {
+      "name": "shot-dark",
+      "shot": true,
+      "file": "target/zz-art-dark-full.png"
+    },
+    {
+      "name": "fallback-css",
+      "eval": "document.documentElement.classList.add('art-no-webgl');JSON.stringify({hostBg:getComputedStyle(document.querySelector('.art-shader-host')).backgroundImage.slice(0,90),webgl:window.NestArt.webgl})"
+    },
+    {
+      "name": "fallback-off",
+      "eval": "document.documentElement.classList.remove('art-no-webgl');'ok'"
+    },
+    {
+      "name": "scroll-mid",
+      "eval": "window.scrollTo(0, Math.round(document.documentElement.scrollHeight*0.45));'ok'",
+      "waitMs": 700
+    },
+    {
+      "name": "state-mid",
+      "eval": "(()=>{const bar=document.getElementById('artProgress');return JSON.stringify({y:Math.round(window.scrollY),progress:bar?bar.firstElementChild.style.width:null,revealed:document.querySelectorAll('[data-art-reveal].is-in').length,theme:window.NestArt.theme,heroSpeed:window.NestArt.speed,heroInView:document.querySelector('[data-art-shader=\"hero\"]').paperShaderMount.isInViewport});})()"
+    },
+    {
+      "name": "scroll-top",
+      "eval": "window.scrollTo(0,0);'ok'",
+      "waitMs": 900
+    },
+    {
+      "name": "motion-on-a",
+      "eval": "JSON.stringify({motion:window.NestArt.motion,speed:window.NestArt.speed,frame:Math.round(window.NestArt.frame),btn:document.getElementById('artMotion').textContent+'|'+document.getElementById('artMotion').getAttribute('aria-pressed')})"
+    },
+    {
+      "name": "wait-a",
+      "eval": "'tick'",
+      "waitMs": 1300
+    },
+    {
+      "name": "motion-on-b",
+      "eval": "JSON.stringify({speed:window.NestArt.speed,frame:Math.round(window.NestArt.frame)})"
+    },
+    {
+      "name": "motion-off-click",
+      "eval": "document.getElementById('artMotion').click();'clicked'",
+      "waitMs": 900
+    },
+    {
+      "name": "motion-off-a",
+      "eval": "JSON.stringify({motion:window.NestArt.motion,static:document.documentElement.classList.contains('art-static'),speed:window.NestArt.speed,frame:Math.round(window.NestArt.frame),btn:document.getElementById('artMotion').textContent+'|'+document.getElementById('artMotion').getAttribute('aria-pressed')})"
+    },
+    {
+      "name": "wait-b",
+      "eval": "'tick'",
+      "waitMs": 1300
+    },
+    {
+      "name": "motion-off-b",
+      "eval": "JSON.stringify({speed:window.NestArt.speed,frame:Math.round(window.NestArt.frame),revealed:document.querySelectorAll('[data-art-reveal].is-in').length})"
+    },
+    {
+      "name": "shot-still",
+      "shot": true,
+      "file": "target/zz-art-still-full.png"
+    }
+  ]
+}

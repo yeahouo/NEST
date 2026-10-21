@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.LeaveRequestMapper">
+
+    <!-- 列表展示需要学生姓名/学号/班级与审批人姓名，统一在这里 JOIN 出来：
+         users u（学生）、student_profile sp（学号/班级）、approver（审批人） -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.LeaveRequest">
+        <id column="id" property="id"/>
+        <result column="student_id" property="studentId"/>
+        <result column="type" property="type"/>
+        <result column="start_at" property="startAt"/>
+        <result column="end_at" property="endAt"/>
+        <result column="days" property="days"/>
+        <result column="reason" property="reason"/>
+        <result column="place" property="place"/>
+        <result column="contact" property="contact"/>
+        <result column="attachment" property="attachment"/>
+        <result column="status" property="status"/>
+        <result column="approver_id" property="approverId"/>
+        <result column="approve_note" property="approveNote"/>
+        <result column="approved_at" property="approvedAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="approver_name" property="approverName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        l.id, l.student_id, l.type, l.start_at, l.end_at, l.days, l.reason, l.place,
+        l.contact, l.attachment, l.status, l.approver_id, l.approve_note, l.approved_at,
+        l.created_at, l.updated_at, l.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(sp.student_no, u.student_id) AS student_no,
+        COALESCE(sp.class_name, u.class_name) AS class_name,
+        COALESCE(NULLIF(a.real_name, ''), a.username) AS approver_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM leave_request l
+        LEFT JOIN users u ON u.id = l.student_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = l.student_id AND sp.deleted = 0
+        LEFT JOIN users a ON a.id = l.approver_id
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.LeaveRequest"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO leave_request
+            (student_id, type, start_at, end_at, days, reason, place, contact,
+             attachment, status, created_at, updated_at)
+        VALUES
+            (#{studentId}, #{type}, #{startAt}, #{endAt}, #{days}, #{reason}, #{place}, #{contact},
+             #{attachment}, #{status}, NOW(), NOW())
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE l.id = #{id} AND l.deleted = 0
+    </select>
+
+    <select id="listByStudent" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE l.student_id = #{studentId} AND l.deleted = 0
+        <if test="status != null and status != ''">AND l.status = #{status}</if>
+        ORDER BY l.created_at DESC, l.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByStudent" resultType="int">
+        SELECT COUNT(*) FROM leave_request l
+        WHERE l.student_id = #{studentId} AND l.deleted = 0
+        <if test="status != null and status != ''">AND l.status = #{status}</if>
+    </select>
+
+    <!-- 收件箱：scopeCounselorId 非空时只看该辅导员名下的学生（依 student_profile.counselor_id） -->
+    <select id="listInbox" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE l.deleted = 0
+        <if test="status != null and status != ''">AND l.status = #{status}</if>
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.student_no LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.class_name LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY FIELD(l.status, 'pending') DESC, l.created_at DESC, l.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countInbox" resultType="int">
+        SELECT COUNT(*)
+        FROM leave_request l
+        LEFT JOIN users u ON u.id = l.student_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = l.student_id AND sp.deleted = 0
+        WHERE l.deleted = 0
+        <if test="status != null and status != ''">AND l.status = #{status}</if>
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.student_no LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.class_name LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </select>
+
+    <update id="updateStatus">
+        UPDATE leave_request
+        SET status = #{to},
+            approver_id = #{approverId},
+            approve_note = #{approveNote},
+            approved_at = NOW(),
+            updated_at = NOW()
+        WHERE id = #{id} AND status = #{from} AND deleted = 0
+    </update>
+
+    <update id="cancel">
+        UPDATE leave_request
+        SET status = 'cancelled', updated_at = NOW()
+        WHERE id = #{id} AND student_id = #{studentId} AND status = 'pending' AND deleted = 0
+    </update>
+
+    <update id="softDelete">
+        UPDATE leave_request
+        SET deleted = 1, updated_at = NOW()
+        WHERE id = #{id} AND student_id = #{studentId} AND deleted = 0
+    </update>
+
+    <select id="countGroupByStatus" resultType="java.util.Map">
+        SELECT l.status AS status, COUNT(*) AS cnt
+        FROM leave_request l
+        LEFT JOIN student_profile sp ON sp.user_id = l.student_id AND sp.deleted = 0
+        WHERE l.deleted = 0
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+        GROUP BY l.status
+    </select>
+    <!-- 辅导员工作台·逾期预警：已批准但还没销假、结束时间已经过的假条 -->
+    <select id="listOverdue" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE l.deleted = 0 AND l.status = 'approved' AND l.end_at &lt; #{before}
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+        ORDER BY l.end_at ASC, l.id ASC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countOverdue" resultType="int">
+        SELECT COUNT(*)
+        FROM leave_request l
+        LEFT JOIN student_profile sp ON sp.user_id = l.student_id AND sp.deleted = 0
+        WHERE l.deleted = 0 AND l.status = 'approved' AND l.end_at &lt; #{before}
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+    </select>
+
+    <!-- 辅导员工作台·请假频繁预警：since 之后提交 >= minCount 条的学生 -->
+    <select id="listFrequentStudents" resultType="java.util.Map">
+        SELECT l.student_id AS student_id,
+               COUNT(*) AS cnt,
+               COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+               COALESCE(sp.student_no, u.student_id) AS student_no,
+               COALESCE(sp.class_name, u.class_name) AS class_name,
+               MAX(l.created_at) AS last_created
+        FROM leave_request l
+        LEFT JOIN users u ON u.id = l.student_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = l.student_id AND sp.deleted = 0
+        WHERE l.deleted = 0 AND l.created_at &gt;= #{since}
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+        GROUP BY l.student_id, student_name, student_no, class_name
+        HAVING COUNT(*) &gt;= #{minCount}
+        ORDER BY cnt DESC, last_created DESC
+    </select>
+
+</mapper>

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.VerificationCodeMapper">
+
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.VerificationCode">
+        <id column="id" property="id"/>
+        <result column="scene" property="scene"/>
+        <result column="target" property="target"/>
+        <result column="code_hash" property="codeHash"/>
+        <result column="expires_at" property="expiresAt"/>
+        <result column="attempts" property="attempts"/>
+        <result column="used" property="used"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, scene, target, code_hash, expires_at, attempts, used, create_time
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.VerificationCode"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO verification_code (scene, target, code_hash, expires_at, attempts, used, create_time)
+        VALUES (#{scene}, #{target}, #{codeHash}, #{expiresAt}, #{attempts}, #{used}, NOW())
+    </insert>
+
+    <select id="findLatestActive" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM verification_code
+        WHERE scene = #{scene}
+          AND target = #{target}
+          AND used = 0
+          AND expires_at &gt; NOW()
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <update id="incrementAttempts">
+        UPDATE verification_code SET attempts = attempts + 1 WHERE id = #{id}
+    </update>
+
+    <update id="markUsed">
+        UPDATE verification_code SET used = 1 WHERE id = #{id}
+    </update>
+
+    <update id="invalidateActive">
+        UPDATE verification_code SET used = 1
+        WHERE scene = #{scene} AND target = #{target} AND used = 0
+    </update>
+
+    <select id="countSince" resultType="int">
+        SELECT COUNT(*)
+        FROM verification_code
+        WHERE scene = #{scene}
+          AND target = #{target}
+          AND create_time &gt;= #{since}
+    </select>
+
+    <delete id="deleteCreatedBefore">
+        DELETE FROM verification_code WHERE create_time &lt; #{before}
+    </delete>
+
+</mapper>

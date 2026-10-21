@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="nestlight">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>辅导员工作台 · 学工平台</title>
+  <!--
+    主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
+    daisyUI 的组件颜色跟的是 [data-theme] 属性（不是 .dark 类），两处都必须写，
+    与 nest-ui.js 的 paintTheme() 保持一致。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/nest-art3.css">
+</head>
+
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content">
+
+<header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none border-0 p-0">
+  <div class="navbar mx-auto min-h-0 w-full max-w-7xl gap-3 px-5 py-2 md:px-8">
+    <div class="navbar-start gap-3">
+      <a class="flex items-center gap-3" href="teacher-dashboard.html">
+        <span class="nx-logo">
+          <span class="material-symbols-outlined text-xl">terminal</span>
+        </span>
+        <span class="hidden text-lg font-black uppercase tracking-tight sm:inline">学工平台</span>
+      </a>
+      <span class="hidden h-5 w-px bg-base-300 lg:block"></span>
+      <span class="hidden font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65 lg:block">§ 09 · Staff affairs / Overview</span>
+    </div>
+    <div class="navbar-end gap-1.5">
+      <a class="btn btn-ghost btn-sm gap-2 rounded-full" href="teacher-dashboard.html">
+        <span class="material-symbols-outlined text-lg">dashboard</span>
+        <span class="hidden md:inline">工作台</span>
+      </a>
+      <button aria-label="切换深色 / 浅色模式" class="nx-icon-btn" data-nx-theme-toggle title="切换深色 / 浅色模式" type="button">
+        <span class="material-symbols-outlined nx-theme-icon-light text-xl">dark_mode</span>
+        <span class="material-symbols-outlined nx-theme-icon-dark text-xl">light_mode</span>
+      </button>
+      <a class="nx-icon-btn" href="settings.html" title="设置">
+        <span class="material-symbols-outlined text-xl">settings</span>
+      </a>
+      <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="logout-btn" type="button">
+        <span class="material-symbols-outlined text-lg">logout</span>
+        <span class="hidden md:inline">退出登录</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="flex-1 px-5 py-8 md:px-8 md:py-12">
+  <div class="mx-auto w-full max-w-7xl">
+
+    <!-- ── 刊头：等宽小标 + 衬线大标题 + 发丝分隔线 ───────────────────── -->
+    <header class="mb-8 border-b border-base-300 pb-6">
+      <p class="nx-kicker">§ 09 · Staff / Overview</p>
+      <h1 data-nx-split="1" class="mt-2 font-serif text-3xl leading-tight sm:text-4xl lg:text-5xl">辅导员工作台</h1>
+      <p class="mt-4 max-w-2xl text-sm text-base-content/70">
+        把待办、异动与所辖学生规模放在一屏：上面是待审批的假条与资助，下面是需要跟进的异常信号。
+        范围口径与学工各模块一致——辅导员看名下学生，管理员看全校。
+      </p>
+    </header>
+
+    <section class="mb-6 grid gap-3 md:grid-cols-[auto_1fr_auto] md:items-end">
+      <label class="flex flex-col gap-1">
+        <span class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学期</span>
+        <select class="select select-bordered select-sm" id="work-term"></select>
+      </label>
+      <span class="text-xs text-base-content/60" id="work-scope-note">正在载入…</span>
+      <button class="btn btn-ghost btn-sm rounded-full gap-2" id="work-refresh" type="button">
+        <span class="material-symbols-outlined text-lg">refresh</span>
+        <span>刷新</span>
+      </button>
+    </section>
+
+    <div id="work-message" class="alert hidden mb-6 items-start gap-2"></div>
+
+    <!-- ── 概览发丝格 ─────────────────────────────────────────────── -->
+    <section id="work-stats" class="mb-4 grid grid-cols-2 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 md:grid-cols-3 lg:grid-cols-6">
+      <div class="bg-base-100 p-5">
+        <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">所辖在册</p>
+        <p class="mt-2 text-2xl font-black" id="stat-students">—</p>
+      </div>
+      <div class="bg-base-100 p-5">
+        <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">待审假条</p>
+        <p class="mt-2 text-2xl font-black" id="stat-leave">—</p>
+      </div>
+      <div class="bg-base-100 p-5">
+        <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">待审资助</p>
+        <p class="mt-2 text-2xl font-black" id="stat-aid">—</p>
+      </div>
+      <div class="bg-base-100 p-5">
+        <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">综测未出分</p>
+        <p class="mt-2 text-2xl font-black" id="stat-eval">—</p>
+      </div>
+      <div class="bg-base-100 p-5">
+        <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">待办合计</p>
+        <p class="mt-2 text-2xl font-black" id="stat-todo">—</p>
+      </div>
+      <div class="bg-base-100 p-5">
+        <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">异动预警</p>
+        <p class="mt-2 text-2xl font-black" id="stat-alert">—</p>
+      </div>
+    </section>
+
+    <section class="mb-8 grid gap-4 lg:grid-cols-2">
+      <div class="rounded-box border border-base-300 bg-base-100 p-5">
+        <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学籍分布</p>
+        <div id="work-status" class="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 md:grid-cols-4"></div>
+      </div>
+      <div class="rounded-box border border-base-300 bg-base-100 p-5">
+        <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">班级分布</p>
+        <ul class="mt-4 grid gap-2 text-sm" id="work-classes"></ul>
+        <p class="mt-3 hidden text-xs text-base-content/60" id="work-classes-empty">还没有班级数据：学生档案建好后这里会按班级汇总人数。</p>
+      </div>
+    </section>
+
+    <!-- ── 待办队列 ───────────────────────────────────────────────── -->
+    <section class="mb-6">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <h2 class="font-serif text-2xl">待办队列</h2>
+        <div class="flex flex-wrap items-center gap-2 rounded-box border border-base-300 bg-base-100 p-1.5" id="todo-types">
+          <button class="nx-tab is-active" data-type="all" type="button">全部</button>
+          <button class="nx-tab" data-type="leave" type="button">请假</button>
+          <button class="nx-tab" data-type="aid" type="button">资助</button>
+          <button class="nx-tab" data-type="eval" type="button">综测</button>
+        </div>
+      </div>
+      <div id="todo-list" class="grid gap-3" data-nx-autoanimate="1"></div>
+      <p id="todo-empty" class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60">
+        待办已经清空，暂时没有需要处理的申请。
+      </p>
+      <nav class="mt-4 flex flex-wrap items-center gap-2">
+        <button class="btn btn-ghost btn-sm rounded-full" id="todo-prev" type="button">上一页</button>
+        <span class="font-mono text-xs text-base-content/70" id="todo-page">第 1 / 1 页</span>
+        <button class="btn btn-ghost btn-sm rounded-full" id="todo-next" type="button">下一页</button>
+        <span class="ml-auto text-xs text-base-content/60" id="todo-total"></span>
+      </nav>
+    </section>
+
+    <!-- ── 异动预警 ───────────────────────────────────────────────── -->
+    <section class="mb-6">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <h2 class="font-serif text-2xl">异动预警</h2>
+        <div class="flex flex-wrap items-center gap-2 rounded-box border border-base-300 bg-base-100 p-1.5" id="alert-levels">
+          <button class="nx-tab is-active" data-level="all" type="button">全部</button>
+          <button class="nx-tab" data-level="high" type="button">高</button>
+          <button class="nx-tab" data-level="medium" type="button">中</button>
+          <button class="nx-tab" data-level="low" type="button">低</button>
+        </div>
+      </div>
+      <div id="alert-list" class="grid gap-3" data-nx-autoanimate="1"></div>
+      <p id="alert-empty" class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60">
+        没有发现需要跟进的异常信号。
+      </p>
+      <nav class="mt-4 flex flex-wrap items-center gap-2">
+        <button class="btn btn-ghost btn-sm rounded-full" id="alert-prev" type="button">上一页</button>
+        <span class="font-mono text-xs text-base-content/70" id="alert-page">第 1 / 1 页</span>
+        <button class="btn btn-ghost btn-sm rounded-full" id="alert-next" type="button">下一页</button>
+        <span class="ml-auto text-xs text-base-content/60" id="alert-total"></span>
+      </nav>
+    </section>
+
+  </div>
+</main>
+
+<footer class="nx-hairline-t border-base-300 px-5 py-6 md:px-8">
+  <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
+    <p class="font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65">学工平台 · Counselor Workbench</p>
+    <p class="text-xs text-base-content/60">预警只是线索，处置仍走各业务模块：请假审批、资助审批、综测管理、学生名册。</p>
+  </div>
+</footer>
+
+<script>
+  // ─────────────────────────────── 状态 ───────────────────────────────
+  let isAdmin = false;
+  let scopeText = 'mine';
+  let term = '';
+  let todoType = 'all';
+  let alertLevel = '';
+  let todoPage = 1;
+  let alertPage = 1;
+  const PAGE_SIZE = 10;
+
+  const TODO_TONE = { leave: 'badge-warning', aid: 'badge-info', eval: 'badge-ghost' };
+  const LEVEL_TONE = { high: 'badge-error', medium: 'badge-warning', low: 'badge-ghost' };
+  const AID_TEXT = { need: '困难认定', grant: '助学金', temporary: '临时困难补助', workstudy: '勤工助学' };
+
+  function escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function plain(value) {
+    if (value === null || value === undefined || value === '') { return '—'; }
+    return String(value);
+  }
+
+  async function callApi(url, options) {
+    const response = await fetch(url, options);
+    return response.json();
+  }
+
+  function showMessage(target, text, type) {
+    const box = document.getElementById(target);
+    const tone = type === 'success' ? 'alert-success' : 'alert-error';
+    const icon = type === 'success' ? 'check_circle' : 'error';
+    box.classList.remove('hidden');
+    box.className = 'alert items-start gap-2 ' + tone;
+    box.innerHTML = '<span class="material-symbols-outlined text-lg">' + icon
+        + '</span><span class="text-sm">' + escapeHtml(text) + '</span>';
+  }
+
+  function clearMessage(target) {
+    document.getElementById(target).classList.add('hidden');
+  }
+
+  // 学期下拉：当前学期 + 往前 3 个（口径同后端 CounselorService.currentTerm）
+  function buildTerms() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    let cursor;
+    if (month >= 9) { cursor = year + '-' + (year + 1) + '-1'; }
+    else if (month >= 2) { cursor = (year - 1) + '-' + year + '-2'; }
+    else { cursor = (year - 1) + '-' + year + '-1'; }
+    const list = [];
+    for (let i = 0; i < 4; i += 1) {
+      list.push(cursor);
+      const start = parseInt(cursor.substring(0, 4), 10);
+      const part = parseInt(cursor.substring(10), 10);
+      cursor = part === 2 ? (start + '-' + (start + 1) + '-1') : ((start - 1) + '-' + start + '-2');
+    }
+    return list;
+  }
+
+  async function checkAuth() {
+    try {
+      const result = await callApi('/api/auth/me');
+      if (result.code !== 200) { window.location.href = 'login.html'; return null; }
+      const role = result.data && result.data.role;
+      if (role !== 'teacher' && role !== 'admin') { window.location.href = 'dashboard.html'; return null; }
+      isAdmin = role === 'admin';
+      return result.data;
+    } catch (error) {
+      window.location.href = 'login.html';
+      return null;
+    }
+  }
+
+  // ─────────────────────────────── 概览 ───────────────────────────────
+  async function loadOverview() {
+    ['stat-students', 'stat-leave', 'stat-aid', 'stat-eval', 'stat-todo', 'stat-alert'].forEach(function (id) {
+      document.getElementById(id).textContent = '—';
+    });
+
+    const query = term ? ('?term=' + encodeURIComponent(term)) : '';
+    const result = await callApi('/api/counselor/overview' + query);
+    if (result.code !== 200) {
+      showMessage('work-message', result.message || '工作台数据载入失败', 'error');
+      return;
+    }
+    const data = result.data || {};
+    term = data.term || term;
+    scopeText = data.scope || 'all';
+    document.getElementById('stat-students').textContent = plain(data.students);
+    document.getElementById('stat-leave').textContent = plain(data.pendingLeaves);
+    document.getElementById('stat-aid').textContent = plain(data.pendingAids);
+    document.getElementById('stat-eval').textContent = plain(data.missingEval);
+    document.getElementById('stat-todo').textContent = plain(data.todoTotal);
+    document.getElementById('stat-alert').textContent = plain(data.alertTotal);
+    document.getElementById('work-scope-note').textContent = '当前范围：'
+        + (scopeText === 'all' ? '全院学生' : '我的学生')
+        + '　·　在读 ' + plain(data.students) + ' 人'
+        + '　·　' + (data.term || '') + ' 已出分 ' + plain(data.evalScored) + ' 人'
+        + (isAdmin && data.missingProfiles ? ('　·　未建档 ' + plain(data.missingProfiles) + ' 人') : '');
+
+    const status = data.statusCounts || {};
+    const statusLabels = [['active', '在读'], ['suspended', '休学'], ['quit', '退学'], ['graduated', '毕业']];
+    let statusHtml = '';
+    statusLabels.forEach(function (pair) {
+      statusHtml += '<div class="bg-base-100 p-4 text-center">'
+          + '<p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">' + pair[1] + '</p>'
+          + '<p class="mt-1 text-xl font-black">' + plain(status[pair[0]]) + '</p></div>';
+    });
+    document.getElementById('work-status').innerHTML = statusHtml;
+
+    const classes = data.classCounts || [];
+    const classBox = document.getElementById('work-classes');
+    const classEmpty = document.getElementById('work-classes-empty');
+    if (classes.length === 0) {
+      classBox.innerHTML = '';
+      classEmpty.classList.remove('hidden');
+    } else {
+      classEmpty.classList.add('hidden');
+      let html = '';
+      classes.forEach(function (row) {
+        html += '<li class="flex items-center justify-between gap-3 border-b border-base-300 pb-2 last:border-0 last:pb-0">'
+            + '<span>' + escapeHtml(plain(row.className)) + '</span>'
+            + '<span class="font-mono text-xs text-base-content/70">' + plain(row.count) + ' 人</span></li>';
+      });
+      classBox.innerHTML = html;
+    }
+  }
+
+  // ─────────────────────────────── 待办 ───────────────────────────────
+  function todoCard(item) {
+    const toneCls = TODO_TONE[item.type] || 'badge-ghost';
+    const name = plain(item.studentName);
+    const meta = [plain(item.className), plain(item.studentNo)].filter(function (v) { return v !== '—'; }).join(' · ');
+    const link = item.url
+        ? '<a class="btn btn-ghost btn-sm rounded-full gap-2" href="' + escapeHtml(item.url) + '">'
+            + '<span class="material-symbols-outlined text-lg">arrow_forward</span><span>去处理</span></a>'
+        : '';
+    return '<article class="flex flex-wrap items-start justify-between gap-4 rounded-box border border-base-300 bg-base-100 p-5">'
+        + '<div class="min-w-0 flex-1">'
+        + '<div class="flex flex-wrap items-center gap-2">'
+        + '<span class="badge badge-sm ' + toneCls + '">' + escapeHtml(plain(item.typeText)) + '</span>'
+        + '<span class="text-sm font-bold">' + escapeHtml(name) + '</span>'
+        + '<span class="font-mono text-xs text-base-content/60">' + escapeHtml(meta) + '</span></div>'
+        + '<p class="mt-2 text-sm">' + escapeHtml(plain(item.title)) + '</p>'
+        + '<p class="mt-1 text-xs text-base-content/70">' + escapeHtml(plain(item.detail)) + '</p>'
+        + (item.at ? '<p class="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/50">提交 ' + escapeHtml(item.at) + '</p>' : '')
+        + '</div>'
+        + '<div class="flex items-center gap-2">' + link + '</div>'
+        + '</article>';
+  }
+
+  async function loadTodo() {
+    const query = '?type=' + encodeURIComponent(todoType)
+        + '&page=' + todoPage + '&size=' + PAGE_SIZE
+        + (term ? ('&term=' + encodeURIComponent(term)) : '');
+    const result = await callApi('/api/counselor/todo' + query);
+    if (result.code !== 200) {
+      showMessage('work-message', result.message || '待办载入失败', 'error');
+      return;
+    }
+    const data = result.data || {};
+    const items = data.items || [];
+    const list = document.getElementById('todo-list');
+    const empty = document.getElementById('todo-empty');
+    if (items.length === 0) {
+      list.innerHTML = '';
+      empty.classList.remove('hidden');
+    } else {
+      empty.classList.add('hidden');
+      list.innerHTML = items.map(todoCard).join('');
+    }
+    document.getElementById('todo-page').textContent = '第 ' + plain(data.page) + ' / ' + plain(data.pages) + ' 页';
+    document.getElementById('todo-total').textContent = '本页 ' + items.length + ' 条 / 共 ' + plain(data.total) + ' 条';
+    document.getElementById('todo-prev').disabled = (data.page || 1) <= 1;
+    document.getElementById('todo-next').disabled = (data.page || 1) >= (data.pages || 1);
+  }
+
+  // ─────────────────────────────── 预警 ───────────────────────────────
+  function alertCard(item) {
+    const toneCls = LEVEL_TONE[item.level] || 'badge-ghost';
+    const name = plain(item.studentName);
+    const meta = [plain(item.className), plain(item.studentNo)].filter(function (v) { return v !== '—'; }).join(' · ');
+    const link = item.url
+        ? '<a class="btn btn-ghost btn-sm rounded-full gap-2" href="' + escapeHtml(item.url) + '">'
+            + '<span class="material-symbols-outlined text-lg">open_in_new</span><span>去看</span></a>'
+        : '';
+    return '<article class="flex flex-wrap items-start justify-between gap-4 rounded-box border border-base-300 bg-base-100 p-5">'
+        + '<div class="min-w-0 flex-1">'
+        + '<div class="flex flex-wrap items-center gap-2">'
+        + '<span class="badge badge-sm ' + toneCls + '">' + escapeHtml(plain(item.levelText)) + '</span>'
+        + '<span class="badge badge-outline badge-sm">' + escapeHtml(plain(item.typeText)) + '</span>'
+        + '<span class="text-sm font-bold">' + escapeHtml(name) + '</span>'
+        + '<span class="font-mono text-xs text-base-content/60">' + escapeHtml(meta) + '</span></div>'
+        + '<p class="mt-2 text-sm">' + escapeHtml(plain(item.title)) + '</p>'
+        + '<p class="mt-1 text-xs text-base-content/70">' + escapeHtml(plain(item.detail)) + '</p>'
+        + '</div>'
+        + '<div class="flex items-center gap-2">' + link + '</div>'
+        + '</article>';
+  }
+
+  async function loadAlerts() {
+    const query = '?page=' + alertPage + '&size=' + PAGE_SIZE
+        + (alertLevel ? ('&level=' + encodeURIComponent(alertLevel)) : '')
+        + (term ? ('&term=' + encodeURIComponent(term)) : '');
+    const result = await callApi('/api/counselor/alerts' + query);
+    if (result.code !== 200) {
+      showMessage('work-message', result.message || '预警载入失败', 'error');
+      return;
+    }
+    const data = result.data || {};
+    const items = data.items || [];
+    const list = document.getElementById('alert-list');
+    const empty = document.getElementById('alert-empty');
+    if (items.length === 0) {
+      list.innerHTML = '';
+      empty.classList.remove('hidden');
+    } else {
+      empty.classList.add('hidden');
+      list.innerHTML = items.map(alertCard).join('');
+    }
+    document.getElementById('alert-page').textContent = '第 ' + plain(data.page) + ' / ' + plain(data.pages) + ' 页';
+    const counts = data.counts || {};
+    document.getElementById('alert-total').textContent = '本页 ' + items.length + ' 条 / 共 ' + plain(data.total) + ' 条'
+        + '（高 ' + plain(counts.high) + ' · 中 ' + plain(counts.medium) + ' · 低 ' + plain(counts.low) + '）';
+    document.getElementById('alert-prev').disabled = (data.page || 1) <= 1;
+    document.getElementById('alert-next').disabled = (data.page || 1) >= (data.pages || 1);
+  }
+
+  // ─────────────────────────────── 事件绑定 ───────────────────────────
+  document.getElementById('work-refresh').addEventListener('click', async function () {
+    clearMessage('work-message');
+    await loadOverview();
+    await loadTodo();
+    await loadAlerts();
+  });
+
+  document.getElementById('work-term').addEventListener('change', async function (event) {
+    term = event.target.value;
+    todoPage = 1;
+    alertPage = 1;
+    clearMessage('work-message');
+    await loadOverview();
+    await loadTodo();
+    await loadAlerts();
+  });
+
+  document.querySelectorAll('#todo-types .nx-tab').forEach(function (tab) {
+    tab.addEventListener('click', async function () {
+      const key = tab.getAttribute('data-type');
+      document.querySelectorAll('#todo-types .nx-tab').forEach(function (other) {
+        other.classList.toggle('is-active', other === tab);
+      });
+      todoType = key;
+      todoPage = 1;
+      await loadTodo();
+    });
+  });
+
+  document.querySelectorAll('#alert-levels .nx-tab').forEach(function (tab) {
+    tab.addEventListener('click', async function () {
+      const key = tab.getAttribute('data-level');
+      document.querySelectorAll('#alert-levels .nx-tab').forEach(function (other) {
+        other.classList.toggle('is-active', other === tab);
+      });
+      alertLevel = key === 'all' ? '' : key;
+      alertPage = 1;
+      await loadAlerts();
+    });
+  });
+
+  document.getElementById('todo-prev').addEventListener('click', async function () {
+    if (todoPage > 1) { todoPage -= 1; await loadTodo(); }
+  });
+  document.getElementById('todo-next').addEventListener('click', async function () {
+    todoPage += 1;
+    await loadTodo();
+  });
+  document.getElementById('alert-prev').addEventListener('click', async function () {
+    if (alertPage > 1) { alertPage -= 1; await loadAlerts(); }
+  });
+  document.getElementById('alert-next').addEventListener('click', async function () {
+    alertPage += 1;
+    await loadAlerts();
+  });
+
+  document.addEventListener('DOMContentLoaded', async function () {
+    clearMessage('work-message');
+    const me = await checkAuth();
+    if (!me) { return; }
+    const terms = buildTerms();
+    term = terms[0];
+    const select = document.getElementById('work-term');
+    let options = '';
+    terms.forEach(function (value) {
+      options += '<option value="' + value + '">' + value + '</option>';
+    });
+    select.innerHTML = options;
+    await loadOverview();
+    await loadTodo();
+    await loadAlerts();
+  });
+</script>
+<script defer src="/js/nest-ui.js"></script>
+<script defer src="/libs/animejs/anime.umd.min.js"></script>
+<script defer src="/libs/countup/countUp.umd.js"></script>
+<script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+<script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+<script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+</body>
+</html>

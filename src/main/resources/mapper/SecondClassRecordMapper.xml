@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.SecondClassRecordMapper">
+
+    <!-- 第二课堂申报记录（学工 P18，S26）。
+         姓名/学号/班级/板块名/审核人姓名全部由 JOIN 带出（非表字段）；统计口径：只有 confirmed 计入已认定。
+         员工侧 scope 过滤的是「学生档案的辅导员」（sp.counselor_id），不是「谁审过」——待初审的单子
+         counselor_id 还是 NULL，按审核人过滤会让它谁也看不见。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.SecondClassRecord">
+        <id column="id" property="id"/>
+        <result column="activity_id" property="activityId"/>
+        <result column="category_id" property="categoryId"/>
+        <result column="user_id" property="userId"/>
+        <result column="title_snapshot" property="titleSnapshot"/>
+        <result column="hours" property="hours"/>
+        <result column="credit" property="credit"/>
+        <result column="evidence_url" property="evidenceUrl"/>
+        <result column="note" property="note"/>
+        <result column="status" property="status"/>
+        <result column="return_reason" property="returnReason"/>
+        <result column="submitted_at" property="submittedAt"/>
+        <result column="counselor_id" property="counselorId"/>
+        <result column="counselor_at" property="counselorAt"/>
+        <result column="reviewer_id" property="reviewerId"/>
+        <result column="reviewed_at" property="reviewedAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="category_name" property="categoryName"/>
+        <result column="counselor_name" property="counselorName"/>
+        <result column="reviewer_name" property="reviewerName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        t.id, t.activity_id, t.category_id, t.user_id, t.title_snapshot, t.hours, t.credit,
+        t.evidence_url, t.note, t.status, t.return_reason, t.submitted_at,
+        t.counselor_id, t.counselor_at, t.reviewer_id, t.reviewed_at,
+        t.created_at, t.updated_at, t.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(sp.student_no, u.student_id) AS student_no,
+        COALESCE(sp.class_name, u.class_name) AS class_name,
+        c.name AS category_name,
+        COALESCE(NULLIF(cu.real_name, ''), cu.nickname, cu.username) AS counselor_name,
+        COALESCE(NULLIF(ru.real_name, ''), ru.nickname, ru.username) AS reviewer_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM second_class_record t
+        LEFT JOIN users u ON u.id = t.user_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = t.user_id
+        LEFT JOIN second_class_category c ON c.id = t.category_id AND c.deleted = 0
+        LEFT JOIN users cu ON cu.id = t.counselor_id AND cu.deleted = 0
+        LEFT JOIN users ru ON ru.id = t.reviewer_id AND ru.deleted = 0
+    </sql>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.id = #{id} AND t.deleted = 0
+    </select>
+
+    <select id="selectByActivityAndUser" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.activity_id = #{activityId} AND t.user_id = #{userId} AND t.deleted = 0
+        LIMIT 1
+    </select>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.SecondClassRecord"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO second_class_record
+            (activity_id, category_id, user_id, title_snapshot, hours, credit, evidence_url, note,
+             status, submitted_at, deleted)
+        VALUES
+            (#{activityId}, #{categoryId}, #{userId}, #{titleSnapshot}, #{hours}, #{credit},
+             #{evidenceUrl}, #{note}, #{status}, #{submittedAt}, 0)
+    </insert>
+
+    <!-- 通用增量更新 + CAS。状态、退回原因、审核人/时间、认定学分都走这里。 -->
+    <update id="update" parameterType="java.util.Map">
+        UPDATE second_class_record
+        <set>
+            <if test="r.status != null">status = #{r.status},</if>
+            <if test="r.returnReason != null">return_reason = #{r.returnReason},</if>
+            <if test="r.counselorId != null">counselor_id = #{r.counselorId},</if>
+            <if test="r.counselorAt != null">counselor_at = #{r.counselorAt},</if>
+            <if test="r.reviewerId != null">reviewer_id = #{r.reviewerId},</if>
+            <if test="r.reviewedAt != null">reviewed_at = #{r.reviewedAt},</if>
+            <if test="r.hours != null">hours = #{r.hours},</if>
+            <!-- 认定时可把学分清空（不算学分），所以 credit 整体覆盖。 -->
+            <if test="'confirmed'.equals(r.status)">credit = #{r.credit},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{r.id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- 学生改后重交：覆盖申报内容、清空 return_reason、刷新提交时间，CAS returned/rejected/withdrawn → submitted。 -->
+    <update id="resubmit" parameterType="java.util.Map">
+        UPDATE second_class_record
+        SET category_id = #{r.categoryId},
+            title_snapshot = #{r.titleSnapshot},
+            hours = #{r.hours},
+            credit = #{r.credit},
+            evidence_url = #{r.evidenceUrl},
+            note = #{r.note},
+            status = 'submitted',
+            return_reason = NULL,
+            submitted_at = NOW(),
+            counselor_id = NULL,
+            counselor_at = NULL,
+            reviewer_id = NULL,
+            reviewed_at = NULL,
+            updated_at = NOW()
+        WHERE id = #{r.id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <sql id="My_Where">
+        WHERE t.deleted = 0
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+        <if test="year != null">AND YEAR(t.submitted_at) = #{year}</if>
+    </sql>
+
+    <select id="selectMine" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        <include refid="My_Where"/>
+        AND t.user_id = #{userId}
+        ORDER BY t.id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countMine" resultType="long">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        <include refid="My_Where"/>
+        AND t.user_id = #{userId}
+    </select>
+
+    <sql id="Staff_Where">
+        WHERE t.deleted = 0
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+        <if test="categoryId != null">AND t.category_id = #{categoryId}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (t.title_snapshot LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.student_no LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <select id="selectForStaff" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        <include refid="Staff_Where"/>
+        ORDER BY
+            CASE t.status WHEN 'submitted' THEN 0 WHEN 'counselor_approved' THEN 1 ELSE 2 END,
+            t.submitted_at ASC, t.id ASC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countForStaff" resultType="long">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        <include refid="Staff_Where"/>
+    </select>
+
+    <select id="countByActivityAndUser" resultType="long">
+        SELECT COUNT(*) FROM second_class_record
+        WHERE user_id = #{userId} AND deleted = 0
+        <if test="activityId != null">AND activity_id = #{activityId}</if>
+    </select>
+
+    <select id="countPendingByUser" resultType="long">
+        SELECT COUNT(*) FROM second_class_record
+        WHERE user_id = #{userId} AND deleted = 0 AND status IN ('submitted', 'counselor_approved')
+    </select>
+
+    <!-- 按板块汇总：三列口径原样返回（可能为 NULL），confirmed/pending 分开算，绝不相加冒充已认定。 -->
+    <select id="summaryByCategory" resultType="java.util.Map">
+        SELECT c.id AS category_id,
+               c.name AS category_name,
+               c.sort_no AS sort_no,
+               c.required_hours AS required_hours,
+               c.yearly_cap_hours AS yearly_cap_hours,
+               c.credit_per_hour AS credit_per_hour,
+               COALESCE(SUM(CASE WHEN t.status = 'confirmed' THEN t.hours ELSE 0 END), 0) AS confirmed_hours,
+               COALESCE(SUM(CASE WHEN t.status IN ('submitted', 'counselor_approved') THEN t.hours ELSE 0 END), 0) AS pending_hours,
+               COALESCE(SUM(CASE WHEN t.status = 'confirmed' THEN t.credit ELSE 0 END), 0) AS confirmed_credit,
+               COUNT(t.id) AS record_count
+        FROM second_class_category c
+        LEFT JOIN second_class_record t
+               ON t.category_id = c.id
+              AND t.user_id = #{userId}
+              AND t.deleted = 0
+              <if test="year != null">AND YEAR(t.submitted_at) = #{year}</if>
+        WHERE c.deleted = 0
+        GROUP BY c.id, c.name, c.sort_no, c.required_hours, c.yearly_cap_hours, c.credit_per_hour
+        ORDER BY c.sort_no ASC, c.id ASC
+    </select>
+
+    <select id="totalsByUser" resultType="java.util.Map">
+        SELECT COALESCE(SUM(CASE WHEN t.status = 'confirmed' THEN t.hours ELSE 0 END), 0) AS confirmed_hours,
+               COALESCE(SUM(CASE WHEN t.status IN ('submitted', 'counselor_approved') THEN t.hours ELSE 0 END), 0) AS pending_hours,
+               COALESCE(SUM(CASE WHEN t.status = 'confirmed' THEN t.credit ELSE 0 END), 0) AS confirmed_credit,
+               COALESCE(SUM(CASE WHEN t.status = 'confirmed' THEN 1 ELSE 0 END), 0) AS confirmed_count,
+               COALESCE(SUM(CASE WHEN t.status IN ('submitted', 'counselor_approved') THEN 1 ELSE 0 END), 0) AS pending_count
+        FROM second_class_record t
+        WHERE t.user_id = #{userId} AND t.deleted = 0
+        <if test="year != null">AND YEAR(t.submitted_at) = #{year}</if>
+    </select>
+
+    <select id="selectForExport" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+        <if test="year != null">AND YEAR(t.submitted_at) = #{year}</if>
+        ORDER BY t.user_id ASC, t.id ASC
+    </select>
+
+    <select id="countGroupByStatus" resultType="java.util.Map">
+        SELECT status, COUNT(*) AS cnt
+        FROM second_class_record
+        WHERE deleted = 0
+        GROUP BY status
+    </select>
+
+    <select id="countGroupByStatusForUser" resultType="java.util.Map">
+        SELECT status, COUNT(*) AS cnt
+        FROM second_class_record
+        WHERE deleted = 0 AND user_id = #{userId}
+        GROUP BY status
+    </select>
+
+</mapper>

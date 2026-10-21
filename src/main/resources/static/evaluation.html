@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="nestlight">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>综合素质测评 · 学工平台</title>
+  <!--
+    主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
+    daisyUI 的组件颜色跟的是 [data-theme] 属性（不是 .dark 类），两处都必须写，
+    与 nest-ui.js 的 paintTheme() 保持一致。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <script src="/pwa.js" defer></script>
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/nest-art3.css">
+</head>
+
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content">
+
+<header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none border-0 p-0">
+  <div class="navbar mx-auto min-h-0 w-full max-w-7xl gap-3 px-5 py-2 md:px-8">
+    <div class="navbar-start gap-3">
+      <a class="flex items-center gap-3" href="dashboard.html">
+        <span class="nx-logo">
+          <span class="material-symbols-outlined text-xl">terminal</span>
+        </span>
+        <span class="hidden text-lg font-black uppercase tracking-tight sm:inline">学工平台</span>
+      </a>
+      <span class="hidden h-5 w-px bg-base-300 lg:block"></span>
+      <span class="hidden font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65 lg:block">§ 08 · Student affairs / Evaluation</span>
+    </div>
+    <div class="navbar-end gap-1.5">
+      <a class="btn btn-ghost btn-sm gap-2 rounded-full" href="dashboard.html">
+        <span class="material-symbols-outlined text-lg">dashboard</span>
+        <span class="hidden md:inline">工作台</span>
+      </a>
+      <button aria-label="切换深色 / 浅色模式" class="nx-icon-btn" data-nx-theme-toggle title="切换深色 / 浅色模式" type="button">
+        <span class="material-symbols-outlined nx-theme-icon-light text-xl">dark_mode</span>
+        <span class="material-symbols-outlined nx-theme-icon-dark text-xl">light_mode</span>
+      </button>
+      <a class="nx-icon-btn" href="settings.html" title="设置">
+        <span class="material-symbols-outlined text-xl">settings</span>
+      </a>
+      <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="logout-btn" type="button">
+        <span class="material-symbols-outlined text-lg">logout</span>
+        <span class="hidden md:inline">退出登录</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="flex-1 px-5 py-8 md:px-8 md:py-12">
+  <div class="mx-auto w-full max-w-7xl">
+
+    <!-- ── 刊头：等宽小标 + 衬线大标题 + 发丝分隔线 ───────────────────── -->
+    <header class="mb-8 border-b border-base-300 pb-6">
+      <p class="nx-kicker">§ 08 · Student / Evaluation</p>
+      <h1 data-nx-split="1" class="mt-2 font-serif text-3xl leading-tight sm:text-4xl lg:text-5xl">综合素质测评</h1>
+      <p class="mt-4 max-w-2xl text-sm text-base-content/70">
+        德智体美劳五维自评。填完后保存，辅导员复核评分后由学院统一重算总分与班级排名。
+        自评只作参考，有佐证材料的项目请在右侧说明。
+      </p>
+    </header>
+
+    <!-- ── 学期与总分概览 ─────────────────────────────────────────── -->
+    <section class="mb-8 flex flex-wrap items-end gap-3">
+      <label class="flex flex-col gap-1">
+        <span class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学期</span>
+        <select class="select select-bordered select-sm" id="eval-term"></select>
+      </label>
+      <button class="btn btn-primary btn-sm rounded-full gap-2" id="eval-save" type="button">
+        <span class="material-symbols-outlined text-lg">save</span>
+        <span>保存自评</span>
+      </button>
+      <p class="text-xs text-base-content/60" id="eval-formula"></p>
+    </section>
+
+    <section id="eval-stats" class="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 md:grid-cols-4"></section>
+
+    <div id="eval-message" class="alert hidden mb-6 items-start gap-2"></div>
+
+    <!-- ── 五维指标自评 ───────────────────────────────────────────── -->
+    <section id="eval-dimensions" class="grid gap-6" data-nx-autoanimate="1"></section>
+
+    <p id="eval-empty" class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60">
+      指标表还没有数据，请联系管理员执行综测指标种子脚本。
+    </p>
+
+  </div>
+</main>
+
+<footer class="nx-hairline-t border-base-300 px-5 py-6 md:px-8">
+  <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
+    <p class="font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65">学工平台 · Comprehensive Evaluation</p>
+    <p class="text-xs text-base-content/60">测评结果用于评奖评优与推免等学工环节。</p>
+  </div>
+</footer>
+
+<script>
+  // ─────────────────────────────── 状态 ───────────────────────────────
+  let currentTerm = '';
+  let weightText = '';
+
+  function escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function plain(value) {
+    if (value === null || value === undefined) { return '0'; }
+    return String(value);
+  }
+
+  async function callApi(url, options) {
+    const response = await fetch(url, options);
+    return response.json();
+  }
+
+  function showMessage(text, type) {
+    const box = document.getElementById('eval-message');
+    const tone = type === 'success' ? 'alert-success' : 'alert-error';
+    const icon = type === 'success' ? 'check_circle' : 'error';
+    box.classList.remove('hidden');
+    box.className = 'alert items-start gap-2 ' + tone;
+    box.innerHTML = '<span class="material-symbols-outlined text-lg">' + icon
+        + '</span><span class="text-sm">' + escapeHtml(text) + '</span>';
+  }
+
+  function clearMessage() {
+    document.getElementById('eval-message').classList.add('hidden');
+  }
+
+  // ─────────────────────────────── 读数据 ─────────────────────────────
+  async function checkAuth() {
+    try {
+      const result = await callApi('/api/auth/me');
+      if (result.code !== 200) { window.location.href = 'login.html'; return null; }
+      const role = result.data && result.data.role;
+      if (role !== 'student') { window.location.href = 'eval-review.html'; return null; }
+      return result.data;
+    } catch (error) {
+      window.location.href = 'login.html';
+      return null;
+    }
+  }
+
+  function statCell(label, value) {
+    return '<div class="flex flex-col gap-1 bg-base-100 p-6">'
+        + '<dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">' + label + '</dt>'
+        + '<dd class="mt-1 font-serif text-2xl">' + value + '</dd></div>';
+  }
+
+  function renderStats(mine) {
+    const host = document.getElementById('eval-stats');
+    const summary = mine.summary || {};
+    const progress = mine.progress || {};
+    const total = summary.exists ? plain(summary.totalScore) : '—';
+    const rank = summary.rankInClass ? ('第 ' + summary.rankInClass + ' 名') : '—';
+    const grade = summary.gradeLevel || '待重算';
+    const done = (progress.selfDone || 0) + ' / ' + (progress.indicatorCount || 0);
+    host.innerHTML = statCell('总分', total)
+        + statCell('班级排名', rank)
+        + statCell('等级', grade)
+        + statCell('自评进度', done);
+  }
+
+  function indicatorRow(item) {
+    const id = item.id;
+    const self = item.selfScore === null || item.selfScore === undefined ? '' : plain(item.selfScore);
+    const evidence = item.evidence || '';
+    const badge = item.source === 'counselor'
+        ? '<span class="badge badge-info badge-sm">辅导员评分 ' + plain(item.counselorScore === null ? '—' : item.counselorScore) + '</span>'
+        : (item.counselorScore !== null && item.counselorScore !== undefined
+            ? '<span class="badge badge-ghost badge-sm">辅导员 ' + plain(item.counselorScore) + '</span>' : '');
+    return '<div class="grid items-start gap-3 border-t border-base-300 px-5 py-4 md:grid-cols-[minmax(0,1fr)_auto]">'
+        + '<div>'
+        + '<div class="flex flex-wrap items-center gap-2">'
+        + '<span class="text-sm font-bold">' + escapeHtml(item.name) + '</span>'
+        + '<span class="badge badge-ghost badge-sm">满分 ' + plain(item.maxScore) + '</span>'
+        + '<span class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/60">权重 ' + plain(item.weight) + '</span>'
+        + badge
+        + '</div>'
+        + '<p class="mt-1 text-xs text-base-content/65">' + escapeHtml(item.description || '') + '</p>'
+        + '</div>'
+        + '<div class="flex items-center gap-2">'
+        + '<input class="input input-bordered input-sm w-24" data-indicator="' + id + '" id="score-' + id
+        + '" type="number" min="0" max="' + plain(item.maxScore) + '" step="0.5" placeholder="0" value="' + escapeHtml(self) + '" />'
+        + '<input class="input input-bordered input-sm w-44" data-evidence="' + id + '" id="evidence-' + id
+        + '" type="text" placeholder="佐证说明（可空）" value="' + escapeHtml(evidence) + '" />'
+        + '</div></div>';
+  }
+
+  function dimensionCard(dim) {
+    const items = dim.items || [];
+    const scored = dim.scored + ' / ' + dim.itemCount;
+    return '<article class="card rounded-box border border-base-300 bg-base-200 shadow-xl">'
+        + '<header class="flex flex-wrap items-center justify-between gap-3 px-5 py-4">'
+        + '<div class="flex items-center gap-3">'
+        + '<span class="nx-tile-icon"><span class="material-symbols-outlined text-lg">workspace_premium</span></span>'
+        + '<div>'
+        + '<h2 class="text-lg font-bold">' + escapeHtml(dim.name) + '　<span class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/60">' + escapeHtml(dim.code) + '</span></h2>'
+        + '<p class="text-xs text-base-content/65">维度权重 ' + plain(dim.weight) + ' · 已填 ' + scored + '</p>'
+        + '</div>'
+        + '</div>'
+        + '<div class="text-right">'
+        + '<p class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/60">维度得分</p>'
+        + '<p class="font-serif text-xl">' + plain(dim.score) + '</p>'
+        + '</div>'
+        + '</header>'
+        + items.map(indicatorRow).join('')
+        + '</article>';
+  }
+
+  function renderDimensions(mine) {
+    const host = document.getElementById('eval-dimensions');
+    const dims = mine.dimensions || [];
+    host.innerHTML = dims.map(dimensionCard).join('');
+    const empty = document.getElementById('eval-empty');
+    if (dims.length === 0) { empty.classList.remove('hidden'); } else { empty.classList.add('hidden'); }
+  }
+
+  function renderTermOptions(terms, selected) {
+    const host = document.getElementById('eval-term');
+    host.innerHTML = (terms || []).map(function (term) {
+      const chosen = term === selected ? ' selected' : '';
+      return '<option value="' + escapeHtml(term) + '"' + chosen + '>' + escapeHtml(term) + '</option>';
+    }).join('');
+  }
+
+  async function load(mine) {
+    if (!mine) {
+      const result = await callApi('/api/eval/mine' + (currentTerm ? '?term=' + encodeURIComponent(currentTerm) : ''));
+      if (result.code !== 200) {
+        showMessage(result.message || '读不到测评数据', 'error');
+        return;
+      }
+      mine = result.data;
+    }
+    currentTerm = mine.term;
+    renderStats(mine);
+    renderDimensions(mine);
+  }
+
+  async function save() {
+    const scores = [];
+    document.querySelectorAll('#eval-dimensions input[data-indicator]').forEach(function (input) {
+      const id = input.getAttribute('data-indicator');
+      const evidence = document.getElementById('evidence-' + id);
+      const value = input.value.trim();
+      if (value === '') { return; }
+      scores.push({ indicatorId: Number(id), score: value, evidence: evidence ? evidence.value.trim() : '' });
+    });
+    if (scores.length === 0) {
+      showMessage('请至少填写一项得分再保存', 'error');
+      return;
+    }
+    const result = await callApi('/api/eval/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ term: currentTerm, scores: scores })
+    });
+    if (result.code !== 200) {
+      showMessage(result.message || '保存失败', 'error');
+      return;
+    }
+    showMessage(result.message || '已保存', 'success');
+    await load();
+  }
+
+  function logout() {
+    callApi('/api/auth/logout', { method: 'POST' }).then(function () {
+      window.location.href = 'login.html';
+    });
+  }
+
+  document.getElementById('logout-btn').addEventListener('click', logout);
+  document.getElementById('eval-save').addEventListener('click', save);
+  document.getElementById('eval-term').addEventListener('change', function (event) {
+    currentTerm = event.target.value;
+    clearMessage();
+    load();
+  });
+
+  document.addEventListener('DOMContentLoaded', async function () {
+    clearMessage();
+    const me = await checkAuth();
+    if (!me) { return; }
+    const meta = await callApi('/api/eval/indicators');
+    if (meta.code !== 200) {
+      showMessage(meta.message || '读不到综测指标', 'error');
+      return;
+    }
+    currentTerm = meta.data.currentTerm;
+    renderTermOptions(meta.data.terms, currentTerm);
+    weightText = meta.data.formula || '';
+    document.getElementById('eval-formula').textContent = (meta.data.gradeRule || '') + '　' + weightText;
+    await load();
+  });
+</script>
+<script defer src="/js/nest-ui.js"></script>
+<script defer src="/libs/animejs/anime.umd.min.js"></script>
+<script defer src="/libs/countup/countUp.umd.js"></script>
+<script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+<script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+<script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+</body>
+</html>

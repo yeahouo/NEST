@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.VolunteerProjectMapper">
+
+    <!-- 志愿服务项目（学工 P17，S21）。提交人/审核人姓名由 users JOIN 带出；
+         enrolled_count 只统计未取消的报名，便于直接展示名额占用。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.VolunteerProject">
+        <id column="id" property="id"/>
+        <result column="project_name" property="projectName"/>
+        <result column="category" property="category"/>
+        <result column="organizer" property="organizer"/>
+        <result column="organizer_type" property="organizerType"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="location" property="location"/>
+        <result column="duration_note" property="durationNote"/>
+        <result column="recruit_limit" property="recruitLimit"/>
+        <result column="submit_user_id" property="submitUserId"/>
+        <result column="review_user_id" property="reviewUserId"/>
+        <result column="review_time" property="reviewTime"/>
+        <result column="reject_reason" property="rejectReason"/>
+        <result column="status" property="status"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="submit_user_name" property="submitUserName"/>
+        <result column="review_user_name" property="reviewUserName"/>
+        <result column="enrolled_count" property="enrolledCount"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        t.id, t.project_name, t.category, t.organizer, t.organizer_type, t.start_time, t.end_time,
+        t.location, t.duration_note, t.recruit_limit, t.submit_user_id, t.review_user_id,
+        t.review_time, t.reject_reason, t.status, t.created_at, t.updated_at, t.deleted,
+        COALESCE(NULLIF(su.real_name, ''), su.nickname, su.username) AS submit_user_name,
+        COALESCE(NULLIF(ru.real_name, ''), ru.nickname, ru.username) AS review_user_name,
+        (SELECT COUNT(*) FROM volunteer_enrollment e
+          WHERE e.project_id = t.id AND e.deleted = 0 AND e.status != 'cancelled') AS enrolled_count
+    </sql>
+
+    <sql id="Joined_From">
+        FROM volunteer_project t
+        LEFT JOIN users su ON su.id = t.submit_user_id AND su.deleted = 0
+        LEFT JOIN users ru ON ru.id = t.review_user_id AND ru.deleted = 0
+        <!-- 辅导员范围：t.submit_user_id 是学生时，按 student_profile.counselor_id 过滤（§6） -->
+        LEFT JOIN student_profile ssp ON ssp.user_id = t.submit_user_id AND ssp.deleted = 0
+    </sql>
+
+    <sql id="List_Filters">
+        <!-- scope（§6）：scopeUserId 按提交人；scopeCounselorId 按提交人名下学生的辅导员 -->
+        <if test="scopeUserId != null">AND t.submit_user_id = #{scopeUserId}</if>
+        <if test="scopeCounselorId != null">AND ssp.counselor_id = #{scopeCounselorId}</if>
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+        <if test="category != null and category != ''">AND t.category = #{category}</if>
+        <if test="organizerType != null and organizerType != ''">AND t.organizer_type = #{organizerType}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (t.project_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR t.organizer LIKE CONCAT('%', #{keyword}, '%')
+                 OR t.location LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.VolunteerProject"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO volunteer_project
+            (project_name, category, organizer, organizer_type, start_time, end_time, location,
+             duration_note, recruit_limit, submit_user_id, review_user_id, review_time,
+             reject_reason, status, created_at, updated_at, deleted)
+        VALUES
+            (#{projectName}, #{category}, #{organizer}, #{organizerType}, #{startTime}, #{endTime}, #{location},
+             #{durationNote}, #{recruitLimit}, #{submitUserId}, #{reviewUserId}, #{reviewTime},
+             #{rejectReason}, #{status}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.id = #{id} AND t.deleted = 0
+    </select>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY t.start_time DESC, t.id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="selectCount" resultType="long">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <!-- 立项审批 CAS：id + deleted + status=fromStatus，三条件缺一不可（§7-1） -->
+    <update id="reviewProject">
+        UPDATE volunteer_project
+        <set>
+            status = #{toStatus},
+            review_user_id = #{reviewUserId},
+            review_time = NOW(),
+            <if test="rejectReason != null">reject_reason = #{rejectReason},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- 增量修改（动态 set）：CAS 前置态由服务层显式给；project 的 submit_user_id 不允许改 -->
+    <update id="update">
+        UPDATE volunteer_project
+        <set>
+            <if test="p.projectName != null">project_name = #{p.projectName},</if>
+            <if test="p.category != null">category = #{p.category},</if>
+            <if test="p.organizer != null">organizer = #{p.organizer},</if>
+            <if test="p.organizerType != null">organizer_type = #{p.organizerType},</if>
+            <if test="p.startTime != null">start_time = #{p.startTime},</if>
+            <if test="p.endTime != null">end_time = #{p.endTime},</if>
+            <if test="p.location != null">location = #{p.location},</if>
+            <if test="p.durationNote != null">duration_note = #{p.durationNote},</if>
+            <if test="p.recruitLimit != null">recruit_limit = #{p.recruitLimit},</if>
+            <if test="p.reviewUserId != null">review_user_id = #{p.reviewUserId},</if>
+            <if test="p.reviewTime != null">review_time = #{p.reviewTime},</if>
+            <if test="p.rejectReason != null">reject_reason = #{p.rejectReason},</if>
+            <if test="p.status != null">status = #{p.status},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{p.id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <update id="softDelete">
+        UPDATE volunteer_project
+        SET deleted = 1, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <select id="countByStatus" resultType="long">
+        SELECT COUNT(*)
+        FROM volunteer_project t
+        WHERE t.deleted = 0
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+    </select>
+
+    <select id="countGroupByStatus" resultType="java.util.LinkedHashMap">
+        SELECT t.status AS status, COUNT(*) AS total
+        FROM volunteer_project t
+        WHERE t.deleted = 0
+        GROUP BY t.status
+        ORDER BY t.status
+    </select>
+
+</mapper>

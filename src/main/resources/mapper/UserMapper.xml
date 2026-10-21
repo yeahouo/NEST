@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.UserMapper">
+
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.User">
+        <id column="id" property="id"/>
+        <result column="username" property="username"/>
+        <result column="password_hash" property="passwordHash"/>
+        <result column="nickname" property="nickname"/>
+        <result column="email" property="email"/>
+        <result column="phone" property="phone"/>
+        <result column="role" property="role"/>
+        <result column="avatar" property="avatar"/>
+        <result column="status" property="status"/>
+        <result column="last_login_time" property="lastLoginTime"/>
+        <result column="deleted" property="deleted"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <!-- 安全验证字段 -->
+        <result column="phone_verified" property="phoneVerified"/>
+        <result column="email_verified" property="emailVerified"/>
+        <result column="password_updated_at" property="passwordUpdatedAt"/>
+        <!-- 登录失败锁定字段（等保：登录失败处理 + 鉴别信息复杂度）：必须与 Base_Column_List 同步，
+             否则 User.failedLoginCount / lockedUntil 永远是 null，锁定逻辑形同虚设 -->
+        <result column="failed_login_count" property="failedLoginCount"/>
+        <result column="locked_until" property="lockedUntil"/>
+        <!-- 个人资料字段 -->
+        <result column="real_name" property="realName"/>
+        <result column="student_id" property="studentId"/>
+        <result column="school" property="school"/>
+        <result column="department" property="department"/>
+        <result column="major" property="major"/>
+        <result column="class_name" property="className"/>
+        <result column="grade" property="grade"/>
+        <result column="enrollment_date" property="enrollmentDate"/>
+        <!-- 账号绑定字段 -->
+        <result column="wechat_openid" property="wechatOpenid"/>
+        <result column="wechat_nickname" property="wechatNickname"/>
+        <result column="wechat_bound_at" property="wechatBoundAt"/>
+        <result column="email_bound_at" property="emailBoundAt"/>
+        <!-- 通知设置字段 -->
+        <result column="notify_assignment_deadline" property="notifyAssignmentDeadline"/>
+        <result column="notify_private_message" property="notifyPrivateMessage"/>
+        <result column="notify_topic_reply" property="notifyTopicReply"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, username, password_hash, nickname, email, phone, role, avatar, status,
+        last_login_time, deleted, create_time, update_time,
+        phone_verified, email_verified, password_updated_at,
+        real_name, student_id, school, department, major, class_name, grade, enrollment_date,
+        wechat_openid, wechat_nickname, wechat_bound_at, email_bound_at,
+        notify_assignment_deadline, notify_private_message, notify_topic_reply,
+        failed_login_count, locked_until
+    </sql>
+
+    <!-- ==================== 查询方法 ==================== -->
+
+    <select id="findByUsername" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM users
+        WHERE username = #{username} AND deleted = 0
+    </select>
+
+    <select id="findByEmail" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM users
+        WHERE email = #{email} AND deleted = 0
+    </select>
+
+    <select id="findByPhone" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM users
+        WHERE phone = #{phone} AND deleted = 0
+    </select>
+
+    <select id="findByUsernameOrEmail" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM users
+        WHERE (username = #{account} OR email = #{account}) AND deleted = 0
+    </select>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM users
+        WHERE id = #{id} AND deleted = 0
+    </select>
+
+    <select id="findByWechatOpenid" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM users
+        WHERE wechat_openid = #{openid} AND deleted = 0
+    </select>
+
+    <select id="findByStudentId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM users
+        WHERE student_id = #{studentId} AND deleted = 0
+    </select>
+
+    <!-- ==================== 插入方法 ==================== -->
+
+    <insert id="insert" parameterType="com.umi.nest.entity.User" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO users (
+            username, password_hash, nickname, email, phone, role, avatar, status, deleted,
+            phone_verified, email_verified,
+            notify_assignment_deadline, notify_private_message, notify_topic_reply
+        )
+        VALUES (
+            #{username}, #{passwordHash}, #{nickname}, #{email}, #{phone}, #{role}, #{avatar}, #{status}, #{deleted},
+            #{phoneVerified}, #{emailVerified},
+            #{notifyAssignmentDeadline}, #{notifyPrivateMessage}, #{notifyTopicReply}
+        )
+    </insert>
+
+    <!-- ==================== 更新方法 ==================== -->
+
+    <update id="updateLastLoginTime">
+        UPDATE users
+        SET last_login_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <update id="updatePasswordByPhone">
+        UPDATE users
+        SET password_hash = #{passwordHash},
+            password_updated_at = NOW(),
+            update_time = NOW()
+        WHERE phone = #{phone} AND deleted = 0
+    </update>
+
+    <!-- 通用更新用户信息（用于个人资料修改） -->
+    <update id="updateById" parameterType="com.umi.nest.entity.User">
+        UPDATE users
+        <set>
+            nickname = #{nickname},
+            avatar = #{avatar},
+            real_name = #{realName},
+            student_id = #{studentId},
+            school = #{school},
+            department = #{department},
+            major = #{major},
+            class_name = #{className},
+            grade = #{grade},
+            enrollment_date = #{enrollmentDate},
+            update_time = NOW()
+        </set>
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <!-- 通过ID更新密码 -->
+    <update id="updatePasswordById">
+        UPDATE users
+        SET password_hash = #{passwordHash},
+            password_updated_at = NOW(),
+            update_time = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <!-- 更新手机号 -->
+    <update id="updatePhone">
+        UPDATE users
+        SET phone = #{phone},
+            phone_verified = 1,
+            update_time = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <!-- 更新邮箱 -->
+    <update id="updateEmail">
+        UPDATE users
+        SET email = #{email},
+            email_verified = 1,
+            email_bound_at = NOW(),
+            update_time = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <!-- 绑定微信 -->
+    <update id="bindWechat">
+        UPDATE users
+        SET wechat_openid = #{openid},
+            wechat_nickname = #{nickname},
+            wechat_bound_at = NOW(),
+            update_time = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <!-- 解绑微信 -->
+    <update id="unbindWechat">
+        UPDATE users
+        SET wechat_openid = NULL,
+            wechat_nickname = NULL,
+            wechat_bound_at = NULL,
+            update_time = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <!-- 更新通知设置 -->
+    <update id="updateNotificationSettings" parameterType="com.umi.nest.entity.User">
+        UPDATE users
+        <set>
+            notify_assignment_deadline = #{notifyAssignmentDeadline},
+            notify_private_message = #{notifyPrivateMessage},
+            notify_topic_reply = #{notifyTopicReply},
+            update_time = NOW()
+        </set>
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <!-- 记录一次登录失败（等保：登录失败锁定） -->
+    <update id="registerLoginFailure">
+        UPDATE users
+        SET failed_login_count = #{count},
+            locked_until = #{lockedUntil},
+            update_time = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <!-- 登录成功：失败计数清零、锁定解除 -->
+    <update id="resetLoginFailure">
+        UPDATE users
+        SET failed_login_count = 0,
+            locked_until = NULL,
+            update_time = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+</mapper>

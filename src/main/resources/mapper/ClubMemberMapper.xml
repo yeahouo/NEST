@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.ClubMemberMapper">
+
+    <!-- 社团成员（学工 P17，S25a）。学生姓名/学号/班级与社团名由 JOIN 带出。
+         quit_date IS NULL = 在册；退社是 CAS（quit_date 由 NULL 置日期）。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.ClubMember">
+        <id column="id" property="id"/>
+        <result column="club_id" property="clubId"/>
+        <result column="user_id" property="userId"/>
+        <result column="role" property="role"/>
+        <result column="join_date" property="joinDate"/>
+        <result column="quit_date" property="quitDate"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="club_name" property="clubName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        t.id, t.club_id, t.user_id, t.role, t.join_date, t.quit_date,
+        t.created_at, t.updated_at, t.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(sp.student_no, u.student_id) AS student_no,
+        COALESCE(sp.class_name, u.class_name) AS class_name,
+        c.club_name AS club_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM club_member t
+        LEFT JOIN users u ON u.id = t.user_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = t.user_id AND sp.deleted = 0
+        LEFT JOIN club c ON c.id = t.club_id AND c.deleted = 0
+    </sql>
+
+    <sql id="List_Filters">
+        <!-- scope（§6）：学生按 t.user_id；辅导员按 student_profile.counselor_id 名下学生 -->
+        <if test="scopeUserId != null">AND t.user_id = #{scopeUserId}</if>
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+        <if test="clubId != null">AND t.club_id = #{clubId}</if>
+        <if test="role != null and role != ''">AND t.role = #{role}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.student_no LIKE CONCAT('%', #{keyword}, '%')
+                 OR c.club_name LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.ClubMember"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO club_member
+            (club_id, user_id, role, join_date, quit_date, created_at, updated_at, deleted)
+        VALUES
+            (#{clubId}, #{userId}, #{role}, #{joinDate}, #{quitDate}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.id = #{id} AND t.deleted = 0
+    </select>
+
+    <!-- 重复入社前置校验：某学生在某社团的在册记录（quit_date IS NULL） -->
+    <select id="selectActiveByClubAndUser" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.club_id = #{clubId} AND t.user_id = #{userId}
+          AND t.quit_date IS NULL AND t.deleted = 0
+        ORDER BY t.id DESC
+        LIMIT 1
+    </select>
+
+    <!-- `GET /list/mine`：某学生当前在册的社团 -->
+    <select id="selectActiveByUser" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.user_id = #{userId} AND t.quit_date IS NULL AND t.deleted = 0
+        ORDER BY t.id DESC
+    </select>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY t.club_id ASC, t.role DESC, t.id ASC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="selectCount" resultType="long">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <!-- 退社 CAS：只允许在册（quit_date IS NULL）→ 写 quit_date。
+         已退社或已删除影响行数 0 → 400「该成员已退社或状态已变化」（§7-1） -->
+    <update id="quitMember">
+        UPDATE club_member
+        SET quit_date = #{quitDate}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND quit_date IS NULL
+    </update>
+
+    <!-- 增量修改（动态 set）：club_id/user_id 不允许改 -->
+    <update id="update">
+        UPDATE club_member
+        <set>
+            <if test="m.role != null">role = #{m.role},</if>
+            <if test="m.joinDate != null">join_date = #{m.joinDate},</if>
+            <if test="m.quitDate != null">quit_date = #{m.quitDate},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{m.id} AND deleted = 0
+    </update>
+
+    <!-- 说明：quit_date 只走 quitMember 的 CAS，不用上面的动态 update 改，避免绕过前置态校验 -->
+
+
+    <update id="softDelete">
+        UPDATE club_member
+        SET deleted = 1, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <!-- 在册成员数：club.memberCount 展示与前置校验共用 -->
+    <select id="countByClub" resultType="long">
+        SELECT COUNT(*)
+        FROM club_member t
+        WHERE t.club_id = #{clubId} AND t.quit_date IS NULL AND t.deleted = 0
+    </select>
+
+    <!-- 在册负责人数：一个社团已有负责人时拦截重复添加 -->
+    <select id="countLeaderByClub" resultType="long">
+        SELECT COUNT(*)
+        FROM club_member t
+        WHERE t.club_id = #{clubId} AND t.role = 'leader'
+          AND t.quit_date IS NULL AND t.deleted = 0
+    </select>
+
+    <select id="countGroupByRole" resultType="java.util.LinkedHashMap">
+        SELECT t.role AS role, COUNT(*) AS total
+        FROM club_member t
+        WHERE t.deleted = 0 AND t.quit_date IS NULL
+        <if test="clubId != null">AND t.club_id = #{clubId}</if>
+        GROUP BY t.role
+        ORDER BY t.role
+    </select>
+
+</mapper>

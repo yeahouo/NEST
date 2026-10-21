@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.WorkstudyApplicationMapper">
+
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.WorkstudyApplication">
+        <id column="id" property="id"/>
+        <result column="post_id" property="postId"/>
+        <result column="student_id" property="studentId"/>
+        <result column="academic_term" property="academicTerm"/>
+        <result column="reason" property="reason"/>
+        <result column="evidence" property="evidence"/>
+        <result column="status" property="status"/>
+        <result column="interview_result" property="interviewResult"/>
+        <result column="interview_note" property="interviewNote"/>
+        <result column="applied_at" property="appliedAt"/>
+        <result column="hired_at" property="hiredAt"/>
+        <result column="resign_reason" property="resignReason"/>
+        <result column="note" property="note"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="poverty" property="poverty"/>
+        <result column="post_name" property="postName"/>
+        <result column="unit" property="unit"/>
+        <result column="post_type" property="postType"/>
+        <result column="hourly_wage" property="hourlyWage"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        d.id, d.post_id, d.student_id, d.academic_term, d.reason, d.evidence, d.status,
+        d.interview_result, d.interview_note, d.applied_at, d.hired_at, d.resign_reason,
+        d.note, d.created_at, d.updated_at, d.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(sp.student_no, u.student_id) AS student_no,
+        COALESCE(sp.class_name, u.class_name) AS class_name,
+        CASE WHEN sp.family_income_level IS NOT NULL AND sp.family_income_level &lt;&gt; ''
+             THEN 1 ELSE 0 END AS poverty,
+        p.name AS post_name,
+        p.unit AS unit,
+        p.post_type AS post_type,
+        p.hourly_wage AS hourly_wage
+    </sql>
+
+    <sql id="Joined_From">
+        FROM workstudy_application d
+        LEFT JOIN users u ON u.id = d.student_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = d.student_id AND sp.deleted = 0
+        LEFT JOIN workstudy_post p ON p.id = d.post_id
+    </sql>
+
+    <!-- 列表 / 计数共用谓词，保证两者口径一致 -->
+    <sql id="PostFilters">
+        AND d.deleted = 0
+        <if test="postId != null">AND d.post_id = #{postId}</if>
+        <if test="status != null and status != ''">AND d.status = #{status}</if>
+        <if test="unitUserId != null">AND p.unit_user_id = #{unitUserId}</if>
+        <if test="academicTerm != null and academicTerm != ''">AND d.academic_term = #{academicTerm}</if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.WorkstudyApplication"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO workstudy_application
+            (post_id, student_id, academic_term, reason, evidence, status,
+             applied_at, created_at, updated_at, deleted)
+        VALUES
+            (#{postId}, #{studentId}, #{academicTerm}, #{reason}, #{evidence}, #{status},
+             NOW(), NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE d.id = #{id} AND d.deleted = 0
+    </select>
+
+    <select id="listByStudent" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE d.deleted = 0 AND d.student_id = #{studentId}
+        ORDER BY d.applied_at DESC, d.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByStudent" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE d.deleted = 0 AND d.student_id = #{studentId}
+    </select>
+
+    <select id="listHiredByStudent" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE d.deleted = 0 AND d.student_id = #{studentId} AND d.status = 'hired'
+        <if test="postType != null and postType != ''">AND p.post_type = #{postType}</if>
+        <if test="academicTerm != null and academicTerm != ''">AND d.academic_term = #{academicTerm}</if>
+        ORDER BY d.hired_at DESC, d.id DESC
+    </select>
+
+    <select id="listByPost" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE 1 = 1
+        <include refid="PostFilters"/>
+        ORDER BY FIELD(d.status, 'pending', 'interview_passed', 'hired', 'resigning', 'resigned', 'rejected', 'interview_failed') ASC,
+                 d.applied_at ASC, d.id ASC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByPost" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE 1 = 1
+        <include refid="PostFilters"/>
+    </select>
+
+    <select id="countByPostStudent" resultType="int">
+        SELECT COUNT(*)
+        FROM workstudy_application d
+        WHERE d.deleted = 0 AND d.post_id = #{postId} AND d.student_id = #{studentId}
+    </select>
+
+    <select id="countByPostAndStatus" resultType="int">
+        SELECT COUNT(*)
+        FROM workstudy_application d
+        WHERE d.deleted = 0 AND d.post_id = #{postId} AND d.status = #{status}
+    </select>
+
+    <update id="updateStatus" parameterType="java.util.Map">
+        UPDATE workstudy_application
+        <set>
+            status = #{toStatus},
+            <if test="interviewResult != null">interview_result = #{interviewResult},</if>
+            <if test="interviewNote != null">interview_note = #{interviewNote},</if>
+            <if test="note != null">note = #{note},</if>
+            <if test="resignReason != null">resign_reason = #{resignReason},</if>
+            <if test="hiredAt != null">hired_at = #{hiredAt},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{id} AND deleted = 0
+        <if test="fromStatus != null and fromStatus != ''">AND status = #{fromStatus}</if>
+    </update>
+
+    <update id="updateResignReason">
+        UPDATE workstudy_application
+        SET resign_reason = #{reason}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <select id="countGroupByStatus" resultType="java.util.Map">
+        SELECT d.status AS status, COUNT(*) AS cnt
+        FROM workstudy_application d
+        LEFT JOIN workstudy_post p ON p.id = d.post_id
+        WHERE d.deleted = 0
+        <if test="unitUserId != null">AND p.unit_user_id = #{unitUserId}</if>
+        <if test="academicTerm != null and academicTerm != ''">AND d.academic_term = #{academicTerm}</if>
+        GROUP BY d.status
+    </select>
+
+</mapper>

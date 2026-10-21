@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.VolunteerBlacklistMapper">
+
+    <!-- 志愿服务黑名单（学工 P17，S21 第三十四/三十五/三十六条）。学生姓名/学号由 JOIN 带出。
+         到期口径：expire_at 由服务层在写入时按 listed_at + 6 个月算好；daysLeft 由服务层现算。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.VolunteerBlacklist">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="clause" property="clause"/>
+        <result column="reason" property="reason"/>
+        <result column="listed_at" property="listedAt"/>
+        <result column="expire_at" property="expireAt"/>
+        <result column="notify_time" property="notifyTime"/>
+        <result column="status" property="status"/>
+        <result column="operator_id" property="operatorId"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="days_left" property="daysLeft"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        t.id, t.user_id, t.clause, t.reason, t.listed_at, t.expire_at, t.notify_time, t.status,
+        t.operator_id, t.created_at, t.updated_at, t.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(sp.student_no, u.student_id) AS student_no,
+        DATEDIFF(t.expire_at, CURDATE()) AS days_left
+    </sql>
+
+    <sql id="Joined_From">
+        FROM volunteer_blacklist t
+        LEFT JOIN users u ON u.id = t.user_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = t.user_id AND sp.deleted = 0
+    </sql>
+
+    <sql id="List_Filters">
+        <!-- scope（§6）：学生按 t.user_id；辅导员按 student_profile.counselor_id 名下学生 -->
+        <if test="scopeUserId != null">AND t.user_id = #{scopeUserId}</if>
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+        <if test="clause != null and clause != ''">AND t.clause = #{clause}</if>
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.student_no LIKE CONCAT('%', #{keyword}, '%')
+                 OR t.reason LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.VolunteerBlacklist"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO volunteer_blacklist
+            (user_id, clause, reason, listed_at, expire_at, notify_time, status, operator_id,
+             created_at, updated_at, deleted)
+        VALUES
+            (#{userId}, #{clause}, #{reason}, #{listedAt}, #{expireAt}, #{notifyTime}, #{status}, #{operatorId},
+             NOW(), NOW(), 0)
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.id = #{id} AND t.deleted = 0
+    </select>
+
+    <!-- 重复列入前置校验：某学生当前生效中的黑名单（status='active'） -->
+    <select id="selectActiveByUser" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.user_id = #{userId} AND t.status = 'active' AND t.deleted = 0
+        ORDER BY t.id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY t.listed_at DESC, t.id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="selectCount" resultType="long">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <!-- 增量修改（动态 set）：CAS 前置态由服务层显式给（撤销走 active → revoked） -->
+    <update id="update">
+        UPDATE volunteer_blacklist
+        <set>
+            <if test="b.clause != null">clause = #{b.clause},</if>
+            <if test="b.reason != null">reason = #{b.reason},</if>
+            <if test="b.listedAt != null">listed_at = #{b.listedAt},</if>
+            <if test="b.expireAt != null">expire_at = #{b.expireAt},</if>
+            <if test="b.notifyTime != null">notify_time = #{b.notifyTime},</if>
+            <if test="b.status != null">status = #{b.status},</if>
+            <if test="b.operatorId != null">operator_id = #{b.operatorId},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{b.id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <update id="softDelete">
+        UPDATE volunteer_blacklist
+        SET deleted = 1, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <select id="countByStatus" resultType="long">
+        SELECT COUNT(*)
+        FROM volunteer_blacklist t
+        WHERE t.deleted = 0
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+    </select>
+
+    <!-- expire_at 已过但仍是 active：服务层惰性清理（不做定时任务，§4）的依据 -->
+    <select id="countExpiredActive" resultType="long">
+        SELECT COUNT(*)
+        FROM volunteer_blacklist t
+        WHERE t.deleted = 0 AND t.status = 'active' AND t.expire_at &lt; #{today}
+    </select>
+
+    <select id="countGroupByStatus" resultType="java.util.LinkedHashMap">
+        SELECT t.status AS status, COUNT(*) AS total
+        FROM volunteer_blacklist t
+        WHERE t.deleted = 0
+        GROUP BY t.status
+        ORDER BY t.status
+    </select>
+
+</mapper>

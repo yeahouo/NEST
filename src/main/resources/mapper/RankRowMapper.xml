@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.RankRowMapper">
+
+    <!-- 快照行要连学生姓名/学号/学号后四位；award_tier 在库里只存 t1/t2/t3，中文等级名在查询出口翻译，
+         这样前端只认一个 awardTierText 字段，不必各处硬编码映射 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.RankRow">
+        <id column="id" property="id"/>
+        <result column="batch_id" property="batchId"/>
+        <result column="student_id" property="studentId"/>
+        <result column="major" property="major"/>
+        <result column="class_name" property="className"/>
+        <result column="grade" property="grade"/>
+        <result column="score_a" property="scoreA"/>
+        <result column="c_score" property="cScore"/>
+        <result column="mu" property="mu"/>
+        <result column="score_b" property="scoreB"/>
+        <result column="score_m" property="scoreM"/>
+        <result column="rank_in_major" property="rankInMajor"/>
+        <result column="rank_in_grade_major" property="rankInGradeMajor"/>
+        <result column="total_in_major" property="totalInMajor"/>
+        <result column="award_tier" property="awardTier"/>
+        <result column="qualified" property="qualified"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="student_no_tail" property="studentNoTail"/>
+        <result column="award_tier_text" property="awardTierText"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        r.id, r.batch_id, r.student_id, r.major, r.class_name, r.grade, r.score_a, r.c_score, r.mu,
+        r.score_b, r.score_m, r.rank_in_major, r.rank_in_grade_major, r.total_in_major, r.award_tier,
+        r.qualified, r.created_at,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(sp.student_no, u.student_id) AS student_no,
+        RIGHT(COALESCE(sp.student_no, u.student_id), 4) AS student_no_tail,
+        CASE r.award_tier
+            WHEN 't1' THEN '一等奖学金'
+            WHEN 't2' THEN '二等奖学金'
+            WHEN 't3' THEN '三等奖学金'
+            ELSE NULL
+        END AS award_tier_text
+    </sql>
+
+    <sql id="Joined_From">
+        FROM rank_row r
+        LEFT JOIN users u ON u.id = r.student_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = r.student_id AND sp.deleted = 0
+    </sql>
+
+    <!-- 列表筛选：学院看全专业，不按辅导员过滤 -->
+    <sql id="List_Filters">
+        AND r.batch_id = #{batchId}
+        <if test="major != null and major != ''">AND r.major = #{major}</if>
+        <if test="className != null and className != ''">AND r.class_name = #{className}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.nickname LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.student_no LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <!-- compute 全量重写：先删本批次，再一条多值 INSERT（同一事务，见 RankService.compute） -->
+    <delete id="deleteByBatch">
+        DELETE FROM rank_row WHERE batch_id = #{batchId}
+    </delete>
+
+    <insert id="batchInsert">
+        INSERT INTO rank_row
+            (batch_id, student_id, major, class_name, grade, score_a, c_score, mu, score_b, score_m,
+             rank_in_major, rank_in_grade_major, total_in_major, award_tier, qualified, created_at)
+        VALUES
+        <foreach collection="rows" item="row" separator=",">
+            (#{row.batchId}, #{row.studentId}, #{row.major}, #{row.className}, #{row.grade},
+             #{row.scoreA}, #{row.cScore}, #{row.mu}, #{row.scoreB}, #{row.scoreM},
+             #{row.rankInMajor}, #{row.rankInGradeMajor}, #{row.totalInMajor}, #{row.awardTier},
+             #{row.qualified}, NOW())
+        </foreach>
+    </insert>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE 1 = 1
+        <include refid="List_Filters"/>
+        ORDER BY r.major, r.grade, r.rank_in_major, r.id
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="count" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE 1 = 1
+        <include refid="List_Filters"/>
+    </select>
+
+    <select id="findByBatchAndStudent" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE r.batch_id = #{batchId} AND r.student_id = #{studentId}
+        LIMIT 1
+    </select>
+
+    <select id="listByBatch" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE r.batch_id = #{batchId}
+        ORDER BY r.major, r.grade, r.rank_in_major, r.id
+    </select>
+
+    <select id="countGroupByMajorGrade" resultType="java.util.Map">
+        SELECT r.major AS major,
+               r.grade AS grade,
+               COUNT(*) AS ranked,
+               SUM(CASE WHEN r.award_tier = 't1' THEN 1 ELSE 0 END) AS tier1,
+               SUM(CASE WHEN r.award_tier = 't2' THEN 1 ELSE 0 END) AS tier2,
+               SUM(CASE WHEN r.award_tier = 't3' THEN 1 ELSE 0 END) AS tier3,
+               SUM(CASE WHEN r.qualified = 1 THEN 1 ELSE 0 END) AS qualified
+        FROM rank_row r
+        WHERE r.batch_id = #{batchId}
+        GROUP BY r.major, r.grade
+        ORDER BY r.major, r.grade
+    </select>
+
+</mapper>

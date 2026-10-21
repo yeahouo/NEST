@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="nestlight">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>请假审批 · 学工平台</title>
+  <!-- 主题自举必须内联、必须排在样式表之前（放到 defer 脚本里会闪白）；
+       daisyUI 组件颜色跟的是 [data-theme]，与 .dark 类两处都要写。 -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/nest-art3.css">
+</head>
+
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content">
+
+<header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none border-0 p-0">
+  <div class="navbar mx-auto min-h-0 w-full max-w-7xl gap-3 px-5 py-2 md:px-8">
+    <div class="navbar-start gap-3">
+      <a class="flex items-center gap-3" href="dashboard.html">
+        <span class="nx-logo">
+          <span class="material-symbols-outlined text-xl">terminal</span>
+        </span>
+        <span class="hidden text-lg font-black uppercase tracking-tight sm:inline">学工平台</span>
+      </a>
+      <span class="hidden h-5 w-px bg-base-300 lg:block"></span>
+      <span class="hidden font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65 lg:block">§ 04 · Staff affairs / Review</span>
+    </div>
+    <div class="navbar-end gap-1.5">
+      <a class="btn btn-ghost btn-sm gap-2 rounded-full" href="dashboard.html">
+        <span class="material-symbols-outlined text-lg">dashboard</span>
+        <span class="hidden md:inline">工作台</span>
+      </a>
+      <button aria-label="切换深色 / 浅色模式" class="nx-icon-btn" data-nx-theme-toggle title="切换深色 / 浅色模式" type="button">
+        <span class="material-symbols-outlined nx-theme-icon-light text-xl">dark_mode</span>
+        <span class="material-symbols-outlined nx-theme-icon-dark text-xl">light_mode</span>
+      </button>
+      <a class="nx-icon-btn" href="settings.html" title="设置">
+        <span class="material-symbols-outlined text-xl">settings</span>
+      </a>
+      <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="logout-btn" type="button">
+        <span class="material-symbols-outlined text-lg">logout</span>
+        <span class="hidden md:inline">退出登录</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="flex-1 px-5 py-8 md:px-8 md:py-12">
+  <div class="mx-auto w-full max-w-7xl">
+
+    <header class="mb-8 border-b border-base-300 pb-6">
+      <p class="nx-kicker">§ 04 · Staff / Review</p>
+      <h1 data-nx-split="1" class="mt-2 font-serif text-3xl leading-tight sm:text-4xl lg:text-5xl">请假审批工作台</h1>
+      <p class="mt-4 max-w-2xl text-sm text-base-content/70">
+        待审的申请排在最前。批准即生效，驳回必须写明原因 —— 学生端会立刻看到这条意见，
+        每一次流转都写进审计日志。
+      </p>
+    </header>
+
+    <section id="review-stats" class="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 md:grid-cols-4"></section>
+
+    <div class="nx-rise mb-4 flex flex-wrap items-center gap-2 rounded-box border border-base-300 bg-base-200 p-1.5" id="review-filters">
+      <button type="button" data-review-filter="pending" onclick="setFilter('pending')" class="tab-btn nx-tab is-active">待审批</button>
+      <button type="button" data-review-filter="approved" onclick="setFilter('approved')" class="tab-btn nx-tab">已批准</button>
+      <button type="button" data-review-filter="closed" onclick="setFilter('closed')" class="tab-btn nx-tab">已销假</button>
+      <button type="button" data-review-filter="rejected" onclick="setFilter('rejected')" class="tab-btn nx-tab">已驳回</button>
+      <button type="button" data-review-filter="" onclick="setFilter('')" class="tab-btn nx-tab">全部</button>
+      <div class="ml-auto flex items-center gap-2 pr-1">
+        <input id="review-keyword" type="text" class="input input-bordered input-sm w-40 sm:w-56" placeholder="姓名 / 学号 / 班级">
+        <button type="button" class="btn btn-ghost btn-sm rounded-full" onclick="loadInbox()">查询</button>
+      </div>
+    </div>
+
+    <div id="review-message" class="alert hidden mb-4 items-start gap-2"></div>
+
+    <div id="review-list" data-nx-autoanimate="1" class="flex flex-col gap-4"></div>
+
+    <div id="review-empty" class="hidden rounded-box border border-dashed border-base-300 p-8 text-center">
+      <span class="material-symbols-outlined text-3xl text-base-content/40">task_alt</span>
+      <p class="mt-3 text-sm text-base-content/70">这个筛选下没有申请。</p>
+    </div>
+
+    <p class="mt-6 text-xs text-base-content/60" id="review-total"></p>
+  </div>
+</main>
+
+<!-- 驳回原因弹窗：驳回必须写原因，用弹窗把这一步做实 -->
+<div id="reject-dialog" class="absolute inset-0 nx-scrim hidden items-center justify-center p-4">
+  <div class="modal-container-animate relative w-full max-w-md rounded-box border border-base-300 bg-base-200 p-7 shadow-2xl">
+    <button type="button" class="absolute right-4 top-4 nx-icon-btn" onclick="closeReject()" aria-label="关闭">
+      <span class="material-symbols-outlined text-xl">close</span>
+    </button>
+    <p class="nx-kicker">Reject · 驳回申请</p>
+    <h2 class="mt-2 font-serif text-2xl leading-tight">写明驳回原因</h2>
+    <p class="mt-2 text-xs text-base-content/65" id="reject-target"></p>
+    <div class="form-control mt-5">
+      <textarea id="reject-note" rows="3" maxlength="255" class="textarea textarea-bordered" placeholder="例如：事由不够具体，请补充去向与返校时间"></textarea>
+    </div>
+    <div class="mt-5 flex justify-end gap-2">
+      <button type="button" class="btn btn-ghost rounded-full" onclick="closeReject()">取消</button>
+      <button type="button" id="reject-confirm" class="btn btn-primary rounded-full" onclick="confirmReject()">确认驳回</button>
+    </div>
+  </div>
+</div>
+
+<footer class="nx-hairline-t border-base-300 px-5 py-6 md:px-8">
+  <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
+    <p class="font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65">学工平台 · Leave review</p>
+    <p class="text-xs text-base-content/60">审批意见会同步给学生，请勿填写与职务无关的信息。</p>
+  </div>
+</footer>
+
+<script>
+  let reviewFilter = 'pending';
+  let rejectId = null;
+  const TYPE_TEXT = { personal: '事假', sick: '病假', leave_school: '离校', outing: '外出', internship: '实习' };
+  const STATUS_TEXT = { pending: '待审批', approved: '已批准', rejected: '已驳回', cancelled: '已撤回', closed: '已销假' };
+  const STATUS_BADGE = { pending: 'badge-warning', approved: 'badge-success', rejected: 'badge-error', cancelled: 'badge-ghost', closed: 'badge-neutral' };
+
+  function escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  async function callApi(url, options) {
+    const response = await fetch(url, options);
+    return response.json();
+  }
+
+  function showMessage(text, type) {
+    const box = document.getElementById('review-message');
+    const tone = type === 'success' ? 'alert-success' : 'alert-error';
+    box.classList.remove('hidden');
+    box.className = 'alert mb-4 items-start gap-2 ' + tone;
+    box.innerHTML = '<span class="material-symbols-outlined text-lg">'
+        + (type === 'success' ? 'check_circle' : 'error') + '</span><span class="text-sm">' + escapeHtml(text) + '</span>';
+  }
+
+  function formatTime(value) {
+    if (!value) { return '-'; }
+    return String(value).replace('T', ' ').slice(0, 16);
+  }
+
+  async function checkAuth() {
+    try {
+      const result = await callApi('/api/auth/me');
+      if (result.code !== 200) { window.location.href = 'login.html'; return null; }
+      const me = result.data || {};
+      if (me.role !== 'teacher' && me.role !== 'admin') { window.location.href = 'leave.html'; return null; }
+      return me;
+    } catch (error) {
+      window.location.href = 'login.html';
+      return null;
+    }
+  }
+
+  async function loadStats() {
+    const result = await callApi('/api/leave/inbox?size=1');
+    const host = document.getElementById('review-stats');
+    if (result.code !== 200) { host.innerHTML = ''; return; }
+    const stats = (result.data && result.data.stats) || {};
+    const order = [['pending', '待审批'], ['approved', '已批准（未销假）'], ['closed', '已销假'], ['rejected', '已驳回']];
+    host.innerHTML = order.map(function (row) {
+      return '<div class="flex flex-col gap-1 bg-base-100 p-6">'
+          + '<dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">' + row[1] + '</dt>'
+          + '<dd class="mt-1 font-serif text-2xl">' + (stats[row[0]] || 0) + '</dd></div>';
+    }).join('');
+  }
+
+  function itemHtml(item) {
+    const badge = STATUS_BADGE[item.status] || 'badge-ghost';
+    const cells = [
+      ['学号', item.studentNo || '-'],
+      ['班级', item.className || '-'],
+      ['去向', item.place || '未填写'],
+      ['联系电话', item.contact || '-']
+    ].map(function (row) {
+      return '<div><dt class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/60">' + row[0] + '</dt>'
+          + '<dd class="mt-1 text-sm">' + escapeHtml(row[1]) + '</dd></div>';
+    }).join('');
+
+    let actions = '';
+    if (item.status === 'pending') {
+      actions = '<button type="button" class="btn btn-primary btn-sm rounded-full" onclick="decide(' + item.id + ', \'approve\')">批准</button>'
+          + '<button type="button" class="nx-danger-soft btn btn-sm rounded-full" onclick="openReject(' + item.id + ')">驳回</button>';
+    } else if (item.status === 'approved') {
+      actions = '<button type="button" class="btn btn-ghost btn-sm rounded-full" onclick="decide(' + item.id + ', \'close\')">销假</button>';
+    }
+
+    return '<article class="rounded-box border border-base-300 bg-base-200 p-5 shadow-sm">'
+        + '<div class="flex flex-wrap items-center gap-3">'
+        + '<span class="font-serif text-xl">' + escapeHtml(item.studentName || '未知学生') + '</span>'
+        + '<span class="badge ' + badge + ' badge-sm">' + STATUS_TEXT[item.status] + '</span>'
+        + '<span class="font-mono text-[11px] uppercase tracking-[0.16em] text-base-content/65">' + (TYPE_TEXT[item.type] || item.type) + '</span>'
+        + '<span class="ml-auto font-mono text-[11px] text-base-content/65">' + escapeHtml(formatTime(item.startAt)) + ' → ' + escapeHtml(formatTime(item.endAt))
+        + ' · ' + (item.days === null || item.days === undefined ? '-' : item.days) + ' 天</span>'
+        + '</div>'
+        + '<p class="mt-3 text-sm text-base-content/85">' + escapeHtml(item.reason) + '</p>'
+        + '<dl class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">' + cells + '</dl>'
+        + (item.approveNote ? '<p class="mt-3 rounded-box border border-base-300 bg-base-100 p-3 text-xs text-base-content/75">审批意见：' + escapeHtml(item.approveNote) + '</p>' : '')
+        + (actions ? '<div class="mt-4 flex flex-wrap justify-end gap-2">' + actions + '</div>' : '')
+        + '</article>';
+  }
+
+  async function loadInbox() {
+    const params = new URLSearchParams();
+    if (reviewFilter) { params.set('status', reviewFilter); }
+    const keyword = document.getElementById('review-keyword').value.trim();
+    if (keyword) { params.set('keyword', keyword); }
+    params.set('size', '50');
+    const result = await callApi('/api/leave/inbox?' + params.toString());
+    const host = document.getElementById('review-list');
+    const empty = document.getElementById('review-empty');
+    const total = document.getElementById('review-total');
+    if (result.code !== 200) {
+      host.innerHTML = '';
+      empty.classList.remove('hidden');
+      empty.querySelector('p').textContent = result.message || '加载失败，请刷新重试。';
+      total.textContent = '';
+      return;
+    }
+    const items = (result.data && result.data.items) || [];
+    host.innerHTML = items.map(itemHtml).join('');
+    empty.classList.toggle('hidden', items.length > 0);
+    total.textContent = '本页 ' + items.length + ' 条 / 共 ' + ((result.data && result.data.total) || 0) + ' 条';
+    if (result.data && result.data.stats) { renderStats(result.data.stats); }
+  }
+
+  function renderStats(stats) {
+    const host = document.getElementById('review-stats');
+    const order = [['pending', '待审批'], ['approved', '已批准（未销假）'], ['closed', '已销假'], ['rejected', '已驳回']];
+    host.innerHTML = order.map(function (row) {
+      return '<div class="flex flex-col gap-1 bg-base-100 p-6">'
+          + '<dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">' + row[1] + '</dt>'
+          + '<dd class="mt-1 font-serif text-2xl">' + (stats[row[0]] || 0) + '</dd></div>';
+    }).join('');
+  }
+
+  function setFilter(value) {
+    reviewFilter = value;
+    document.querySelectorAll('#review-filters .nx-tab').forEach(function (button) {
+      const key = button.getAttribute('data-review-filter');
+      button.classList.toggle('is-active', key === value);
+    });
+    loadInbox();
+  }
+
+  async function decide(id, action) {
+    const labels = { approve: '批准', close: '销假' };
+    if (!window.confirm('确认' + (labels[action] || action) + '这条申请？')) { return; }
+    await postDecision(id, action, '');
+  }
+
+  function openReject(id) {
+    rejectId = id;
+    document.getElementById('reject-note').value = '';
+    document.getElementById('reject-target').textContent = '申请 #' + id + '：驳回后学生会看到这条原因。';
+    const dialog = document.getElementById('reject-dialog');
+    dialog.classList.remove('hidden');
+    dialog.classList.add('flex');
+    document.getElementById('reject-note').focus();
+  }
+
+  function closeReject() {
+    rejectId = null;
+    const dialog = document.getElementById('reject-dialog');
+    dialog.classList.add('hidden');
+    dialog.classList.remove('flex');
+  }
+
+  async function confirmReject() {
+    const note = document.getElementById('reject-note').value.trim();
+    if (note.length < 2) { showMessage('驳回必须写明原因（至少 2 个字）', 'error'); return; }
+    const id = rejectId;
+    closeReject();
+    await postDecision(id, 'reject', note);
+  }
+
+  async function postDecision(id, action, note) {
+    const button = document.getElementById('reject-confirm');
+    if (button) { button.disabled = true; }
+    try {
+      const result = await callApi('/api/leave/' + id + '/' + action, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: note })
+      });
+      if (result.code === 200) {
+        showMessage(result.message || '已处理', 'success');
+      } else {
+        showMessage(result.message || '处理失败', 'error');
+      }
+    } catch (error) {
+      console.error('Leave decide error:', error);
+      showMessage('网络错误，请重试', 'error');
+    } finally {
+      if (button) { button.disabled = false; }
+      loadInbox();
+    }
+  }
+
+  function logout() {
+    fetch('/api/auth/logout', { method: 'POST' }).finally(function () { window.location.href = 'login.html'; });
+  }
+
+  document.addEventListener('DOMContentLoaded', async function () {
+    const me = await checkAuth();
+    if (!me) { return; }
+    document.getElementById('logout-btn').addEventListener('click', logout);
+    document.getElementById('review-keyword').addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') { loadInbox(); }
+    });
+    // 从辅导员工作台跳过来时带 ?keyword=学号，首屏直接筛到这名学生
+    const bootKeyword = new URLSearchParams(window.location.search).get('keyword');
+    if (bootKeyword) { document.getElementById('review-keyword').value = bootKeyword; }
+    await loadInbox();
+  });
+</script>
+<script defer src="/js/nest-ui.js"></script>
+<script defer src="/libs/animejs/anime.umd.min.js"></script>
+<script defer src="/libs/countup/countUp.umd.js"></script>
+<script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+<script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+<script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+</body>
+</html>

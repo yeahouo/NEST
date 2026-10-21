@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="nestlight">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>工作台 · 学工平台</title>
+  <meta content="#3e63dd" name="theme-color"/>
+  <!--
+    主题必须在样式表之前定下来。放到 defer 的共享脚本里会先按浅色画一帧、
+    再翻成深色 —— 也就是俗称的「闪白」，比没有深色模式更难受。
+    所以这段必须内联，且必须排在 <link rel="stylesheet"> 前面。
+    daisyUI 的组件颜色跟的是 [data-theme] 属性（不是 .dark 类），两处都必须写，
+    与 nest-ui.js 的 paintTheme() 保持一致。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <script src="/pwa.js" defer></script>
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/nest-art3.css">
+</head>
+<body data-nx-particles="soft" class="font-display nx-page bg-base-100 text-base-content">
+<!--
+  背景：.nx-aurora + .nx-grid 是纯 CSS 的两层静态背景，再叠一层 canvas 粒子
+  （/js/nest-particles.js，本页 data-nx-particles="soft"）：单个 canvas、fpsLimit 60、
+  pauseOnBlur / pauseOnOutsideViewport，系统开了「减弱动态效果」就完全不加载。
+  全站只有登录页与两个工作台保留这层底纹，业务页只留粒子 —— 见 docs\前端设计系统说明.md。
+
+  这个页面上所有数字与列表都来自接口。早先的版本里，「Announcements」和
+  「Upcoming Deadlines」是写死在 HTML 里的假公告（"Dr. Sarah Jenkins"、
+  「Oct 20 · Urgent」之类），它们长得跟真数据一样，所以没人会发现。
+  猜出来的数字比空着的格子危险得多。
+
+  这一页是学生的入口枢纽：三块统计 + 两张模块入口卡（学生工作 / 办事与查询）
+  + 四块面板（我的假条、学院公告、我的奖惩、我的资助申请）。
+  入口卡只负责跳转，页面上不放任何写死的数字：统计与列表由页面脚本从接口取。
+-->
+<div class="nx-aurora nx-grid fixed inset-0 -z-10"></div>
+
+<div class="relative z-10 flex min-h-screen flex-col">
+  <header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none border-0 p-0">
+    <div class="navbar mx-auto min-h-0 w-full max-w-7xl gap-3 px-5 py-2 md:px-8">
+      <div class="navbar-start gap-3">
+        <a class="flex items-center gap-3" href="dashboard.html">
+          <span class="nx-logo">
+            <span class="material-symbols-outlined text-xl">terminal</span>
+          </span>
+          <span class="hidden text-lg font-black uppercase tracking-tight sm:inline">学工平台</span>
+        </a>
+        <!-- 刊头注记：只在宽屏出现，和登录页左栏的小标同一套排版语言 -->
+        <span class="hidden h-5 w-px bg-base-300 lg:block"></span>
+        <span class="hidden font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65 lg:block">§ 01 · Student affairs</span>
+      </div>
+      <div class="navbar-end gap-1.5">
+        <a class="btn btn-ghost btn-sm hidden gap-2 rounded-full xl:inline-flex" href="profile.html">
+          <span class="material-symbols-outlined text-lg">badge</span>
+          <span class="hidden md:inline">我的档案</span>
+        </a>
+        <a class="btn btn-ghost btn-sm hidden gap-2 rounded-full md:inline-flex" href="leave.html">
+          <span class="material-symbols-outlined text-lg">event_available</span>
+          <span class="hidden md:inline">请假 · 离校</span>
+        </a>
+        <a class="btn btn-ghost btn-sm hidden gap-2 rounded-full xl:inline-flex" href="dorm-portal.html">
+          <span class="material-symbols-outlined text-lg">home_work</span>
+          <span class="hidden md:inline">我的宿舍</span>
+        </a>
+        <button aria-label="搜索学工功能与页面（Ctrl 或 Command + K）" class="nx-cmdk-chip" data-nx-cmdk-open data-nx-tour="搜索从这里开始" data-nx-tour-text="按 Ctrl（Mac 上是 ⌘）+ K 打开命令面板：请假、奖惩、资助、综测和整站页面都能直接搜，每个页面都有这个入口。" data-nx-tour-side="bottom" data-nx-tour-align="end" data-nx-tour-step="1" type="button">
+          <span class="material-symbols-outlined">search</span>
+          <span class="nx-cmdk-chip-text hidden xl:inline">Search</span>
+          <kbd class="nx-kbd" data-nx-kbd-text>Ctrl K</kbd>
+        </button>
+        <!-- 这个按钮不登记成命令面板条目：面板里有内置的「切换深色模式 / 浅色模式」，
+             而且它说得出「点下去会变成哪一种」，比这里的双向文案更明确。 -->
+        <button aria-label="切换深色 / 浅色模式" class="nx-icon-btn" data-nx-theme-toggle title="切换深色 / 浅色模式" data-nx-tour="深色模式" data-nx-tour-text="点这里切换深浅色，选择会记住；手机上浏览器地址栏的颜色也会跟着变。" data-nx-tour-side="bottom" data-nx-tour-align="end" data-nx-tour-step="4" type="button">
+          <span class="material-symbols-outlined nx-theme-icon-light text-xl">dark_mode</span>
+          <span class="material-symbols-outlined nx-theme-icon-dark text-xl">light_mode</span>
+        </button>
+        <a class="nx-icon-btn" data-nx-cmd="设置" data-nx-cmd-group="跳转" data-nx-cmd-icon="settings" href="settings.html" title="设置">
+          <span class="material-symbols-outlined text-xl">settings</span>
+        </a>
+        <button class="btn btn-ghost btn-sm gap-2 rounded-full" data-nx-cmd="退出登录" data-nx-cmd-group="操作" data-nx-cmd-icon="logout" id="logout-btn" type="button">
+          <span class="material-symbols-outlined text-lg">logout</span>
+          <span class="hidden md:inline">退出登录</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 px-5 py-8 md:px-8 md:py-12">
+    <div class="mx-auto w-full max-w-7xl">
+
+      <!-- 刊头：等宽小标 + 衬线大标题 + 发丝分隔线（与登录页左栏同一套语言） -->
+      <div class="flex flex-wrap items-end justify-between gap-6 border-b border-base-300 pb-6">
+        <div>
+          <p class="nx-kicker">§ 01 · Student affairs / Dashboard</p>
+          <h1 class="mt-2 text-4xl tracking-tight sm:text-5xl">
+            Welcome back, <span id="user-name">…</span>
+          </h1>
+          <p class="mt-2 text-sm text-base-content/70" id="today-line">&nbsp;</p>
+        </div>
+        <a class="btn btn-primary gap-2" data-nx-cmd="我要请假" data-nx-cmd-group="操作" data-nx-cmd-icon="event_available" href="leave.html" id="leave-cta" data-nx-tour="我要请假" data-nx-tour-text="请假、离校、外出都从这里提交：填时间、事由与去向，辅导员在审批页看到后就能批。" data-nx-tour-side="bottom" data-nx-tour-align="start" data-nx-tour-step="2">
+          <span class="material-symbols-outlined text-lg">event_available</span>
+          我要请假
+        </a>
+      </div>
+
+      <!-- 三块统计：初值一律是「—」而不是 0，取不到就一直是「—」。
+           连体排布（grid + gap-px + 底色做分隔线）是登录页那排数字的同一手法。 -->
+      <div class="nx-stat-joined nx-stagger mt-8 grid gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 sm:grid-cols-3" id="stats-row" data-nx-tour="三块概览" data-nx-tour-text="待审假条、待审资助、本学期综测自评项数 —— 数字来自你自己的记录，点下面的面板看明细。" data-nx-tour-side="bottom" data-nx-tour-align="start" data-nx-tour-step="3">
+        <div class="nx-stat" data-nx-spotlight>
+          <span class="nx-stat-icon"><span class="material-symbols-outlined">event_available</span></span>
+          <div><p class="nx-stat-value" data-nx-count id="stat-leave-pending">—</p><p class="nx-stat-label">待审假条</p></div>
+        </div>
+        <div class="nx-stat" data-nx-spotlight>
+          <span class="nx-stat-icon"><span class="material-symbols-outlined">volunteer_activism</span></span>
+          <div><p class="nx-stat-value" data-nx-count id="stat-aid-pending">—</p><p class="nx-stat-label">待审资助申请</p></div>
+        </div>
+        <div class="nx-stat" data-nx-spotlight>
+          <span class="nx-stat-icon"><span class="material-symbols-outlined">insights</span></span>
+          <div><p class="nx-stat-value" data-nx-count id="stat-eval-scored">—</p><p class="nx-stat-label">综测自评项数</p></div>
+        </div>
+      </div>
+
+      <!-- ── 模块入口：学生工作 ─────────────────────────────────────────── -->
+      <section class="mt-8" data-nx-reveal>
+        <div class="flex flex-wrap items-end justify-between gap-3 border-b border-base-300 pb-3">
+          <h2 class="text-lg font-black tracking-tight">学生工作</h2>
+          <p class="text-xs nx-muted">点卡片进入；也可以在右上角的搜索里直接搜页面名</p>
+        </div>
+        <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="community.html" title="社区管理">
+            <span class="nx-tile"><span class="material-symbols-outlined text-lg">apartment</span></span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-bold">社区管理</span>
+              <span class="mt-0.5 block truncate text-[11px] nx-muted">宿舍检查 · 整改 · 晚归</span>
+            </span>
+          </a>
+          <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="party.html" title="学生党建">
+            <span class="nx-tile"><span class="material-symbols-outlined text-lg">flag</span></span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-bold">学生党建</span>
+              <span class="mt-0.5 block truncate text-[11px] nx-muted">党校培训 · 发展党员 · 组织生活</span>
+            </span>
+          </a>
+          <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="volunteer.html" title="志愿服务">
+            <span class="nx-tile"><span class="material-symbols-outlined text-lg">volunteer_activism</span></span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-bold">志愿服务</span>
+              <span class="mt-0.5 block truncate text-[11px] nx-muted">项目报名 · 时长登记 · 申诉</span>
+            </span>
+          </a>
+          <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="club.html" title="学生社团">
+            <span class="nx-tile"><span class="material-symbols-outlined text-lg">groups</span></span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-bold">学生社团</span>
+              <span class="mt-0.5 block truncate text-[11px] nx-muted">社团注册 · 成员 · 年审星级</span>
+            </span>
+          </a>
+          <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="second-class.html" title="第二课堂">
+            <span class="nx-tile"><span class="material-symbols-outlined text-lg">workspace_premium</span></span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-bold">第二课堂</span>
+              <span class="mt-0.5 block truncate text-[11px] nx-muted">活动申报 · 学时认定 · 成绩单</span>
+            </span>
+          </a>
+          <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="psyche.html" title="心理健康">
+            <span class="nx-tile"><span class="material-symbols-outlined text-lg">psychology</span></span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-bold">心理健康</span>
+              <span class="mt-0.5 block truncate text-[11px] nx-muted">心理测评 · 咨询预约 · 科普</span>
+            </span>
+          </a>
+          <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="honor.html" title="评奖评优">
+            <span class="nx-tile"><span class="material-symbols-outlined text-lg">military_tech</span></span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-bold">评奖评优</span>
+              <span class="mt-0.5 block truncate text-[11px] nx-muted">奖学金 · 荣誉称号 · 公示</span>
+            </span>
+          </a>
+          <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="ranking.html" title="综测排名">
+            <span class="nx-tile"><span class="material-symbols-outlined text-lg">leaderboard</span></span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-bold">综测排名</span>
+              <span class="mt-0.5 block truncate text-[11px] nx-muted">综测得分 · 排名 · 明细</span>
+            </span>
+          </a>
+          <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="poverty.html" title="困难认定">
+            <span class="nx-tile"><span class="material-symbols-outlined text-lg">verified</span></span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-bold">困难认定</span>
+              <span class="mt-0.5 block truncate text-[11px] nx-muted">家庭经济困难认定</span>
+            </span>
+          </a>
+        </div>
+      </section>
+
+      <!-- ── 模块入口：办事与查询 ───────────────────────────────────────── -->
+      <section class="mt-8" data-nx-reveal>
+        <div class="flex flex-wrap items-end justify-between gap-3 border-b border-base-300 pb-3">
+          <h2 class="text-lg font-black tracking-tight">办事与查询</h2>
+          <p class="text-xs nx-muted">请假、资助、勤工助学、奖惩、综测与档案</p>
+        </div>
+        <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="leave.html" title="请假与离校">
+            <span class="nx-tile"><span class="material-symbols-outlined text-lg">event_available</span></span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-bold">请假与离校</span>
+              <span class="mt-0.5 block truncate text-[11px] nx-muted">请假 · 离校 · 外出</span>
+            </span>
+          </a>
+          <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="aid.html" title="资助申请">
+            <span class="nx-tile"><span class="material-symbols-outlined text-lg">receipt_long</span></span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-bold">资助申请</span>
+              <span class="mt-0.5 block truncate text-[11px] nx-muted">助学金 · 临时困难补助</span>
+            </span>
+          </a>
+          <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="workstudy.html" title="勤工助学">
+            <span class="nx-tile"><span class="material-symbols-outlined text-lg">work</span></span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-bold">勤工助学</span>
+              <span class="mt-0.5 block truncate text-[11px] nx-muted">岗位申请 · 在岗记录</span>
+            </span>
+          </a>
+          <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="award-punishment.html" title="我的奖惩记录">
+            <span class="nx-tile"><span class="material-symbols-outlined text-lg">emoji_events</span></span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-bold">我的奖惩记录</span>
+              <span class="mt-0.5 block truncate text-[11px] nx-muted">获奖 · 处分</span>
+            </span>
+          </a>
+          <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="evaluation.html" title="综合素质测评">
+            <span class="nx-tile"><span class="material-symbols-outlined text-lg">insights</span></span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-bold">综合素质测评</span>
+              <span class="mt-0.5 block truncate text-[11px] nx-muted">自评 · 得分</span>
+            </span>
+          </a>
+          <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="dorm-portal.html" title="我的宿舍">
+            <span class="nx-tile"><span class="material-symbols-outlined text-lg">home_work</span></span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-bold">我的宿舍</span>
+              <span class="mt-0.5 block truncate text-[11px] nx-muted">分配结果 · 室友</span>
+            </span>
+          </a>
+          <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="profile.html" title="我的学工档案">
+            <span class="nx-tile"><span class="material-symbols-outlined text-lg">badge</span></span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-bold">我的学工档案</span>
+              <span class="mt-0.5 block truncate text-[11px] nx-muted">学籍 · 联系方式</span>
+            </span>
+          </a>
+          <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="settings.html" title="设置">
+            <span class="nx-tile"><span class="material-symbols-outlined text-lg">settings</span></span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-bold">设置</span>
+              <span class="mt-0.5 block truncate text-[11px] nx-muted">账号 · 主题 · 通知</span>
+            </span>
+          </a>
+        </div>
+      </section>
+
+      <div class="mt-8 grid gap-6 lg:grid-cols-3" data-nx-reveal>
+        <div class="flex flex-col gap-6 lg:col-span-2">
+
+          <section class="card rounded-box border border-base-300 bg-base-100">
+            <div class="card-body gap-5 p-5 md:p-6">
+              <div class="flex items-center justify-between gap-3">
+                <h2 class="text-lg font-black tracking-tight">我的假条</h2>
+                <span class="badge badge-ghost badge-sm font-mono" id="leaves-count">—</span>
+              </div>
+              <div class="flex flex-col gap-3" data-nx-autoanimate="1" id="leaves-container"></div>
+              <a class="nx-link text-xs" href="leave.html">查看全部 · 提交新的请假申请</a>
+            </div>
+          </section>
+
+          <section class="card rounded-box border border-base-300 bg-base-100">
+            <div class="card-body gap-5 p-5 md:p-6">
+              <div class="flex items-center justify-between gap-3">
+                <h2 class="text-lg font-black tracking-tight">学院公告</h2>
+                <span class="badge badge-ghost badge-sm font-mono" id="announcements-count">—</span>
+              </div>
+              <div class="flex flex-col gap-3" data-nx-autoanimate="1" id="announcements-container"></div>
+            </div>
+          </section>
+        </div>
+
+        <div class="flex flex-col gap-6">
+          <section class="card nx-accent-top rounded-box border border-base-300 bg-base-100">
+            <div class="card-body gap-5 p-5 md:p-6">
+              <div class="flex items-center justify-between gap-3">
+                <h2 class="text-lg font-black tracking-tight">我的奖惩</h2>
+                <span class="badge badge-ghost badge-sm font-mono" id="awards-count">—</span>
+              </div>
+              <div class="flex flex-col gap-3" data-nx-autoanimate="1" id="awards-container"></div>
+              <a class="nx-link text-xs" href="award-punishment.html">查看全部奖惩记录</a>
+            </div>
+          </section>
+
+          <section class="card rounded-box border border-base-300 bg-base-100">
+            <div class="card-body gap-5 p-5 md:p-6">
+              <div class="flex items-center justify-between gap-3">
+                <h2 class="text-lg font-black tracking-tight">我的资助申请</h2>
+                <span class="badge badge-ghost badge-sm font-mono" id="aid-count">—</span>
+              </div>
+              <div class="flex flex-col gap-3" data-nx-autoanimate="1" id="aid-container"></div>
+              <a class="nx-link text-xs" href="aid.html">查看全部 · 申请困难认定</a>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="border-t border-base-300">
+    <div class="mx-auto flex w-full max-w-7xl flex-col items-center justify-between gap-3 px-5 py-6 text-xs text-base-content/65 md:flex-row md:px-8">
+      <p>© <span id="year">2026</span> 学工平台. All rights reserved.</p>
+      <p>Xiamen University Tan Kah Kee College · School of Information Science and Technology</p>
+    </div>
+  </footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var state = { user: null, leaves: [], leaveStats: null, announcements: [], awards: [], aids: [], eval: null, failures: {} };
+
+  function el(id) { return document.getElementById(id); }
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  // 后端把时间发成 "2026-06-10T23:59:59"（不带时区），按本地时间解析。
+  function parseWhen(iso) {
+    if (!iso) return null;
+    var t = new Date(String(iso).replace(' ', 'T'));
+    return isNaN(t.getTime()) ? null : t;
+  }
+
+  function relativeTime(iso) {
+    var t = parseWhen(iso);
+    if (!t) return '';
+    var diff = Date.now() - t.getTime();
+    var mins = Math.round(diff / 60000);
+    if (mins < 1) return '刚刚';
+    if (mins < 60) return mins + ' 分钟前';
+    var hours = Math.round(mins / 60);
+    if (hours < 24) return hours + ' 小时前';
+    var days = Math.round(hours / 24);
+    if (days < 30) return days + ' 天前';
+    return t.toLocaleDateString();
+  }
+
+  function dayRange(startIso, endIso) {
+    var a = parseWhen(startIso), b = parseWhen(endIso);
+    if (!a) return '';
+    var left = a.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    var right = b ? b.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+    return right && right !== left ? left + ' – ' + right : left;
+  }
+
+  function skeletonCards(count) {
+    var out = '';
+    for (var i = 0; i < count; i++) {
+      out += '<div class="nx-bordered nx-bordered-i p-4">' +
+        '<div class="nx-skel h-3.5 w-1/2"></div>' +
+        '<div class="nx-skel mt-2.5 h-3 w-4/5"></div>' +
+        '<div class="nx-skel mt-2.5 h-3 w-1/3"></div>' +
+        '</div>';
+    }
+    return out;
+  }
+
+  function emptyState(icon, title, hint) {
+    return '<div class="nx-empty">' +
+      '<span class="material-symbols-outlined text-3xl nx-muted">' + escapeHtml(icon) + '</span>' +
+      '<p class="mt-2 font-bold">' + escapeHtml(title) + '</p>' +
+      '<p class="mt-1 text-sm nx-muted">' + escapeHtml(hint) + '</p>' +
+      '</div>';
+  }
+
+  function errorState(message, retryFn, reasonId) {
+    return '<div class="nx-bordered nx-bordered-i border-error/40 p-4 text-sm">' +
+      '<p class="flex items-center gap-2 font-bold text-error">' +
+        '<span class="material-symbols-outlined text-lg">error</span>' + escapeHtml(message) +
+      '</p>' +
+      '<p class="mt-2 text-xs nx-muted" id="' + escapeHtml(reasonId) + '"></p>' +
+      '<button class="nx-btn nx-btn-sm mt-3" data-retry="' + escapeHtml(retryFn) + '" type="button">重试</button>' +
+      '</div>';
+  }
+
+  function setText(id, value) {
+    var node = el(id);
+    if (node) node.textContent = String(value);
+  }
+
+  // 一个请求包一层：失败不抛异常，只回报 ok=false，由调用方决定怎么显示。
+  async function fetchJson(url) {
+    try {
+      var response = await fetch(url, { credentials: 'same-origin' });
+      var body = await response.json().catch(function () { return null; });
+      if (!body || body.code !== 200) {
+        return { ok: false, message: (body && body.message) || ('HTTP ' + response.status) };
+      }
+      return { ok: true, data: body.data };
+    } catch (error) {
+      return { ok: false, message: '连不上服务器。' };
+    }
+  }
+
+  function listOf(result, extra) {
+    if (!result || !result.ok) return [];
+    var data = result.data;
+    var items = Array.isArray(data) ? data : ((data && data.items) || []);
+    return Array.isArray(items) ? items : [];
+  }
+
+  var LEAVE_STATUS = {
+    pending:   ['badge-warning', '待审批'],
+    approved:  ['badge-success', '已批准'],
+    rejected:  ['badge-error',   '已驳回'],
+    cancelled: ['badge-ghost',   '已撤回'],
+    closed:    ['badge-info',    '已销假']
+  };
+  var LEAVE_TYPE = { personal: '事假', sick: '病假', leave: '离校', outing: '外出', other: '其他' };
+  var AID_STATUS = {
+    pending:   ['badge-warning', '待审批'],
+    approved:  ['badge-success', '已批准'],
+    rejected:  ['badge-error',   '已驳回'],
+    cancelled: ['badge-ghost',   '已撤回']
+  };
+  var AID_TYPE = { grant: '助学金', need: '困难认定', temporary: '临时困难补助', workstudy: '勤工助学' };
+  var AID_LEVEL = { general: '一般困难', special: '特别困难', hard: '困难' };
+  var AWARD_KIND = { award: '奖励', punishment: '处分' };
+  var AWARD_LEVEL = { school: '校级', college: '院级', university: '校级', city: '市级', province: '省级', national: '国家级' };
+
+  function pick(map, key, fallback) {
+    if (key == null) return fallback == null ? '' : fallback;
+    var hit = map[key];
+    return hit == null ? String(key) : hit;
+  }
+
+  function statusBadge(map, key) {
+    var hit = map[key] || ['badge-ghost', key == null ? '未知' : String(key)];
+    // 变量名带大写字母：verify-css.ps1 会把紧跟在 '... ' + 后面的全小写 token 当成 class 名
+    var badgeCls = hit[0];
+    return '<span class="badge ' + badgeCls + ' badge-sm whitespace-nowrap">' + escapeHtml(hit[1]) + '</span>';
+  }
+
+  async function loadDashboard() {
+    state.failures = {};
+    setText('leaves-count', '—');
+    setText('announcements-count', '—');
+    setText('awards-count', '—');
+    setText('aid-count', '—');
+    el('leaves-container').innerHTML = skeletonCards(2);
+    el('announcements-container').innerHTML = skeletonCards(2);
+    el('awards-container').innerHTML = skeletonCards(2);
+    el('aid-container').innerHTML = skeletonCards(2);
+
+    var results = await Promise.all([
+      fetchJson('/api/leave/my?page=1&size=5'),
+      fetchJson('/api/leave/my/stats'),
+      fetchJson('/api/announcements'),
+      fetchJson('/api/award-punishment/my?page=1&size=5'),
+      fetchJson('/api/aid/my?page=1&size=100'),
+      fetchJson('/api/eval/mine')
+    ]);
+    var leaves = results[0], leaveStats = results[1], anns = results[2];
+    var awards = results[3], aids = results[4], evalResult = results[5];
+
+    if (!leaves.ok) state.failures.leaves = leaves.message;
+    if (!anns.ok) state.failures.announcements = anns.message;
+    if (!awards.ok) state.failures.awards = awards.message;
+    if (!aids.ok) state.failures.aids = aids.message;
+
+    state.leaves = listOf(leaves);
+    state.leaveStats = leaveStats.ok ? (leaveStats.data || null) : null;
+    state.announcements = listOf(anns);
+    state.awards = listOf(awards);
+    state.aids = listOf(aids);
+    state.eval = evalResult.ok ? (evalResult.data || null) : null;
+
+    renderStats();
+    renderLeaves();
+    renderAnnouncements();
+    renderAwards();
+    renderAids();
+  }
+
+  function setReason(id, text) {
+    var node = el(id);
+    if (node) node.textContent = text;
+  }
+
+  /* ── 渲染 ─────────────────────────────────────────────────────────────── */
+
+  function renderStats() {
+    var pendingLeave = state.leaveStats ? Number(state.leaveStats.pending || 0) : null;
+    var pendingAid = state.failures.aids
+      ? null
+      : state.aids.filter(function (a) { return a.status === 'pending'; }).length;
+    var scored = state.eval ? Number(state.eval.scoreCount || 0) : null;
+
+    setText('stat-leave-pending', pendingLeave === null ? '—' : String(pendingLeave));
+    setText('stat-aid-pending', pendingAid === null ? '—' : String(pendingAid));
+    setText('stat-eval-scored', scored === null ? '—' : String(scored));
+    // 数字从 0 滚到终值。取不到数据时文本是「—」，countUp 会自己跳过不滚。
+    ['stat-leave-pending', 'stat-aid-pending', 'stat-eval-scored'].forEach(function (id) {
+      if (window.NestUI) { window.NestUI.countUp(el(id)); }
+    });
+  }
+
+  function renderLeaves() {
+    if (state.failures.leaves && state.leaves.length === 0) {
+      el('leaves-container').innerHTML = errorState('假条没能加载出来。', 'loadDashboard()', 'leaves-error-reason');
+      setReason('leaves-error-reason', state.failures.leaves);
+      setText('leaves-count', '—');
+      return;
+    }
+    setText('leaves-count', String(state.leaves.length));
+    if (state.leaves.length === 0) {
+      el('leaves-container').innerHTML = emptyState('event_available', '还没有请假记录', '需要请假、离校或外出时，从右上角的「我要请假」提交。');
+      return;
+    }
+    el('leaves-container').innerHTML = state.leaves.slice(0, 5).map(function (item) {
+      var range = dayRange(item.startAt, item.endAt);
+      var days = (item.days == null ? '' : (Number(item.days) + ' 天'));
+      return '<article class="nx-bordered nx-bordered-i flex items-start gap-3.5 p-4">' +
+        '<span class="nx-tile"><span class="material-symbols-outlined text-lg">event_available</span></span>' +
+        '<div class="min-w-0 flex-1">' +
+          '<div class="flex flex-wrap items-center justify-between gap-2">' +
+            '<h4 class="font-bold leading-snug">' + escapeHtml(pick(LEAVE_TYPE, item.type, '请假')) + ' · ' + escapeHtml(range) + '</h4>' +
+            statusBadge(LEAVE_STATUS, item.status) +
+          '</div>' +
+          '<p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-medium nx-muted">' +
+            (days ? '<span class="nx-chip nx-chip-sm">' + escapeHtml(days) + '</span>' : '') +
+            (item.place ? '<span>' + escapeHtml(item.place) + '</span>' : '') +
+          '</p>' +
+          '<p class="mt-2 line-clamp-2 text-sm leading-relaxed nx-muted">' + escapeHtml(item.reason) + '</p>' +
+        '</div></article>';
+    }).join('');
+  }
+
+  function renderAnnouncements() {
+    var list = state.announcements.slice(0, 5);
+    setText('announcements-count', state.failures.announcements ? '—' : String(state.announcements.length));
+
+    if (state.failures.announcements && list.length === 0) {
+      el('announcements-container').innerHTML = errorState('公告没能加载出来。', 'loadDashboard()', 'ann-error-reason');
+      setReason('ann-error-reason', state.failures.announcements);
+      return;
+    }
+    if (list.length === 0) {
+      el('announcements-container').innerHTML = emptyState('campaign', '暂时没有公告', '学院或辅导员发布的通知会出现在这里。');
+      return;
+    }
+
+    el('announcements-container').innerHTML = list.map(function (a) {
+      var at = a.createTimeIso || a.createdAt || a.createTime;
+      var author = a.authorName || a.author || '';
+      return '<article class="nx-bordered nx-bordered-i flex items-start gap-3.5 p-4">' +
+        '<span class="nx-tile">' +
+          '<span class="material-symbols-outlined text-lg">campaign</span></span>' +
+        '<div class="min-w-0 flex-1">' +
+          '<div class="flex flex-wrap items-center justify-between gap-2">' +
+            '<h4 class="font-bold leading-snug">' + escapeHtml(a.title) + '</h4>' +
+            '<span class="text-[11px] nx-muted">' + escapeHtml(relativeTime(at)) + '</span>' +
+          '</div>' +
+          (author ? '<p class="mt-1 text-[11px] font-medium nx-muted">' + escapeHtml(author) + '</p>' : '') +
+          '<p class="mt-2 line-clamp-2 text-sm leading-relaxed nx-muted">' + escapeHtml(a.content) + '</p>' +
+        '</div></article>';
+    }).join('');
+  }
+
+  function renderAwards() {
+    if (state.failures.awards && state.awards.length === 0) {
+      el('awards-container').innerHTML = errorState('奖惩记录没能加载出来。', 'loadDashboard()', 'awards-error-reason');
+      setReason('awards-error-reason', state.failures.awards);
+      setText('awards-count', '—');
+      return;
+    }
+    setText('awards-count', String(state.awards.length));
+    if (state.awards.length === 0) {
+      el('awards-container').innerHTML = emptyState('emoji_events', '还没有奖惩记录', '获奖与处分由辅导员录入，录入后会出现在这里。');
+      return;
+    }
+    el('awards-container').innerHTML = state.awards.slice(0, 5).map(function (item) {
+      var isAward = item.kind !== 'punishment';
+      var toneCls = isAward ? 'nx-badge-ok' : 'nx-badge-warn';
+      var meta = [];
+      if (item.level) meta.push(pick(AWARD_LEVEL, item.level, item.level));
+      if (item.grantedOn) meta.push(item.grantedOn);
+      if (item.amount != null) meta.push(Number(item.amount) + ' 元');
+      return '<a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="award-punishment.html">' +
+        '<span class="nx-tile"><span class="material-symbols-outlined text-lg">' + (isAward ? 'emoji_events' : 'gavel') + '</span></span>' +
+        '<span class="min-w-0 flex-1">' +
+          '<span class="flex items-start justify-between gap-2">' +
+            '<span class="block truncate text-sm font-bold">' + escapeHtml(item.title) + '</span>' +
+            '<span class="nx-badge ' + toneCls + ' shrink-0">' + escapeHtml(pick(AWARD_KIND, item.kind, '奖惩')) + '</span>' +
+          '</span>' +
+          (meta.length ? '<span class="mt-0.5 block truncate text-[11px] nx-muted">' + escapeHtml(meta.join(' · ')) + '</span>' : '') +
+        '</span></a>';
+    }).join('');
+  }
+
+  function renderAids() {
+    if (state.failures.aids && state.aids.length === 0) {
+      el('aid-container').innerHTML = errorState('资助申请没能加载出来。', 'loadDashboard()', 'aid-error-reason');
+      setReason('aid-error-reason', state.failures.aids);
+      setText('aid-count', '—');
+      return;
+    }
+    setText('aid-count', String(state.aids.length));
+    if (state.aids.length === 0) {
+      el('aid-container').innerHTML = emptyState('volunteer_activism', '还没有资助申请', '困难认定、助学金、临时补助都从「资助申请」提交。');
+      return;
+    }
+    el('aid-container').innerHTML = state.aids.slice(0, 5).map(function (item) {
+      var meta = [];
+      if (item.academicYear) meta.push(item.academicYear);
+      if (item.level) meta.push(pick(AID_LEVEL, item.level, item.level));
+      if (item.amount != null) meta.push('核定 ' + Number(item.amount) + ' 元');
+      return '<a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="aid.html">' +
+        '<span class="nx-tile"><span class="material-symbols-outlined text-lg">volunteer_activism</span></span>' +
+        '<span class="min-w-0 flex-1">' +
+          '<span class="flex items-start justify-between gap-2">' +
+            '<span class="block truncate text-sm font-bold">' + escapeHtml(pick(AID_TYPE, item.aidType, '资助申请')) + '</span>' +
+            statusBadge(AID_STATUS, item.status) +
+          '</span>' +
+          (meta.length ? '<span class="mt-0.5 block truncate text-[11px] nx-muted">' + escapeHtml(meta.join(' · ')) + '</span>' : '') +
+        '</span></a>';
+    }).join('');
+  }
+
+  /* ── 会话 ─────────────────────────────────────────────────────────────── */
+
+  async function checkAuth() {
+    try {
+      var response = await fetch('/api/auth/me', { credentials: 'same-origin' });
+      var result = await response.json();
+      if (result.code !== 200) {
+        window.location.href = 'login.html';
+        return null;
+      }
+      var role = result.data && result.data.role;
+      if (role === 'teacher') {
+        window.location.href = 'teacher-dashboard.html';
+        return null;
+      }
+      if (role === 'admin') {
+        window.location.href = 'admin-dashboard.html';
+        return null;
+      }
+      return result.data;
+    } catch (error) {
+      window.location.href = 'login.html';
+      return null;
+    }
+  }
+
+  async function logout() {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+    } catch (error) {
+      // 网络就算断了也要把人送回登录页：留在原地的「已登出」是假的。
+    }
+    window.location.href = 'login.html';
+  }
+
+  /* ── 绑定 ─────────────────────────────────────────────────────────────── */
+
+  // 错误块里的 Retry 按钮：HTML 里写的是函数名，这里统一接上，
+  // 免得为每个面板各写一个内联 onclick。
+  document.addEventListener('click', function (event) {
+    var target = event.target.closest('[data-retry]');
+    if (!target) return;
+    var fn = target.getAttribute('data-retry');
+    if (fn === 'loadDashboard()') loadDashboard();
+  });
+
+  el('logout-btn').addEventListener('click', logout);
+
+  (async function start() {
+    el('year').textContent = String(new Date().getFullYear());
+    el('today-line').textContent = new Date().toLocaleDateString(undefined, {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+    var user = await checkAuth();
+    if (!user) return;
+    state.user = user;
+    el('user-name').textContent = user.nickname || user.realName || user.username || '同学';
+    await loadDashboard();
+  })();
+})();
+</script>
+<script defer src="/js/nest-ui.js"></script>
+<script defer src="/libs/animejs/anime.umd.min.js"></script>
+<script defer src="/libs/countup/countUp.umd.js"></script>
+<script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+<script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+<script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+<script defer src="/js/nest-tour.js"></script>
+</body>
+</html>

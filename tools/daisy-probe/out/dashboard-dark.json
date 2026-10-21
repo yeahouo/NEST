@@ -1,0 +1,33 @@
+{
+  "port": 9222,
+  "page": {
+    "url": "http://127.0.0.1:8080/dashboard.html?cb=daisy1",
+    "width": 1440,
+    "height": 1100,
+    "waitMs": 4000
+  },
+  "steps": [
+    {
+      "name": "dark",
+      "eval": "localStorage.setItem('nest-theme','dark');document.documentElement.classList.add('dark');document.documentElement.setAttribute('data-theme','nestdark');'dark'"
+    },
+    {
+      "name": "state",
+      "eval": "(() => {\n  const q = (s) => document.querySelector(s);\n  const cs = (el) => el ? getComputedStyle(el) : null;\n  const p = [];\n  const btn = q('#join-class-btn'), card = q('.card'), stat = q('#stats-row > .nx-stat');\n  p.push('page=' + location.pathname);\n  p.push('theme=' + document.documentElement.getAttribute('data-theme'));\n  p.push('dark=' + document.documentElement.classList.contains('dark'));\n  p.push('bodyBg=' + cs(document.body).backgroundColor);\n  p.push('user=' + q('#user-name').textContent.trim());\n  p.push('h1font=' + cs(q('h1')).fontFamily.split(',')[0].replace(/\"/g,'') + '/' + cs(q('h1')).fontSize);\n  p.push('btn=' + cs(btn).borderRadius + '/h' + Math.round(btn.getBoundingClientRect().height));\n  p.push('card=' + cs(card).borderRadius + '/' + cs(card).borderTopWidth);\n  p.push('badge=' + cs(q('.badge')).borderRadius);\n  p.push('statCell=' + (stat ? cs(stat).borderTopWidth + '/' + cs(stat).borderRadius : '-'));\n  p.push('statFont=' + cs(q('#stat-courses')).fontFamily.split(',')[0].replace(/\"/g,''));\n  p.push('lists=courses' + q('#courses-container').children.length + ' ann' + q('#announcements-container').children.length + ' todo' + q('#todo-container').children.length);\n  p.push('counts=' + q('#courses-count').textContent.trim() + '/' + q('#todo-count').textContent.trim() + '/' + q('#announcements-count').textContent.trim());\n  p.push('stats=' + q('#stat-courses').textContent.trim() + '/' + q('#stat-todo').textContent.trim() + '/' + q('#stat-announcements').textContent.trim());\n  p.push('canvas=' + document.querySelectorAll('canvas').length);\n  p.push('part=' + (window.NestParticles ? window.NestParticles.state + '/' + window.NestParticles.preset : '-'));\n  p.push('shader=' + (window.NestShaderBg ? window.NestShaderBg.state : 'absent'));\n  p.push('scrollW=' + document.documentElement.scrollWidth + '/' + window.innerWidth);\n  return p.join('  ');\n})()"
+    },
+    {
+      "name": "reveal",
+      "eval": "document.querySelectorAll('[data-nx-reveal]').forEach(function(e){e.classList.add('is-in')});'revealed'"
+    },
+    {
+      "name": "shot",
+      "shot": "png",
+      "file": "target/zz-daisy-dash-dark.png"
+    }
+  ],
+  "cookie": {
+    "name": "JSESSIONID",
+    "value": "855D3C2C3A4ECC5990FD39B8788B212E",
+    "url": "http://127.0.0.1:8080"
+  }
+}

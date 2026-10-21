@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.AuditLogMapper">
+
+    <resultMap id="AuditLogMap" type="com.umi.nest.entity.AuditLog">
+        <id column="id" property="id"/>
+        <result column="event_time" property="eventTime"/>
+        <result column="event_type" property="eventType"/>
+        <result column="event_action" property="eventAction"/>
+        <result column="user_id" property="userId"/>
+        <result column="username" property="username"/>
+        <result column="role" property="role"/>
+        <result column="target" property="target"/>
+        <result column="http_method" property="httpMethod"/>
+        <result column="ip" property="ip"/>
+        <result column="user_agent" property="userAgent"/>
+        <result column="success" property="success"/>
+        <result column="status_code" property="statusCode"/>
+        <result column="duration_ms" property="durationMs"/>
+        <result column="detail" property="detail"/>
+    </resultMap>
+
+    <sql id="Filters">
+        <if test="eventType != null and eventType != ''">AND event_type = #{eventType}</if>
+        <if test="username != null and username != ''">AND username LIKE CONCAT('%', #{username}, '%')</if>
+        <if test="success != null">AND success = #{success}</if>
+        <if test="from != null">AND event_time &gt;= #{from}</if>
+        <if test="to != null">AND event_time &lt;= #{to}</if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.AuditLog"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO audit_log (event_time, event_type, event_action, user_id, username, role,
+                               target, http_method, ip, user_agent, success, status_code,
+                               duration_ms, detail)
+        VALUES (#{eventTime}, #{eventType}, #{eventAction}, #{userId}, #{username}, #{role},
+                #{target}, #{httpMethod}, #{ip}, #{userAgent}, #{success}, #{statusCode},
+                #{durationMs}, #{detail})
+    </insert>
+
+    <select id="query" resultMap="AuditLogMap">
+        SELECT * FROM audit_log
+        <where>
+            <include refid="Filters"/>
+        </where>
+        ORDER BY id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(*) FROM audit_log
+        <where>
+            <include refid="Filters"/>
+        </where>
+    </select>
+
+    <select id="countByType" resultType="map">
+        SELECT event_type AS eventType,
+               COUNT(*)    AS total,
+               SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) AS failed
+        FROM audit_log
+        <where>
+            <if test="from != null">AND event_time &gt;= #{from}</if>
+            <if test="to != null">AND event_time &lt;= #{to}</if>
+        </where>
+        GROUP BY event_type
+        ORDER BY total DESC
+    </select>
+
+    <delete id="deleteBefore">
+        DELETE FROM audit_log WHERE event_time &lt; #{before}
+    </delete>
+
+</mapper>

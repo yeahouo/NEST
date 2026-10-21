@@ -1,0 +1,2089 @@
+/*
+ * NEST · 学工平台 前端样式入口
+ *
+ * 三条 @tailwind 指令是原有的；下面新增的是一个「设计层」——
+ * 把散落在 21 个页面里的重复样式收成 nx-* 组件类，并补上纯 CSS 的交互效果。
+ *
+ * 为什么放在这里而不是直接写进 nest.css：
+ *   nest.css 是 tailwindcss 生成的产物，手改会在下次构建时被整个覆盖。
+ *   input.css 是源文件，改这里 + 跑 build-web-assets.ps1 才是正确路径。
+ *
+ * 为什么组件类必须写在 @layer components 里：
+ *   Tailwind 的输出顺序是 base → components → utilities。写在 layer 外面的
+ *   普通 CSS 会被放到最后，于是 .nx-card 会盖掉页面上的 p-4 / rounded-2xl；
+ *   放进 components 层，页面上的工具类才仍然能覆盖它。
+ *
+ * 效果全部是纯 CSS：本项目的页面必须在断网、无 CDN 的校园网里也能看，
+ * 所以不用 GSAP / Framer Motion 这类要联网或要打包器的动画库（参考
+ * github.com/dabaibian/css-skills 的思路：Hover.css 与 cssfx 的现代写法）。
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * 设计令牌（design tokens）
+ * 普通 CSS 而不是 @layer：自定义属性不参与工具类优先级，且必须永远产出。
+ * ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* 品牌色 / 中性色 / 语义色：全部取自 Radix Colors v3.0.0 的 12 级色阶。
+     色阶文件在 src/main/resources/static/libs/radix-colors/colors.css（MIT，
+     页面在 /css/nest.css 之前加载）。不再自己挑色号——Radix 每一级都有明确用途，
+     而且对比度是实测过的：
+       1 页面底 | 2 次级底 | 3 组件底 | 4 hover 底 | 5 选中底
+       6 细边框与分隔线 | 7 边框与焦点环 | 8 更强的边框
+       9 实心填充 | 10 hover 实心填充 | 11 低对比文字 | 12 高对比文字
+     色阶本身会随 .dark 自动切换（Radix 自己就是这么定义的），所以下面 .dark 里
+     只覆盖「深浅两态语义不同」的令牌。
+
+     为什么品牌色用 indigo 而不是 blue：#0090ff（blue-9）配白字只有 2.6:1，
+     够不着 WCAG AA 的 4.5:1；indigo-9（#3e63dd）配白字是 5.2:1，而且更接近
+     项目原来的 primary #0751a6。 */
+  --nx-brand-50: var(--indigo-2);
+  --nx-brand-100: var(--indigo-3);
+  --nx-brand-200: var(--indigo-4);
+  --nx-brand-300: var(--indigo-11);
+  --nx-brand-400: var(--indigo-8);
+  --nx-brand-500: var(--indigo-9);
+  --nx-brand-600: var(--indigo-10);
+  --nx-brand-700: var(--indigo-11);
+
+  --nx-ink: var(--slate-12);
+  --nx-muted: var(--slate-11);   /* 第 11 级就是「低对比但达标的正文色」，不用再手调 */
+  --nx-surface: #ffffff;         /* 白色面板叠在第 2 级页面上，是 Radix 的推荐做法 */
+  --nx-surface-2: var(--slate-3);
+  --nx-canvas: #f5f3ef;
+  /* ↑ 第十七轮「整站艺术化」：页面底从 slate-2 的冷灰换成暖纸 #f5f3ef（≈ Radix sand-2）。
+     必须与 tools/webbuild/tailwind.config.js 的 background-light 保持一致 ——
+     页面 body 上的 bg-background-light 工具类才是真正画底的那一个，这里只是 nx-* 读到的那份。 */
+  --nx-line: var(--slate-6);
+  /* 发丝线（第十一轮「简约化」）。Radix 的实体色阶是接近不透明的灰（slate-6：浅色 #d9d9e0、
+     深色 #363a3f），1px 铺满卡片就是一整圈中灰线。vendored 的 colors.css 里没有 alpha 阶
+     （已核：--slate-a5 等 0 处），所以按 Radix alpha 的量级自己定两档：
+       --nx-sep   结构性分隔（页头/列表/面板内部分隔），浅色 7% 黑、深色 7% 白
+       --nx-edge  卡片/玻璃面板描边：浅色干脆不留线（靠底色与阴影分层），深色留 6% 白 */
+  --nx-sep: rgba(24, 28, 36, 0.07);
+  --nx-edge: transparent;
+
+  /* 语义色：第 3 级做浅底、第 9 级做实心、第 11 级做文字，三档都随 .dark 自动切换 */
+  --nx-info: var(--blue-11);
+  --nx-info-solid: var(--blue-9);
+  --nx-ok: var(--green-11);
+  --nx-ok-solid: var(--green-9);
+  --nx-warn: var(--amber-11);
+  --nx-warn-solid: var(--amber-9);
+  --nx-danger: var(--red-11);
+  --nx-danger-solid: var(--red-9);
+
+  /* 软底语义令牌：Radix 第 3 级，随 .dark 自动变深，用作浅色成功/告警/危险底 */
+  --nx-info-soft: var(--blue-3);
+  --nx-ok-soft: var(--green-3);
+  --nx-warn-soft: var(--amber-3);
+  --nx-danger-soft: var(--red-3);
+
+  --nx-radius-sm: 10px;
+  --nx-radius: 16px;
+  --nx-radius-lg: 22px;
+  /* 胶囊圆角（第十七轮）：按钮与标签用。Open Props 的 --radius-round 是同一手法
+     （它写 1e5px），这里用 999px —— 断言脚本读数与人工核对都更直观。 */
+  --nx-radius-pill: 999px;
+
+  /* 阴影（第十七轮）：改引 Open Props 1.7.23 的既定层叠阴影（MIT，libs/open-props/），
+     不再自己配 —— 艺术方向要的是「中性、克制」，原来的靛蓝发光太吵。
+     var() 第二参是兜底：万一某页漏插 open-props 的 <link>，阴影仍然在。 */
+  --nx-shadow-1: var(--shadow-2, 0 1px 2px rgba(28, 32, 36, 0.06), 0 1px 3px rgba(28, 32, 36, 0.04));
+  --nx-shadow-2: var(--shadow-4, 0 12px 28px -14px rgba(28, 32, 36, 0.28));
+  --nx-shadow-3: var(--shadow-6, 0 24px 60px -24px rgba(28, 32, 36, 0.34));
+
+  /* 过渡曲线改用 Open Props 的 --ease-3（cubic-bezier(.25,0,.3,1)），
+     与工具类的 180ms（tailwind.config.js）配成同一个节奏。 */
+  --nx-ease: var(--ease-3, cubic-bezier(0.25, 0, 0.3, 1));
+  --nx-dur: 0.22s;
+
+  /* 艺术方向的版式令牌（第十七轮）：拉丁字母与数字走 Instrument Serif（OFL），
+     中文落到系统无衬线 —— 理由见 static/css/nest-fonts.css 的注释。 */
+  --nx-display: 'Instrument Serif', 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+  --nx-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+  /* 两个辅助重音（Radix purple-9 / amber-9）。概念页 /art.html 用的是同一对，
+     入口页的点缀与 .nx-aurora 的三色底都靠它们。 */
+  --nx-accent-2: var(--purple-9);
+  --nx-mark: var(--amber-9);
+}
+
+.dark {
+  /* ink / muted / line / 语义色都不用在这里覆盖：Radix 的色阶自己会随 .dark 切 */
+  --nx-surface: var(--slate-2);
+  --nx-surface-2: var(--slate-3);
+  --nx-canvas: #0d0e11;
+  /* ↑ 第十七轮：深色底比原 slate-1（#111113）再深一档，白色面板在深色下更像纸。
+     与 tailwind.config.js 的 background-dark 同步。 */
+  /* 深色下没有线会糊成一片，所以卡片留 6% 白、分隔留 7% 白（浅色那档是 transparent） */
+  --nx-sep: rgba(255, 255, 255, 0.07);
+  --nx-edge: rgba(255, 255, 255, 0.06);
+  /* 深色下要「亮一点」的品牌色：色阶 8 在深色里反而更暗，所以换成第 11 级 */
+  --nx-brand-400: var(--indigo-11);
+  --nx-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --nx-shadow-2: 0 12px 28px -14px rgba(0, 0, 0, 0.7);
+  --nx-shadow-3: 0 24px 60px -24px rgba(0, 0, 0, 0.8);
+}
+
+@layer components {
+  /* ── 页面底 ───────────────────────────────────────────────────────────── */
+  .nx-page {
+    background-color: var(--nx-canvas);
+    color: var(--nx-ink);
+  }
+
+  /* 登录/注册这类「空页面」的背景：三层径向渐变 + 细网格。
+     纯 CSS，不需要任何图片资源，断网照常。 */
+  .nx-aurora {
+    position: relative;
+    background-color: var(--nx-canvas);
+    background-image:
+      radial-gradient(60rem 40rem at 12% -10%, rgba(62, 99, 221, 0.16), transparent 60%),
+      radial-gradient(48rem 34rem at 92% 6%, rgba(62, 99, 221, 0.14), transparent 62%),
+      radial-gradient(40rem 30rem at 50% 108%, rgba(141, 192, 255, 0.18), transparent 60%);
+  }
+  .dark .nx-aurora {
+    background-image:
+      radial-gradient(60rem 40rem at 12% -10%, rgba(62, 99, 221, 0.22), transparent 60%),
+      radial-gradient(48rem 34rem at 92% 6%, rgba(62, 99, 221, 0.3), transparent 62%),
+      radial-gradient(40rem 30rem at 50% 108%, rgba(20, 60, 120, 0.4), transparent 60%);
+  }
+  /* 2026-10-16 按用户反馈调过：用户说「线条所在的背景那些几何条框不明显」。
+     46px 的方格原来是 4.5% 黑（暗色 7%），比纸纹还淡，实际上看不见；
+     现在提到 13%（暗色 16% 且换成偏白蓝的线）并把线加粗到 1.5px，
+     遮罩也从「72% 处就淡到全无」放宽到 88%，让方格铺到页面边缘。 */
+  .nx-grid::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(to right, rgba(28, 32, 36, 0.13) 1.5px, transparent 1.5px),
+      linear-gradient(to bottom, rgba(28, 32, 36, 0.13) 1.5px, transparent 1.5px);
+    background-size: 46px 46px;
+    mask-image: radial-gradient(circle at 50% 30%, #000 0%, transparent 88%);
+    -webkit-mask-image: radial-gradient(circle at 50% 30%, #000 0%, transparent 88%);
+  }
+  .dark .nx-grid::before {
+    background-image:
+      linear-gradient(to right, rgba(200, 210, 225, 0.16) 1.5px, transparent 1.5px),
+      linear-gradient(to bottom, rgba(200, 210, 225, 0.16) 1.5px, transparent 1.5px);
+  }
+
+  /* ── 卡片 / 面板 ──────────────────────────────────────────────────────── */
+  .nx-card {
+    background-color: var(--nx-surface);
+    border: 1px solid var(--nx-edge);
+    border-radius: var(--nx-radius);
+    box-shadow: var(--nx-shadow-1);
+    transition: transform var(--nx-dur) var(--nx-ease),
+      box-shadow var(--nx-dur) var(--nx-ease), border-color var(--nx-dur) var(--nx-ease);
+  }
+  /* 只给「可点」的卡片加悬停抬升：一整屏都在动的界面比不动的更累人 */
+  .nx-card-i:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--nx-shadow-2);
+    border-color: var(--nx-brand-200);
+  }
+  .dark .nx-card-i:hover {
+    border-color: rgba(158, 177, 255, 0.35);
+  }
+  .nx-card-flat {
+    box-shadow: none;
+  }
+  /* 统一的面板（第十二轮）：改之前全站有 76 种卡片写法 —— 圆角 md/xl/2xl/3xl 混用、
+     底色 bg-white/40~90、模糊 blur-md/xl、有的只有描边有的只有投影。现在只留三档外形：
+       .nx-card  = 不透明卡（--nx-surface + --nx-shadow-1）
+       .nx-panel = 半透明玻璃面板（勾选框一样多的页面主体块）
+       .nx-dialog = 弹窗（更圆、更白、--nx-shadow-3）
+     页面迁移由 tools/unify-ui.mjs 机械完成。 */
+  .nx-panel {
+    background-color: rgba(255, 255, 255, 0.55);
+    border: 1px solid var(--nx-sep);
+    border-radius: var(--nx-radius);
+    -webkit-backdrop-filter: blur(12px) saturate(1.3);
+    backdrop-filter: blur(12px) saturate(1.3);
+  }
+  .dark .nx-panel {
+    background-color: rgba(23, 24, 28, 0.72);
+  }
+  .nx-panel-i {
+    transition: background-color var(--nx-dur) var(--nx-ease),
+      border-color var(--nx-dur) var(--nx-ease), box-shadow var(--nx-dur) var(--nx-ease);
+  }
+  .nx-panel-i:hover {
+    background-color: rgba(255, 255, 255, 0.72);
+    border-color: var(--nx-brand-200);
+    box-shadow: var(--nx-shadow-1);
+  }
+  .dark .nx-panel-i:hover {
+    background-color: rgba(32, 33, 38, 0.88);
+    border-color: rgba(158, 177, 255, 0.35);
+  }
+  .nx-dialog {
+    background-color: rgba(255, 255, 255, 0.94);
+    border: 1px solid var(--nx-sep);
+    border-radius: var(--nx-radius-lg);
+    box-shadow: var(--nx-shadow-3);
+  }
+  .dark .nx-dialog {
+    background-color: rgba(24, 25, 27, 0.94);
+  }
+  .nx-glass {
+    background-color: rgba(255, 255, 255, 0.78);
+    -webkit-backdrop-filter: blur(14px) saturate(1.4);
+    backdrop-filter: blur(14px) saturate(1.4);
+    border: 1px solid var(--nx-edge);
+    border-radius: var(--nx-radius);
+  }
+  .dark .nx-glass {
+    background-color: rgba(20, 29, 40, 0.78);
+  }
+  /* 列表项/卡片里那种小图标方块 */
+  .nx-tile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    flex: none;
+    border-radius: 12px;
+    background-color: var(--nx-brand-50);
+    color: var(--nx-brand-600);
+  }
+  .dark .nx-tile {
+    background-color: rgba(62, 99, 221, 0.16);
+    color: var(--nx-brand-400);
+  }
+  /* 被卡片包着的内容块：只要一圈细边框，不要独立投影 */
+  .nx-bordered {
+    border: 1px solid var(--nx-edge);
+    border-radius: var(--nx-radius);
+    transition: border-color var(--nx-dur) var(--nx-ease), background-color var(--nx-dur) var(--nx-ease);
+  }
+  .nx-bordered-i:hover {
+    border-color: var(--nx-brand-200);
+    background-color: var(--nx-surface-2);
+  }
+  .dark .nx-bordered-i:hover {
+    border-color: rgba(158, 177, 255, 0.35);
+    background-color: rgba(62, 99, 221, 0.06);
+  }
+  /* 内嵌浅底块（第十九轮「页内迁移」）：卡片里那种「比卡片底再深一级的小块」——
+     设置页的信息行、课程页的元数据条。改之前页面直接写 bg-slate-50 dark:bg-slate-900/30，
+     两种底色都没进令牌，切主题时与卡片底色对不上。--nx-surface-2 就是 Radix 的 slate-3
+     （浅色 #f0f0f3 一类的浅灰、深色自动变深），随 .dark 自动切。 */
+  .nx-inset {
+    background-color: var(--nx-surface-2);
+    border-radius: var(--nx-radius-sm);
+  }
+  /* 错误状态下的空框：同样的虚线框，换成红色 */
+  .nx-empty-error {
+    border-color: rgba(239, 68, 68, 0.35);
+    background-color: rgba(239, 68, 68, 0.04);
+  }
+
+  /* 页头那种「小一号的品牌方块」：和 .nx-stat-icon 同一套渐变，只是更小更方 */
+  .nx-logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 12px;
+    background-image: linear-gradient(135deg, var(--nx-brand-500), var(--nx-brand-600));
+    color: #fff;
+    box-shadow: 0 8px 18px -10px rgba(62, 99, 221, 0.8);
+  }
+  /* 1px 细分隔线。用类而不是 border-[color:var(--nx-line)]：
+     方括号任意值写多了会把 verify-css 的对账搅乱，也不如一个名字好读。 */
+  .nx-hairline-t {
+    border-top: 1px solid var(--nx-sep);
+  }
+  .nx-hairline-b {
+    border-bottom: 1px solid var(--nx-sep);
+  }
+  .nx-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--nx-sep);
+  }
+  /* 卡片顶部的品牌色细条：1px 边框的极简风里，这是唯一能标出「这是主卡」的地方 */
+  .nx-accent-top {
+    position: relative;
+    overflow: hidden;
+  }
+  .nx-accent-top::after {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--nx-brand-500), var(--nx-brand-600) 55%, var(--nx-brand-400));
+  }
+
+  /* ── 按钮 ─────────────────────────────────────────────────────────────── */
+  /* 规格照搬 shadcn/ui 的 button（registry new-york-v4，MIT）：基础态**没有任何边框**，
+     六种变体里只有 outline 带边框；层级靠「填充色 + 同色阴影 + 内高光」表达，焦点态是
+     3px 半透明环（对应它的 focus-visible:ring-[3px] ring/50）。
+     为什么换掉原来的 nx-btn-ghost：它带一圈 1px 描边（border: 1px solid var(--nx-line)），
+     观感像表格边框——用户反馈「按键边缘线没那么好看」，所以改成品牌浅底的 soft 变体；
+     需要描边的少数场合改用新的 .nx-btn-outline。 */
+  .nx-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: 2.5rem;
+    padding: 0 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    white-space: nowrap;
+    user-select: none;
+    cursor: pointer;
+    border: 0;
+    border-radius: var(--nx-radius-sm);
+    color: var(--nx-ink);
+    background-color: transparent;
+    transition: transform 0.12s var(--nx-ease), box-shadow var(--nx-dur) var(--nx-ease),
+      background-color var(--nx-dur) var(--nx-ease), color var(--nx-dur) var(--nx-ease),
+      filter var(--nx-dur) var(--nx-ease);
+  }
+  .nx-btn:active {
+    transform: scale(0.975);
+  }
+  .nx-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(62, 99, 221, 0.38);
+  }
+  .nx-btn:disabled,
+  .nx-btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+  .nx-btn-sm {
+    height: 2rem;
+    padding: 0 0.7rem;
+    font-size: 0.8125rem;
+  }
+  .nx-btn-lg {
+    height: 2.875rem;
+    padding: 0 1.25rem;
+    font-size: 0.9375rem;
+  }
+  .nx-btn-block {
+    width: 100%;
+  }
+
+  /* 实心：主操作。内高光让它在浅底上也有「厚度」，不必靠描边 */
+  .nx-btn-primary {
+    position: relative;
+    overflow: hidden;
+    color: #fff;
+    background-image: linear-gradient(135deg, var(--nx-brand-500), var(--nx-brand-600));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 6px 18px -8px rgba(62, 99, 221, 0.7);
+  }
+  .nx-btn-primary:hover {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 10px 22px -10px rgba(62, 99, 221, 0.85);
+    filter: saturate(1.06) brightness(1.04);
+  }
+  /* 掠过按钮的高光：hover 时从左到右扫一次（css-skills 里的 "Shine"） */
+  .nx-btn-primary::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -140%;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+    transform: skewX(-18deg);
+    transition: left 0.6s var(--nx-ease);
+  }
+  .nx-btn-primary:hover::after {
+    left: 140%;
+  }
+
+  /* 柔和（tonal）：次操作。浅底 + 品牌文字，没有描边；.nx-btn-ghost 保留为它的别名，
+     这样已经写了 nx-btn-ghost 的页面不用改一行 HTML 就换掉那圈边线。 */
+  .nx-btn-soft,
+  .nx-btn-ghost {
+    color: var(--nx-brand-700);
+    background-color: var(--nx-brand-100);
+  }
+  .nx-btn-soft:hover,
+  .nx-btn-ghost:hover {
+    background-color: var(--nx-brand-200);
+  }
+  .dark .nx-btn-soft,
+  .dark .nx-btn-ghost {
+    color: var(--nx-brand-300);
+    background-color: rgba(62, 99, 221, 0.2);
+  }
+  .dark .nx-btn-soft:hover,
+  .dark .nx-btn-ghost:hover {
+    background-color: rgba(62, 99, 221, 0.3);
+  }
+
+  /* 安静：默认完全透明，只有 hover/focus 才有底色（shadcn 的 ghost 同义） */
+  .nx-btn-quiet {
+    color: var(--nx-muted);
+    background-color: transparent;
+  }
+  .nx-btn-quiet:hover {
+    color: var(--nx-ink);
+    background-color: var(--nx-surface-2);
+  }
+
+  /* 填充：确实需要一块独立底色时才用。第十一轮把这一档从「描边」改成「填充」——
+     shadcn 的 secondary 本来就是没有边框的一档，改完全站按钮不再有 1px 边线。 */
+  .nx-btn-outline {
+    border: 1px solid transparent;
+    background-color: var(--nx-surface-2);
+    box-shadow: none;
+  }
+  .nx-btn-outline:hover {
+    background-color: var(--slate-4);
+  }
+
+  /* 危险：实心与柔和两档 */
+  .nx-btn-danger {
+    color: #fff;
+    background-color: var(--nx-danger-solid);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 6px 16px -10px rgba(206, 44, 49, 0.75);
+  }
+  .nx-btn-danger:hover {
+    filter: brightness(1.08);
+  }
+  .nx-btn-danger-soft {
+    color: var(--nx-danger);
+    background-color: var(--nx-danger-soft);
+  }
+  .nx-btn-danger-soft:hover {
+    filter: brightness(0.97);
+  }
+
+  /* 方块图标按钮 */
+  .nx-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* flex: none 是必须的：放在 flex 行里（例如测验编辑器顶栏）时，它会被同一个
+       flex 容器里的长标题挤压到 24px 宽，图标按钮不该被压缩。 */
+    flex: none;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 12px;
+    color: var(--nx-muted);
+    transition: transform 0.18s var(--nx-ease), color var(--nx-dur) var(--nx-ease),
+      background-color var(--nx-dur) var(--nx-ease), box-shadow var(--nx-dur) var(--nx-ease);
+  }
+  .nx-icon-btn:hover {
+    color: var(--nx-brand-600);
+    background-color: var(--nx-brand-50);
+    transform: translateY(-2px);
+    box-shadow: var(--nx-shadow-1);
+  }
+  .nx-icon-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(62, 99, 221, 0.38);
+  }
+  .dark .nx-icon-btn:hover {
+    color: var(--nx-brand-400);
+    background-color: rgba(62, 99, 221, 0.16);
+  }
+
+
+  /* ── 表单 ─────────────────────────────────────────────────────────────── */
+  .nx-field {
+    position: relative;
+  }
+  .nx-input {
+    width: 100%;
+    background-color: var(--nx-surface);
+    color: var(--nx-ink);
+    border: 1px solid var(--nx-sep);
+    border-radius: var(--nx-radius-sm);
+    padding: 0.7rem 0.9rem;
+    transition: border-color var(--nx-dur) var(--nx-ease),
+      box-shadow var(--nx-dur) var(--nx-ease), background-color var(--nx-dur) var(--nx-ease);
+  }
+  .nx-input::placeholder {
+    color: var(--nx-muted);
+  }
+  .nx-input:focus {
+    outline: none;
+    border-color: var(--nx-brand-500);
+    box-shadow: 0 0 0 4px rgba(62, 99, 221, 0.14);
+  }
+  /* 聚焦时从中间向两侧展开的底线（css-skills 的 "Bars"） */
+  .nx-field::after {
+    content: '';
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 0;
+    height: 2px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--nx-brand-500), var(--nx-brand-600));
+    transform: scaleX(0);
+    transition: transform 0.28s var(--nx-ease);
+    pointer-events: none;
+  }
+  .nx-field:focus-within::after {
+    transform: scaleX(1);
+  }
+
+  /* ── 徽标 / 胶囊 ─────────────────────────────────────────────────────── */
+  /* 课程页的标签栏：一个玻璃底槽 + 内部胶囊，激活态用品牌渐变而不是「换个文字颜色」 */
+  .nx-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.6rem 1.05rem;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 0.8125rem;
+    color: var(--nx-muted);
+    transition: background var(--nx-dur) var(--nx-ease), color var(--nx-dur) var(--nx-ease), transform var(--nx-dur) var(--nx-ease);
+  }
+  .nx-tab:hover { color: var(--nx-brand-600); background: rgba(62, 99, 221, 0.08); }
+  .nx-tab:active { transform: scale(0.97); }
+  /* 激活态两种写法都认：.is-active 是课程页/学生页用的，.tab-active 是宿舍系列页 JS 用的。
+     两个类选择器（0,2,0）也能压过宿舍页内联 <style> 里那条 .tab-active（0,1,0）。 */
+  .nx-tab.is-active,
+  .nx-tab.tab-active {
+    color: #fff;
+    background: linear-gradient(135deg, var(--nx-brand-500), var(--nx-brand-600));
+    box-shadow: 0 6px 16px -8px rgba(62, 99, 221, 0.75);
+  }
+  .dark .nx-tab:hover { color: var(--nx-brand-300); background: rgba(158, 177, 255, 0.1); }
+  /* 手机上 5 个页签原本要折成 3 行（142px 的竖向开销）。缩小内边距和字号后只折 2 行（约 96px），
+     而且 5 个页签仍然全部可见——比"横向滚动、藏掉后两个"更好找。 */
+  @media (max-width: 639px) {
+    .nx-tab {
+      padding: 0.5rem 0.7rem;
+      font-size: 0.75rem;
+      border-radius: 10px;
+    }
+  }
+  .nx-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.7rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 9999px;
+    background-color: var(--nx-brand-50);
+    color: var(--nx-brand-700);
+    border: 1px solid var(--nx-brand-100);
+    transition: transform 0.18s var(--nx-ease), box-shadow var(--nx-dur) var(--nx-ease);
+  }
+  .dark .nx-chip {
+    background-color: rgba(62, 99, 221, 0.16);
+    color: var(--nx-brand-400);
+    border-color: rgba(158, 177, 255, 0.24);
+  }
+  .nx-chip-i:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--nx-shadow-1);
+  }
+  /* 塞在标题旁边或卡片内的小胶囊 */
+  .nx-chip-sm {
+    padding: 0.1rem 0.5rem;
+    font-size: 0.625rem;
+    letter-spacing: 0.04em;
+  }
+  .nx-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border-radius: 8px;
+  }
+  /* 徽章：浅底取语义色的第 3 级，文字取第 11 级。深浅两态由 Radix 色阶自己切，
+     所以不再需要「再写一遍 .dark 覆盖」 */
+  .nx-badge-ok {
+    background-color: var(--green-3);
+    color: var(--nx-ok);
+  }
+  .nx-badge-warn {
+    background-color: var(--amber-3);
+    color: var(--nx-warn);
+  }
+  .nx-badge-danger {
+    background-color: var(--red-3);
+    color: var(--nx-danger);
+  }
+  .nx-badge-info {
+    background-color: var(--blue-3);
+    color: var(--nx-info);
+  }
+
+  /* ── 统计块 ───────────────────────────────────────────────────────────── */
+  .nx-stat {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 1rem 1.15rem;
+    background-color: var(--nx-surface);
+    border: 1px solid var(--nx-line);
+    border-radius: var(--nx-radius);
+    box-shadow: var(--nx-shadow-1);
+    transition: transform var(--nx-dur) var(--nx-ease), box-shadow var(--nx-dur) var(--nx-ease),
+      border-color var(--nx-dur) var(--nx-ease);
+  }
+  .nx-stat:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--nx-shadow-2);
+    border-color: var(--nx-brand-200);
+  }
+  .nx-stat-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex: none;
+    border-radius: 14px;
+    background-image: linear-gradient(135deg, var(--nx-brand-500), var(--nx-brand-600));
+    color: #fff;
+    box-shadow: 0 8px 18px -10px rgba(62, 99, 221, 0.8);
+  }
+  .nx-stat-value {
+    font-size: 1.5rem;
+    font-weight: 900;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+  .nx-stat-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--nx-muted);
+  }
+
+  /* ── 进度条 ───────────────────────────────────────────────────────────── */
+  .nx-bar {
+    position: relative;
+    height: 6px;
+    border-radius: 9999px;
+    background-color: var(--nx-brand-50);
+    overflow: hidden;
+  }
+  .dark .nx-bar {
+    background-color: rgba(148, 163, 184, 0.18);
+  }
+  .nx-bar > i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background-image: linear-gradient(90deg, var(--nx-brand-500), var(--nx-brand-400));
+    transition: width 0.7s var(--nx-ease);
+  }
+
+  /* ── 骨架屏 ───────────────────────────────────────────────────────────── */
+  .nx-skel {
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    background-color: rgba(148, 163, 184, 0.16);
+  }
+  .nx-skel::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+    animation: nx-shimmer 1.4s infinite;
+  }
+  .dark .nx-skel::after {
+    background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.09), transparent);
+  }
+
+  /* ── 空状态 ───────────────────────────────────────────────────────────── */
+  .nx-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 2.25rem 1.25rem;
+    text-align: center;
+    border: 1px dashed var(--nx-line);
+    border-radius: var(--nx-radius);
+    background-color: var(--nx-surface-2);
+    color: var(--nx-muted);
+  }
+
+  /* ── 分行 / 链接 ─────────────────────────────────────────────────────── */
+  .nx-link {
+    position: relative;
+    color: var(--nx-brand-600);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .nx-link::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: -2px;
+    width: 100%;
+    height: 1.5px;
+    background-color: currentColor;
+    transform: translateX(-50%) scaleX(0);
+    transition: transform 0.26s var(--nx-ease);
+  }
+  .nx-link:hover::after {
+    transform: translateX(-50%) scaleX(1);
+  }
+  .nx-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--nx-line) 12%, var(--nx-line) 88%, transparent);
+  }
+
+  /* ── 入场动画 ─────────────────────────────────────────────────────────── */
+  /* 用法：<div class="nx-rise" style="--nx-delay:.08s"> —— 或直接父级加 nx-stagger */
+  .nx-rise {
+    animation: nx-rise 0.5s var(--nx-ease) both;
+    animation-delay: var(--nx-delay, 0s);
+  }
+  .nx-stagger > * {
+    animation: nx-rise 0.5s var(--nx-ease) both;
+  }
+  .nx-stagger > *:nth-child(1) { animation-delay: 0.02s; }
+  .nx-stagger > *:nth-child(2) { animation-delay: 0.07s; }
+  .nx-stagger > *:nth-child(3) { animation-delay: 0.12s; }
+  .nx-stagger > *:nth-child(4) { animation-delay: 0.17s; }
+  .nx-stagger > *:nth-child(5) { animation-delay: 0.22s; }
+  .nx-stagger > *:nth-child(6) { animation-delay: 0.27s; }
+  .nx-stagger > *:nth-child(7) { animation-delay: 0.32s; }
+  .nx-stagger > *:nth-child(8) { animation-delay: 0.37s; }
+  .nx-stagger > *:nth-child(n + 9) { animation-delay: 0.42s; }
+
+  /* 悬浮呼吸：只给「当前最想让人点的那一个」元素用 */
+  .nx-breathe {
+    animation: nx-breathe 3.4s ease-in-out infinite;
+  }
+
+  /* ── 滚动条 ───────────────────────────────────────────────────────────── */
+  .nx-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 116, 139, 0.45) transparent;
+  }
+  .nx-scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .nx-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .nx-scroll::-webkit-scrollbar-thumb {
+    background-color: rgba(100, 116, 139, 0.35);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  .nx-scroll::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(100, 116, 139, 0.6);
+  }
+
+  /* 数字等宽：统计数字跳动时不会左右晃 */
+  .nx-tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 次要文字。以前页面里直接写 text-slate-400（#94a3b8）：在浅底上对比度
+     只有 2.9:1，10px 的说明文字基本等于看不见。统一走 --nx-muted。 */
+  .nx-muted {
+    color: var(--nx-muted);
+  }
+
+  /* ── 命令面板（Ctrl / ⌘ + K） ─────────────────────────────────────────── */
+  .nx-cmdk {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: none;
+  }
+  .nx-cmdk.is-open {
+    display: block;
+  }
+  .nx-cmdk-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(28, 32, 36, 0.42);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    animation: nx-fade 0.18s var(--nx-ease);
+  }
+  .nx-cmdk-panel {
+    position: relative;
+    width: min(640px, calc(100vw - 2rem));
+    margin: 12vh auto 0;
+    background: var(--nx-surface);
+    color: var(--nx-ink);
+    border: 1px solid var(--nx-edge);
+    border-radius: var(--nx-radius-lg);
+    box-shadow: var(--nx-shadow-3);
+    overflow: hidden;
+    animation: nx-cmdk-in 0.2s var(--nx-ease);
+  }
+  .nx-cmdk-search {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.95rem 1.05rem;
+    border-bottom: 1px solid var(--nx-sep);
+  }
+  .nx-cmdk-search-icon {
+    font-size: 1.35rem;
+    color: var(--nx-muted);
+  }
+  .nx-cmdk-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0.25rem 0;
+    border: 0;
+    background: transparent;
+    color: var(--nx-ink);
+    font-size: 1rem;
+    outline: none;
+  }
+  .nx-cmdk-input::placeholder {
+    color: var(--nx-muted);
+  }
+  .nx-cmdk-list {
+    max-height: min(52vh, 420px);
+    overflow-y: auto;
+    padding: 0.4rem;
+  }
+  .nx-cmdk-group {
+    margin: 0.5rem 0.65rem 0.3rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--nx-muted);
+  }
+  .nx-cmdk-item {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    width: 100%;
+    padding: 0.6rem 0.7rem;
+    border: 0;
+    border-radius: var(--nx-radius-sm);
+    background: transparent;
+    color: var(--nx-ink);
+    font-size: 0.9375rem;
+    text-align: left;
+    cursor: pointer;
+  }
+  .nx-cmdk-item.is-active {
+    background: linear-gradient(135deg, rgba(62, 99, 221, 0.14), rgba(62, 99, 221, 0.1));
+  }
+  .nx-cmdk-item.is-active .nx-cmdk-item-icon {
+    color: var(--nx-brand-600);
+  }
+  .dark .nx-cmdk-item.is-active {
+    background: linear-gradient(135deg, rgba(158, 177, 255, 0.18), rgba(62, 99, 221, 0.12));
+  }
+  .dark .nx-cmdk-item.is-active .nx-cmdk-item-icon {
+    color: var(--nx-brand-300);
+  }
+  .nx-cmdk-item-icon {
+    flex: 0 0 auto;
+    font-size: 1.15rem;
+    color: var(--nx-muted);
+  }
+  .nx-cmdk-item-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .nx-cmdk-item-hint {
+    flex: 0 0 auto;
+    font-size: 0.75rem;
+    color: var(--nx-muted);
+  }
+  .nx-cmdk-hit {
+    background: transparent;
+    color: var(--nx-brand-600);
+    font-weight: 800;
+  }
+  .dark .nx-cmdk-hit {
+    color: var(--nx-brand-300);
+  }
+  .nx-cmdk-none {
+    padding: 2rem 1rem;
+    text-align: center;
+    color: var(--nx-muted);
+  }
+  .nx-cmdk-none .material-symbols-outlined {
+    font-size: 2rem;
+  }
+  .nx-cmdk-none p {
+    margin: 0.5rem 0 0;
+    font-size: 0.9375rem;
+  }
+  .nx-cmdk-none-hint {
+    font-size: 0.8125rem;
+  }
+  .nx-cmdk-foot {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.6rem 1.05rem;
+    border-top: 1px solid var(--nx-sep);
+    background: var(--nx-surface-2);
+    font-size: 0.75rem;
+    color: var(--nx-muted);
+  }
+  .nx-cmdk-foot > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  .nx-cmdk-brand {
+    margin-left: auto;
+    font-weight: 700;
+  }
+
+  /* 键帽。shadcn / GitHub 那一挂的观感：底边比其它三边厚 1px，像真的有厚度。 */
+  .nx-kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.35rem;
+    height: 1.35rem;
+    padding: 0 0.3rem;
+    border: 1px solid var(--nx-sep);
+    border-bottom-width: 2px;
+    border-radius: 6px;
+    background: var(--nx-surface);
+    color: var(--nx-muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.6875rem;
+    line-height: 1;
+  }
+
+  /* 顶栏里的「搜索」按钮：形状上就是个输入框，但点它是打开面板 */
+  .nx-cmdk-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    height: 2.5rem;
+    padding: 0 0.6rem;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: var(--nx-surface-2);
+    color: var(--nx-muted);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: border-color var(--nx-dur) var(--nx-ease), color var(--nx-dur) var(--nx-ease);
+  }
+  .nx-cmdk-chip:hover {
+    border-color: var(--nx-brand-500);
+    color: var(--nx-brand-600);
+  }
+  .nx-cmdk-chip .material-symbols-outlined {
+    font-size: 1.15rem;
+  }
+  /* 手机上顶栏本来就挤，只留放大镜 */
+  .nx-cmdk-chip-text,
+  .nx-cmdk-chip .nx-kbd {
+    display: none;
+  }
+  @media (min-width: 640px) {
+    .nx-cmdk-chip {
+      padding: 0 0.5rem 0 0.75rem;
+    }
+    .nx-cmdk-chip-text {
+      display: inline;
+    }
+    .nx-cmdk-chip .nx-kbd {
+      display: inline-flex;
+    }
+  }
+  /* 窄屏把面板做成底部抽屉：手机键盘弹起来时上半屏才够放结果 */
+  @media (max-width: 639px) {
+    .nx-cmdk-panel {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: 100%;
+      margin: 0;
+      max-height: 88vh;
+      border-radius: var(--nx-radius-lg) var(--nx-radius-lg) 0 0;
+    }
+    .nx-cmdk-list {
+      max-height: 58vh;
+    }
+    /* 注意选择器要比 `.nx-cmdk-foot > span { display:inline-flex }` 更具体，
+       否则这条 display:none 会被后者压掉（踩过一次：窄屏品牌字仍然显示）。 */
+    .nx-cmdk-foot .nx-cmdk-brand {
+      display: none;
+    }
+    /* 手机上根本没有 Esc 键，留着这个键帽只会让人以为要按它才能关 */
+    .nx-cmdk-esc {
+      display: none;
+    }
+  }
+
+  /* 主题按钮：两个图标都在 DOM 里，靠 CSS 决定显哪个 —— JS 不需要记状态，
+     也不会出现「图标和实际主题不一致」的中间态。 */
+  .nx-theme-icon-dark {
+    display: none;
+  }
+  .dark .nx-theme-icon-dark {
+    display: inline-flex;
+  }
+  .dark .nx-theme-icon-light {
+    display: none;
+  }
+
+  /* ── Toast ────────────────────────────────────────────────────────────── */
+  .nx-toast-stack {
+    position: fixed;
+    z-index: 95;
+    left: 1rem;
+    right: 1rem;
+    bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    pointer-events: none;
+  }
+  @media (min-width: 640px) {
+    .nx-toast-stack {
+      left: auto;
+      right: 1.25rem;
+      bottom: 1.25rem;
+      width: min(360px, calc(100vw - 2.5rem));
+    }
+  }
+  .nx-toast {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.75rem 0.85rem;
+    border: 1px solid var(--nx-line);
+    border-left: 3px solid var(--nx-brand-500);
+    border-radius: var(--nx-radius-sm);
+    background: var(--nx-surface);
+    color: var(--nx-ink);
+    box-shadow: var(--nx-shadow-2);
+    font-size: 0.875rem;
+    overflow: hidden;
+    pointer-events: auto;
+    animation: nx-toast-in 0.22s var(--nx-ease);
+  }
+  .nx-toast.is-out {
+    animation: nx-toast-out 0.2s var(--nx-ease) forwards;
+  }
+  .nx-toast-icon {
+    flex: 0 0 auto;
+    font-size: 1.15rem;
+    color: var(--nx-brand-500);
+  }
+  .nx-toast-text {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .nx-toast-close {
+    flex: 0 0 auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--nx-muted);
+    cursor: pointer;
+    line-height: 1;
+  }
+  .nx-toast-close .material-symbols-outlined {
+    font-size: 1.05rem;
+  }
+  /* 三种提示色取自语义令牌：描边用第 9 级（实心色阶），图标用第 11 级（文字安全），
+     深浅两态自动切换 */
+  .nx-toast-ok {
+    border-left-color: var(--nx-ok-solid);
+  }
+  .nx-toast-ok .nx-toast-icon {
+    color: var(--nx-ok);
+  }
+  .nx-toast-warn {
+    border-left-color: var(--nx-warn-solid);
+  }
+  .nx-toast-warn .nx-toast-icon {
+    color: var(--nx-warn);
+  }
+  .nx-toast-danger {
+    border-left-color: var(--nx-danger-solid);
+  }
+  .nx-toast-danger .nx-toast-icon {
+    color: var(--nx-danger);
+  }
+  /* 进度条 = 剩余时间。hover 时 JS 会暂停计时器，这里只负责「还看得出来」 */
+  .nx-toast-bar {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 2px;
+    background: currentColor;
+    opacity: 0.3;
+    transform-origin: left center;
+    animation-name: nx-toast-bar;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+  }
+
+  /* ── 顶部阅读进度条 ───────────────────────────────────────────────────── */
+  .nx-progress-top {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 80;
+    height: 3px;
+    opacity: 0;
+    transition: opacity 0.25s var(--nx-ease);
+    pointer-events: none;
+  }
+  .nx-progress-top.is-on {
+    opacity: 1;
+  }
+  .nx-progress-top > i {
+    display: block;
+    height: 100%;
+    width: 100%;
+    transform: scaleX(0);
+    transform-origin: left center;
+    background: linear-gradient(90deg, var(--nx-brand-500), var(--nx-brand-600));
+  }
+
+  /* ── 滚动渐入 ─────────────────────────────────────────────────────────── */
+  .nx-reveal {
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 0.5s var(--nx-ease), transform 0.5s var(--nx-ease);
+  }
+  .nx-reveal.is-in {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* ── 鼠标聚光（只给 [data-nx-spotlight] 的元素） ──────────────────────── */
+  .nx-spot {
+    position: relative;
+  }
+  .nx-spot::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s var(--nx-ease);
+    background: radial-gradient(
+      220px circle at var(--nx-mx, 50%) var(--nx-my, 0%),
+      rgba(62, 99, 221, 0.16),
+      transparent 70%
+    );
+  }
+  .nx-spot:hover::after {
+    opacity: 1;
+  }
+
+  /* 面板打开时锁住背后页面的滚动。只加 overflow 会让 iOS 上仍能拖动，
+     但比起「给 body 加 fixed 再补回滚动位置」，这里选择了简单且不跳动的那种。 */
+  .nx-noscroll {
+    overflow: hidden;
+  }
+
+  /* 统一对话框（NestUI.dialog 的 alert / confirm / prompt）：
+     收口全站 18 处原生弹窗。原生那几个换不了皮肤（永远是浏览器的灰）、
+     换不了按钮文案（跟着浏览器语言走）、还会把整个标签页一起锁死。
+
+     类名分工 —— 注意 `.nx-dialog` 这个名字在本文件上面（第 226 行）早就被
+     「弹窗面板外观」占了，20 个页面 85 处在拿它当卡片/面板直接用，不能重定义。
+     所以这里把它当**外观**复用，另起一个类管布局，两件事分开：
+       .nx-dialog-layer     固定层，role="dialog" 挂在它身上
+       .nx-dialog-backdrop  遮罩
+       .nx-dialog-panel     面板布局（与 .nx-dialog 同时挂在面板上）
+       .nx-dialog-title / -body / -actions / -input / -danger */
+  .nx-dialog-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 120;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .nx-dialog-backdrop {
+    position: absolute;
+    inset: 0;
+    background-color: rgba(28, 32, 36, 0.42);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    animation: nx-dialog-fade var(--nx-dur) var(--nx-ease);
+  }
+  .dark .nx-dialog-backdrop {
+    background-color: rgba(0, 0, 0, 0.55);
+  }
+  .nx-dialog-panel {
+    position: relative;
+    width: min(26rem, 100%);
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    padding: 1.35rem 1.4rem 1.15rem;
+    color: var(--nx-ink);
+    animation: nx-dialog-in var(--nx-dur) var(--nx-ease);
+  }
+  .nx-dialog-title {
+    margin: 0 0 0.55rem;
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--nx-ink);
+  }
+  .nx-dialog-body {
+    margin: 0;
+    font-size: 0.9375rem;
+    line-height: 1.65;
+    color: var(--nx-ink);
+    /* 调用点把 \n 直接写在消息里（原生 alert 支持换行，迁移必须原样保住）。 */
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+  }
+  .nx-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 1.15rem;
+  }
+  .nx-dialog-input {
+    display: block;
+    width: 100%;
+    margin-top: 0.85rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--nx-line);
+    border-radius: var(--nx-radius-sm);
+    background-color: var(--nx-surface-2);
+    color: var(--nx-ink);
+    font: inherit;
+    font-size: 0.9375rem;
+    outline: none;
+    transition: border-color var(--nx-dur) var(--nx-ease),
+      box-shadow var(--nx-dur) var(--nx-ease);
+  }
+  .nx-dialog-input::placeholder {
+    color: var(--nx-muted);
+  }
+  .nx-dialog-input:focus {
+    border-color: var(--nx-brand-500);
+    box-shadow: 0 0 0 3px rgba(62, 99, 221, 0.26);
+  }
+  textarea.nx-dialog-input {
+    min-height: 5.5rem;
+    resize: vertical;
+    line-height: 1.55;
+  }
+  .dark .nx-dialog-input {
+    background-color: rgba(255, 255, 255, 0.04);
+  }
+  /* 危险操作只调色、不动布局：标题偏红 + 描边偏红，主按钮由 JS 换成 nx-btn-danger。 */
+  .nx-dialog-danger {
+    border-color: var(--nx-danger-soft);
+  }
+  .nx-dialog-danger .nx-dialog-title {
+    color: var(--nx-danger);
+  }
+  .dark .nx-dialog-danger {
+    border-color: rgba(255, 99, 99, 0.28);
+  }
+  /* 深色主题的第二种开关：<html data-theme="nestdark">（daisyUI 的主题名）。
+     那种页面上不一定有 .dark，所以把深色值显式再写一遍。
+     浅色**故意不写** [data-theme="nestlight"]：全站 46 个页面 <html> 上都挂着
+     nestlight，用户切深色时加的是 .dark 类，补一条 nestlight 规则会在
+     「nestlight + .dark」的页面上反过来把深色盖回浅色。浅色的基线就是上面的默认值。 */
+  [data-theme="nestdark"] .nx-dialog {
+    background-color: rgba(24, 25, 27, 0.94);
+  }
+  [data-theme="nestdark"] .nx-dialog-backdrop {
+    background-color: rgba(0, 0, 0, 0.55);
+  }
+  [data-theme="nestdark"] .nx-dialog-input {
+    background-color: rgba(255, 255, 255, 0.04);
+  }
+  @media (max-width: 639px) {
+    .nx-dialog-panel {
+      width: 100%;
+    }
+  }
+  @media (max-width: 479px) {
+    .nx-dialog-actions {
+      flex-direction: column;
+    }
+    .nx-dialog-actions .nx-btn {
+      width: 100%;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .nx-dialog-panel,
+    .nx-dialog-backdrop {
+      animation: none;
+    }
+  }
+
+/* 下面的「按下涟漪 / 滚动浮起 / 站内换页 / 新手引导 / 测验题编辑器」同样属于组件层，
+   继续留在 @layer components 里（原先把闭合括号写在了这一行，导致它们被输出到
+   Tailwind 的 utilities **之后**，结果是 `.hidden`、`h-9`、`px-4` 这类工具类都被盖掉。
+   2026-10-13 教师端点进课程详情就弹出测验编辑器，根因就在这里：
+   `.hidden{display:none}` 与 `.nx-qed{display:flex}` 同为 0,1,0，后者排在后面所以赢了。
+   回归检查：node tools/check-hidden-display.mjs）。 */
+
+/* 按下涟漪：.nx-ripple-host 由 JS 在真正按下时才加上，省得每个按钮都带一层
+ * overflow:hidden（对没有涟漪的按钮是白付的渲染代价）。 */
+.nx-ripple-host {
+  position: relative;
+  overflow: hidden;
+}
+
+.nx-ripple {
+  position: absolute;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0.22;
+  pointer-events: none;
+  transform: scale(0);
+  animation: nx-ripple-out 620ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+
+/* 顶栏滚起来之后浮一点：只加阴影，不动布局、不改背景色，
+ * 所以不会跟各个页面自己写的 sticky 顶栏样式打架。 */
+[data-nx-scrolled="1"] {
+  box-shadow: 0 12px 32px -26px rgba(62, 99, 221, 0.85);
+}
+
+.dark [data-nx-scrolled="1"] {
+  box-shadow: 0 12px 32px -22px rgba(0, 0, 0, 0.95);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * 关键帧
+ * ══════════════════════════════════════════════════════════════════════════ */
+/* 站内换页也走 View Transitions（Chrome 126+）：点一个链接，旧页淡出、新页淡入，
+ * 而不是硬邦邦地「啪」一下换掉。不支持的浏览器行为完全不变，所以是白送的效果。 */
+@view-transition {
+  navigation: auto;
+}
+
+/* 用 View Transitions 做主题「圆形揭开」时必须把浏览器默认的
+ * 「新旧快照交叉淡入」关掉：默认动画和 clip-path 动画会同时跑，
+ * 画面表现为两层互相打架、边缘发灰。mix-blend-mode 也要复位，
+ * 否则深色快照叠在浅色上会发亮。
+ * 只关同一场过渡（html[data-vt="theme"] 是换主题时由 JS 打的标记），
+ * 换页那场过渡还要用默认淡入，所以不能全局关。 */
+html[data-vt="theme"]::view-transition-old(root),
+html[data-vt="theme"]::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+@keyframes nx-ripple-out {
+  70% {
+    opacity: 0.16;
+  }
+  to {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+@keyframes nx-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes nx-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes nx-cmdk-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 统一对话框的入场：从下方 8px 淡入。prefers-reduced-motion 下由
+   .nx-dialog-panel/.nx-dialog-backdrop 上的 animation:none 直接关掉。 */
+@keyframes nx-dialog-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes nx-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes nx-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes nx-toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+
+@keyframes nx-toast-bar {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes nx-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes nx-breathe {
+  0%,
+  100% {
+    box-shadow: 0 6px 18px -8px rgba(62, 99, 221, 0.6), 0 0 0 0 rgba(62, 99, 221, 0.35);
+  }
+  50% {
+    box-shadow: 0 8px 22px -8px rgba(62, 99, 221, 0.7), 0 0 0 8px rgba(62, 99, 221, 0);
+  }
+}
+
+/* ── 新手引导（driver.js 的弹层）───────────────────────────────────────────
+ * driver.js 自己的 driver.css 是**运行时注入**的 <link>：它排在 nest.css 之后，
+ * 同特异性的规则它赢。所以下面每条都用 .nx-tour-popover（JS 里配的 popoverClass）
+ * 把它自己的类名前缀住，抬到 0,2,0 以上；颜色全部走 Radix 令牌，深浅两态自动跟随。
+ * 不改 vendor 文件一行 —— 升级 driver.js 时直接换 libs/driver/ 即可。 */
+.nx-tour-popover.driver-popover {
+  background-color: var(--nx-surface);
+  color: var(--nx-ink);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-sm);
+  box-shadow: var(--nx-shadow-3);
+  font-family: 'Public Sans', sans-serif;
+  min-width: 260px;
+  max-width: 320px;
+  padding: 1rem 1.05rem;
+}
+.nx-tour-popover .driver-popover-title {
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--nx-ink);
+}
+.nx-tour-popover .driver-popover-description {
+  font-size: 0.8125rem;
+  line-height: 1.7;
+  color: var(--nx-muted);
+}
+.nx-tour-popover .driver-popover-progress-text {
+  font-size: 0.75rem;
+  color: var(--nx-muted);
+}
+.nx-tour-popover .driver-popover-close-btn {
+  color: var(--nx-muted);
+}
+.nx-tour-popover .driver-popover-close-btn:hover,
+.nx-tour-popover .driver-popover-close-btn:focus {
+  color: var(--nx-ink);
+}
+.nx-tour-popover .driver-popover-footer-btn {
+  color: var(--nx-brand-500);
+  background-color: var(--nx-surface);
+  border: 1px solid var(--nx-line);
+  border-radius: 9px;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.nx-tour-popover .driver-popover-footer-btn:hover,
+.nx-tour-popover .driver-popover-footer-btn:focus {
+  background-color: var(--nx-surface-2);
+}
+/* 深色下面板底是 slate-2，indigo-9(#3e63dd) 当文字只有 3.4:1，够不到 WCAG AA。
+ * 换同一色阶的第 11 级（深色态 #9eb1ff），实测 8:1。 */
+.dark .nx-tour-popover .driver-popover-footer-btn {
+  color: var(--nx-brand-400);
+}
+/* 箭头也得跟着面板换色，否则深色面板顶上会支一个白三角。
+ * driver.css 画三角形的手法是「四条边里三条透明、只留一条」，所以这里按方向还原。 */
+.nx-tour-popover .driver-popover-arrow-side-left.driver-popover-arrow {
+  border-top-color: transparent;
+  border-bottom-color: transparent;
+  border-right-color: transparent;
+  border-left-color: var(--nx-surface);
+}
+.nx-tour-popover .driver-popover-arrow-side-right.driver-popover-arrow {
+  border-top-color: transparent;
+  border-bottom-color: transparent;
+  border-left-color: transparent;
+  border-right-color: var(--nx-surface);
+}
+.nx-tour-popover .driver-popover-arrow-side-top.driver-popover-arrow {
+  border-left-color: transparent;
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+  border-top-color: var(--nx-surface);
+}
+.nx-tour-popover .driver-popover-arrow-side-bottom.driver-popover-arrow {
+  border-left-color: transparent;
+  border-right-color: transparent;
+  border-top-color: transparent;
+  border-bottom-color: var(--nx-surface);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * 无障碍：系统设了「减少动态效果」就全部停掉。
+ * 这不是可选项——前庭功能敏感的人被动画晃动会真的不舒服，
+ * 而这些效果对「能不能用」没有任何贡献。
+ * ══════════════════════════════════════════════════════════════════════════ */
+  /* 填充式输入：Material 3 的 filled text field 做法——平时没有独立描边，靠底色分层，
+     聚焦才出现品牌色圆环。测验题编辑器用它（配合 .nx-input 的描边版按需选用）。 */
+  .nx-input-fill {
+    width: 100%;
+    background-color: var(--nx-surface-2);
+    color: var(--nx-ink);
+    border: 1px solid transparent;
+    border-radius: var(--nx-radius-sm);
+    padding: 0.7rem 0.9rem;
+    transition: border-color var(--nx-dur) var(--nx-ease), box-shadow var(--nx-dur) var(--nx-ease),
+      background-color var(--nx-dur) var(--nx-ease);
+  }
+  .nx-input-fill::placeholder {
+    color: var(--nx-muted);
+  }
+  .nx-input-fill:hover {
+    background-color: var(--slate-4);
+  }
+  .nx-input-fill:focus {
+    outline: none;
+    background-color: var(--nx-surface);
+    border-color: var(--nx-brand-500);
+    box-shadow: 0 0 0 3px rgba(62, 99, 221, 0.24);
+  }
+
+
+  /* ── 灵动层（/js/nest-motion.js）：光斑、磁性、揭示、倾斜、滑动指示条 ──
+     动效交给有出处的库，全部 vendored 在 /libs/ 下（离线校内网可用、零 CDN）：
+       anime.js v4.5.0 (MIT) · vanilla-tilt v1.8.1 (MIT)
+       CountUp.js v2.10.1 (MIT) · canvas-confetti v1.9.4 (ISC)
+     JS 只负责写 CSS 变量与内联 transform，视觉规则都在这里。 */
+  .nx-btn,
+  .nx-icon-btn,
+  .nx-chip,
+  .nx-tab,
+  .tab-btn,
+  .btn {
+    position: relative;
+    isolation: isolate;
+  }
+  /* 鼠标跟随的光斑（画法取自 shadcn / Aceternity 的 spotlight 写法：
+     JS 只更新 --nx-mx/--nx-my，这里用 radial-gradient 画出来）。
+     刻意只给浅底/透明底控件用：实心按钮上叠一层白会把白字的对比度压到 4.5:1 以下。 */
+  .nx-btn::before,
+  .nx-icon-btn::before,
+  .nx-chip::before,
+  .nx-tab::before,
+  .tab-btn::before,
+  .btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 200ms var(--nx-ease);
+    background: radial-gradient(
+      9rem circle at var(--nx-mx, 50%) var(--nx-my, 50%),
+      rgba(62, 99, 221, 0.18),
+      rgba(62, 99, 221, 0) 65%
+    );
+  }
+  .nx-btn-primary::before,
+  .nx-btn-danger::before,
+  /* daisyUI 的实心色变体同理：底层已经够深，再叠一层浅色会让白字掉到 4.5:1 以下 */
+  .btn-primary::before,
+  .btn-secondary::before,
+  .btn-accent::before,
+  .btn-neutral::before,
+  .btn-info::before,
+  .btn-success::before,
+  .btn-warning::before,
+  .btn-error::before,
+  /* teacher-course-detail.html 的标签只有 .tab-btn，激活态是字面类 bg-primary —— 实心底上不叠光斑。
+     必须是 [class~=...]（整词）：用 [class*=...] 会命中未激活标签上的 hover:bg-primary/5，
+     结果第一颗标签永远被当成激活态。 */
+  .tab-btn[class~="bg-primary"]::before {
+    content: none;
+  }
+  .dark .nx-btn::before,
+  .dark .nx-icon-btn::before,
+  .dark .nx-chip::before,
+  .dark .nx-tab::before,
+  .dark .tab-btn::before,
+  .dark .btn::before {
+    background: radial-gradient(
+      9rem circle at var(--nx-mx, 50%) var(--nx-my, 50%),
+      rgba(158, 177, 255, 0.16),
+      rgba(158, 177, 255, 0) 65%
+    );
+  }
+  .nx-btn.nx-spot-on::before,
+  .nx-icon-btn.nx-spot-on::before,
+  .nx-chip.nx-spot-on::before,
+  .nx-tab.nx-spot-on::before,
+  .tab-btn.nx-spot-on::before,
+  .btn.nx-spot-on::before {
+    opacity: 1;
+  }
+  .nx-btn-primary,
+  .nx-btn-danger,
+  .nx-icon-btn,
+  .btn-primary,
+  .btn-error,
+  .btn-circle {
+    will-change: transform;
+  }
+  /* 滚入视线时揭示：只有 JS 真的启动（html.nx-motion）且系统没要求少动效时才隐藏初始态，
+     这样脚本万一没加载，页面仍是完整可见的。
+     类名刻意用 .nx-appear/.nx-in，与 nest-ui.js 的 [data-nx-reveal] 那套（.nx-reveal/.is-in）分开：
+     两边同为 (0,2,0)，谁在后面谁赢，混用会把对方的元素永久压在 opacity:0。 */
+  @media (prefers-reduced-motion: no-preference) {
+    .nx-motion .nx-appear {
+      opacity: 0;
+      transform: translate3d(0, 16px, 0);
+    }
+    .nx-motion .nx-appear.nx-in {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  /* vanilla-tilt 接管 transform，这里只声明合成层提示 */
+  .nx-tilt {
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+  /* 标签栏的滑动指示条：位置/宽度由 nest-motion.js 算，过渡在这里 */
+  .nx-tab-ind {
+    position: absolute;
+    left: 0;
+    height: 3px;
+    border-radius: 999px;
+    background-image: linear-gradient(90deg, var(--nx-brand-500), var(--nx-brand-300));
+    box-shadow: 0 3px 12px -3px rgba(62, 99, 221, 0.75);
+    pointer-events: none;
+    opacity: 0;
+    transition: transform 300ms var(--nx-ease), width 300ms var(--nx-ease),
+      top 300ms var(--nx-ease), opacity 200ms linear;
+  }
+  /* ══ 简约化：把页面里手写的靛蓝描边降级为中性发丝线（第十一轮）═══════════════
+     学生端有 70+ 处 `border border-primary/10`（卡片）与 `border-b/t border-primary/10`
+     （页头/列表分隔），它们是 Tailwind 工具类，不在 nx-* 体系里。不动 HTML 的改法是把
+     颜色覆盖掉：这里的选择器是两个/三个类（0,2,0 / 0,3,0），而 utilities 都是单类
+     （0,1,0），权重上必输 —— 因此不依赖文件顺序，不会重演第九轮「层外规则被 utilities
+     顺序反压」那类事故。要用回一条明确的灰线时，把类换成 .nx-hairline-t/-b 或 .nx-input。 */
+  .border.border-primary\/5,
+  .border.border-primary\/10,
+  .border.border-primary\/20,
+  .border.border-slate-200,
+  .border-2.border-slate-200 {
+    border-color: var(--nx-edge);
+  }
+  .dark .border.dark\:border-slate-700,
+  .dark .border-2.dark\:border-slate-700 {
+    border-color: var(--nx-edge);
+  }
+  .border-b.border-primary\/5,
+  .border-b.border-primary\/10,
+  .border-b.border-primary\/20,
+  .border-t.border-primary\/5,
+  .border-t.border-primary\/10,
+  .border-t.border-primary\/20,
+  .border-b.border-slate-200,
+  .border-t.border-slate-200 {
+    border-color: var(--nx-sep);
+  }
+  /* 玻璃面板例外：底色是半透明白，浅色下若去掉线就完全和页面底同色（实测白 50% 叠在
+     #f9f9fb 上只差 1.5%），所以它们保留一条 7% 的中性发丝线。用三个类提权，不影响
+     这些卡片自带的 hover:shadow-xl 之类的工具类。 */
+  .border.border-primary\/10.bg-white\/50,
+  .border.border-primary\/20.bg-white\/50,
+  .border.border-primary\/10.bg-white\/60 {
+    border-color: var(--nx-sep);
+  }
+
+  /* ══ 整站艺术化（第十七轮）═════════════════════════════════════════════════
+     用户 m10740：「做整站的艺术性升级，包括所有按键和所有组件」。做法不是逐页改 HTML，
+     而是重写这一层共享组件外形 —— 22 页共用同一份 nest.css，改这里等于全站同时换装，
+     页面里那些 Tailwind 工具类一个都不用动。
+
+     设计来源（全部是现成体系，没有一条自行发明）：
+       · 几何与动效节奏 → Open Props 1.7.23（MIT，static/libs/open-props/，已接线 20 页）
+       · 调色 → Radix Colors（已 vendored）+ 概念页 /art.html 的 art 令牌
+       · 版式（衬线大标题 / 等宽注记 / 发丝分隔 / 胶囊按钮）→ /art.html 里那套语言
+       · 按钮「不要边缘线」→ 沿用第十一轮的决定（用户明确说过按键边缘线不好看）
+
+     ⚠ 这一段必须在 @layer components 内（写在文件末尾收尾括号之前）。 */
+
+  /* ── ① 版式：拉丁与数字走衬线，中文落到无衬线 ─────────────────────────── */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--nx-display);
+    letter-spacing: -0.012em;
+  }
+  /* 大数字（统计卡）：这一层最吃衬线体 */
+  .nx-stat-value {
+    font-family: var(--nx-display);
+    letter-spacing: -0.01em;
+  }
+  /* 注记类小字走等宽体：统计标签、表头、徽标 —— 编辑设计里这类「标签」都是等宽 */
+  .nx-stat-label,
+  .nx-badge,
+  th {
+    font-family: var(--nx-mono);
+    letter-spacing: 0.06em;
+  }
+
+  /* ── ② 按钮：胶囊 + 抬升，去掉靛蓝外发光 ─────────────────────────────── */
+  .nx-btn {
+    border-radius: var(--nx-radius-pill);
+    padding: 0 1.15rem;
+  }
+  .nx-btn-sm { padding: 0 0.85rem; }
+  .nx-btn-lg { padding: 0 1.5rem; }
+  .nx-btn-soft,
+  .nx-btn-quiet,
+  .nx-btn-outline,
+  .nx-btn-danger {
+    border-radius: var(--nx-radius-pill);
+  }
+  /* 主按钮：保留品牌渐变（学工平台 的品牌色不能丢），但把「靛蓝外发光」换成
+     Open Props 的中性分层阴影 —— 观感更纸面、更安静。 */
+  .nx-btn-primary {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), var(--nx-shadow-1);
+  }
+  /* 悬停抬 1px：shadcn/ui 与 Radix 系按钮的通用做法，节奏交给 --nx-ease（Open Props --ease-3） */
+  .nx-btn-primary:hover,
+  .nx-btn-soft:hover,
+  .nx-btn-quiet:hover,
+  .nx-btn-outline:hover,
+  .nx-btn-danger:hover {
+    transform: translateY(-1px);
+  }
+  .nx-btn:active { transform: translateY(0) scale(0.985); }
+  .nx-icon-btn { border-radius: var(--nx-radius-pill); }
+
+  /* ── ②b daisyUI 按钮（第十八轮）：同一个「胶囊」几何也要落在 .btn 上 ──────
+     daisyUI 的 .btn 圆角取 `--rounded-btn`，而这个令牌**同时**被
+     .input/.select/.textarea 使用：把它设成 999px 会让文本框变成胶囊（探针实测
+     input=999px，错的），所以令牌留在 10px（0.625rem），胶囊只在这里补给按钮。
+     用 `.btn.btn`（0,2,0）而不是 `.btn`：daisyUI 的组件与我们同处 @layer components，
+     谁在后谁赢不保证，双类名让这条确定生效。 */
+  .btn.btn {
+    border-radius: var(--nx-radius-pill);
+  }
+
+  /* ── ②d 旧脚本的禁用态 / 危险态（第十九轮）──────────────────────────────
+     settings.html 的两个按钮状态是脚本用**旧词汇**拼出来的，而按钮本体已经是
+     第十八轮的语言（.nx-btn-primary = 白字 + 靛蓝渐变），于是两处都读不出来：
+       · showWechatNote()：disabled + opacity-60 + cursor-not-allowed
+         ⇒ 60% 透明度把白字压成「淡紫底 + 白字」，1.6:1；
+       · 已绑定时加 bg-red-500/10 + text-red-500（想表达「解绑」是危险操作），
+         但渐变还在、字色从白改红 ⇒ 红字压靛蓝，同样读不出来。
+     页面契约要求内联脚本逐字不变，所以只在 CSS 里收口：`.nx-btn.nx-btn:disabled`
+     是 (0,3,0)，稳压 Tailwind 单类名工具类（各 0,1,0），也不用跟 daisyUI 抢先后。 */
+  /* ── ②e 脚本里引用的动画钩子（第十九轮）────────────────────────────────
+     .blur-out 这个类名是页面脚本自己 add/remove 的，从没在任何一个 CSS 文件里
+     定义过（也就是「toggle 了一个不存在的类」）。这里把它定义成只动 opacity
+     的淡出 —— 名字叫 blur，但按性能红线不真的动画 filter: blur。
+     （原来同一批里的 .card-animate / .expandable-courses 已随 P8 教学模块下线
+     一并删除：前者改成已有的 .nx-rise，后者所在的课程页已经不在。） */
+  .blur-out { opacity: .35; }
+
+  .nx-btn.nx-btn:disabled,
+  .nx-btn.nx-btn[disabled] {
+    background-image: none;
+    background-color: var(--nx-surface-2);
+    color: var(--nx-muted);
+    box-shadow: none;
+    opacity: 1;
+    cursor: not-allowed;
+  }
+  .nx-btn[class*="bg-red-500/10"] {
+    background-image: none;
+    background-color: rgba(229, 72, 77, 0.12);
+    color: #a4232a;
+    box-shadow: none;
+  }
+  .dark .nx-btn[class*="bg-red-500/10"] {
+    background-color: rgba(229, 72, 77, 0.18);
+    color: #ff8b8f;
+  }
+
+  /* ── ②c 连体统计条（第十八轮）：单元格交出自己的描边与圆角 ──────────────
+     外壳是 `grid gap-px border rounded-box bg-base-300`，缝里的底色就是分隔线。
+     所以格子必须去掉自己的 1px 描边与 16px 圆角，否则每格会各画一圈方框。 */
+  .nx-stat-joined > .nx-stat {
+    border: 0;
+    border-radius: 0;
+  }
+
+  /* ── ③ 标签栏：胶囊几何 + 实心激活态（原来是品牌渐变 + 发光） ─────────── */
+  .nx-tab { border-radius: var(--nx-radius-pill); }
+  .nx-tab.is-active,
+  .nx-tab.tab-active {
+    background-image: none;
+    background-color: var(--nx-brand-600);
+    box-shadow: var(--nx-shadow-1);
+  }
+  @media (max-width: 639px) {
+    .nx-tab { border-radius: var(--nx-radius-pill); }
+  }
+  /* 滑动指示条：从单色品牌渐变改成三色「编辑细条」（brand → purple → amber） */
+  .nx-tab-ind {
+    height: 2px;
+    background-image: linear-gradient(90deg, var(--nx-brand-500), var(--nx-accent-2), var(--nx-mark));
+  }
+
+  /* ── ④ 入口页背景：三色暖纸（brand / purple / amber），与 /art.html 同色 ── */
+  .nx-aurora {
+    background-image:
+      radial-gradient(58rem 38rem at 8% -14%, rgba(62, 99, 221, 0.28), transparent 62%),
+      radial-gradient(46rem 32rem at 96% 2%, rgba(142, 78, 198, 0.25), transparent 64%),
+      radial-gradient(44rem 30rem at 46% 112%, rgba(176, 96, 0, 0.20), transparent 62%);
+  }
+  .dark .nx-aurora {
+    background-image:
+      radial-gradient(58rem 38rem at 8% -14%, rgba(62, 99, 221, 0.34), transparent 62%),
+      radial-gradient(46rem 32rem at 96% 2%, rgba(142, 78, 198, 0.30), transparent 64%),
+      radial-gradient(44rem 30rem at 46% 112%, rgba(245, 195, 107, 0.15), transparent 62%);
+  }
+
+  /* ── ⑤ 工作页的极淡洗底 ───────────────────────────────────────────────── */
+  /* 页面 body 上的 bg-background-light 只设 background-color，工具类不碰 background-image，
+     所以这里加一层径向洗底不会和工具类打架。两处都写：带 nx-page 的页面（登录/仪表盘/
+     课程页）与其余用工具类底色的页面。 */
+  .nx-page,
+  body.bg-background-light,
+  body.bg-base-100 {
+    background-image:
+      radial-gradient(52rem 34rem at 102% -16%, rgba(142, 78, 198, 0.10), transparent 62%),
+      radial-gradient(46rem 30rem at -8% 0%, rgba(62, 99, 221, 0.10), transparent 64%);
+    background-repeat: no-repeat;
+  }
+  .dark .nx-page,
+  .dark body.bg-background-light,
+  .dark body.bg-base-100 {
+    background-image:
+      radial-gradient(52rem 34rem at 102% -16%, rgba(201, 184, 255, 0.11), transparent 62%),
+      radial-gradient(46rem 30rem at -8% 0%, rgba(158, 177, 255, 0.11), transparent 64%);
+  }
+
+  /* ── ⑥ 装饰细条：单色品牌线 → 三色渐变细条 ───────────────────────────── */
+  .nx-accent-top::after {
+    height: 2px;
+    background-image: linear-gradient(90deg, var(--nx-brand-500), var(--nx-accent-2), var(--nx-mark));
+  }
+
+  /* ── ⑦ WebGL 不可用时的静态「纸」（第十八轮补）──────────────────────────
+     /js/nest-shader-bg.js 挂载失败会把 <html> 打上 .nx-no-webgl 并摘掉自己的 canvas。
+     没有这条规则的话，那个类名只是个空标记：老机器（或显卡驱动被禁用）会看到一张
+     纯色底，与「有纸」的入口页差得明显。这里用三层径向渐变模拟着色器停帧的样子，
+     纯 CSS、零 canvas，观感接近即可。 */
+  html.nx-no-webgl .nx-page,
+  html.nx-no-webgl body.bg-background-light,
+  html.nx-no-webgl body.bg-base-100 {
+    background-image:
+      radial-gradient(70rem 44rem at 12% -10%, rgba(62, 99, 221, 0.16), transparent 62%),
+      radial-gradient(56rem 38rem at 98% 6%, rgba(142, 78, 198, 0.14), transparent 64%),
+      radial-gradient(52rem 34rem at 50% 110%, rgba(176, 96, 0, 0.12), transparent 62%);
+  }
+  .dark.nx-no-webgl .nx-page,
+  html.dark.nx-no-webgl body.bg-background-light,
+  html.dark.nx-no-webgl body.bg-base-100 {
+    background-image:
+      radial-gradient(70rem 44rem at 12% -10%, rgba(62, 99, 221, 0.22), transparent 62%),
+      radial-gradient(56rem 38rem at 98% 6%, rgba(142, 78, 198, 0.18), transparent 64%),
+      radial-gradient(52rem 34rem at 50% 110%, rgba(245, 195, 107, 0.08), transparent 62%);
+  }
+  /* ── ⑧ 老页面的顶栏与刊头（第十九轮机械换壳的落点）─────────────────────
+     tools/redesign-shell.mjs 把 17 个老页面的顶栏换成这套类名，做法**只改 class、
+     不动内容**（顶栏里的 id / data-nx-* / 行内事件逐字保留）。两个样板页
+     （login.html / dashboard.html）是手写的，不用这几条。
+     刻意不给顶栏里的按钮加边框、也不改它们的尺寸：按钮自己的 rounded-full / px-4 py-2
+     已经统一过（第十二轮），这里再动一次就会和 check-unify 的尺寸刻度打架。 */
+  .nx-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .nx-topbar .navbar-start,
+  .nx-topbar .navbar-end {
+    display: flex;
+    align-items: center;
+    /* 左右两半不再各占 50%：daisyUI 的 .navbar-start/.navbar-end 自己写死 width:50%，
+       右半内容一多就往左溢出、压到品牌与刊头注记上（实测 /teacher-dashboard.html 1440 下
+       第一个药丸 left=258 而刊头右沿 631，重叠 373px；旧闸门测不出来，因为 LTR 下左侧溢出
+       不计入 scrollWidth）。.navbar 本身是 justify-content:space-between，两侧按内容宽即可；
+       想让右半吃满剩余空间的页面（桌面型后台）再自己加 flex-1。 */
+    width: auto;
+  }
+  /* 品牌字：从「加粗 + 全大写无衬线」换成衬线（与样板页同一支 Instrument Serif） */
+  .nx-brand {
+    font-family: var(--nx-display);
+    font-size: 1.375rem;
+    font-weight: 400;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    text-transform: none;
+  }
+  /* 刊头小标：等宽、全大写、宽字距。颜色不写 color-mix（老 Chrome 上没有），
+     用显式 rgba 两套（浅色底 / 深色底）——这也是本文件一贯的写法。 */
+  .nx-kicker {
+    margin: 0 0 0.6rem;
+    font-family: var(--nx-mono);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(20, 22, 26, 0.62);
+  }
+  .dark .nx-kicker {
+    color: rgba(241, 242, 244, 0.62);
+  }
+} /* ← @layer components 到此结束（从文件上部的「页面底」一直延续到这里） */
+
+/* 无障碍：尊重系统的「减少动态效果」。刻意留在组件层外面，
+   因为它要盖住任何动画声明（哪怕是别的层里写的）。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── 移动端可点性（P18 后补）─────────────────────────────────────────────────
+   依据 WCAG 2.5.5 Target Size 与 iOS HIG：触控目标不小于 44×44 px。
+   只在触控屏宽（≤1023px）生效，1280 以上的 check-unify 形态判据
+   （.nx-btn 高度只允许 32/40/46）与桌面版观感都不受影响。文字链（表格里的
+   「查看」等）是行内链接、不是按钮，按例外处理，不在这里硬撑高度。
+   为什么从 640 抬到 1023：iPad 竖屏 768 宽实测仍有 5–27 个小目标
+   （target/mobile-audit-p18-final-student.log），那一档同样是手指在点。 */
+@media (max-width: 1023px) {
+  .nx-btn,
+  .nx-btn-sm {
+    height: auto;
+    min-height: 44px;
+  }
+  .nx-btn-lg {
+    min-height: 44px;
+  }
+  /* daisyUI 的 .btn 默认 2rem/2.5rem 高：窄屏一律抬到 44px（含 btn-sm / btn-xs），
+     否则分页、发布、导出这些按钮在手机上按不准。 */
+  .btn,
+  .btn-sm,
+  .btn-xs {
+    height: auto;
+    min-height: 44px;
+  }
+  .nx-icon-btn {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+  }
+  .nx-tab,
+  .tab-btn {
+    min-height: 44px;
+  }
+  .btn-square,
+  .btn-circle {
+    min-width: 44px;
+  }
+}
+
+/* ── 下拉框文字清晰度（P 后收尾）─────────────────────────────────────────────
+   daisyUI 的 .select 系列只设了左右内边距，没清掉 Chrome 给 <select> 加的
+   默认上下内边距（约 8px×2），叠上 .select-sm 的 line-height:2rem 之后，
+   文字实际需要的高度超过 32px 控件高，下缘被浏览器默认的 overflow:clip 裁掉
+   （实测 #roster-class：clientHeight 30 / scrollHeight 40，scrollHeight 更大，
+   说明内容确实溢出、文字底部被切）。清掉垂直内边距、行高改回相对值，
+   让文字按 flex 的 align-items:center 垂直居中，不再溢出。 */
+.select,
+.select-sm,
+.select-lg,
+.select-xs {
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 1.5;
+  overflow: visible;
+}

@@ -1,0 +1,16 @@
+{
+  "port": 9222,
+  "cookie": { "name": "JSESSIONID", "value": "__SID__", "url": "http://127.0.0.1:8080" },
+  "page": { "url": "http://127.0.0.1:8080/login.html?cb=510", "width": 1440, "height": 1000, "waitMs": 2500 },
+  "steps": [
+    { "name": "1-boot", "eval": "JSON.stringify({path: location.pathname, nestUI: typeof NestUI, errHidden: document.getElementById('errorMsg').classList.contains('hidden'), year: (document.getElementById('year') || {}).textContent})" },
+    { "name": "2-empty-submit", "eval": "(function(){ document.getElementById('loginForm').requestSubmit(); return 'submitted'; })()", "waitMs": 900 },
+    { "name": "3-empty-result", "eval": "JSON.stringify({hidden: document.getElementById('errorMsg').classList.contains('hidden'), text: document.getElementById('errorText').textContent, buttonLabel: document.getElementById('loginBtnLabel').textContent})" },
+    { "name": "4-wrong-pw", "eval": "(function(){ document.getElementById('username').value = 'chendw'; document.getElementById('password').value = 'definitely-not-the-password'; document.getElementById('loginForm').requestSubmit(); return 'submitted'; })()", "waitMs": 2000 },
+    { "name": "5-wrong-result", "eval": "JSON.stringify({hidden: document.getElementById('errorMsg').classList.contains('hidden'), text: document.getElementById('errorText').textContent, path: location.pathname, buttonLabel: document.getElementById('loginBtnLabel').textContent})" },
+    { "name": "6-toggle-password", "eval": "(function(){ var before = document.getElementById('password').type; document.getElementById('togglePassword').click(); var after = document.getElementById('password').type; document.getElementById('togglePassword').click(); return JSON.stringify({before: before, afterToggle: after, restored: document.getElementById('password').type}); })()", "waitMs": 300 },
+    { "name": "7-right-pw", "eval": "(function(){ document.getElementById('username').value = 'chendw'; document.getElementById('password').value = '123456'; document.getElementById('loginForm').requestSubmit(); return 'submitting'; })()", "waitMs": 3000 },
+    { "name": "8-after-login", "eval": "JSON.stringify({path: location.pathname, title: document.title, nestUI: typeof NestUI, cookieSet: document.cookie.length > 0})" },
+    { "name": "9-shot", "shot": "target\\flow-auth-login.png" }
+  ]
+}

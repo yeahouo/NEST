@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="nestlight">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>第二课堂成绩单 · 学工平台</title>
+  <!--
+    主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
+    daisyUI 的组件颜色跟的是 [data-theme] 属性（不是 .dark 类），两处都必须写，
+    与 nest-ui.js 的 paintTheme() 保持一致。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <script src="/pwa.js" defer></script>
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/nest-art3.css">
+</head>
+
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content">
+
+<header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none border-0 p-0">
+  <div class="navbar mx-auto min-h-0 w-full max-w-7xl gap-3 px-5 py-2 md:px-8">
+    <div class="navbar-start gap-3">
+      <a class="flex items-center gap-3" href="dashboard.html">
+        <span class="nx-logo">
+          <span class="material-symbols-outlined text-xl">terminal</span>
+        </span>
+        <span class="hidden text-lg font-black uppercase tracking-tight sm:inline">学工平台</span>
+      </a>
+      <span class="hidden h-5 w-px bg-base-300 lg:block"></span>
+      <span class="hidden font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65 lg:block">§ 28 · Student / Second Class</span>
+    </div>
+    <div class="navbar-end gap-1.5">
+      <a class="btn btn-ghost btn-sm gap-2 rounded-full" href="dashboard.html">
+        <span class="material-symbols-outlined text-lg">dashboard</span>
+        <span class="hidden md:inline">工作台</span>
+      </a>
+      <button class="btn btn-ghost btn-sm gap-2 rounded-full hidden" id="sc-staff-btn" type="button">
+        <span class="material-symbols-outlined text-lg">fact_check</span>
+        <span class="hidden md:inline">审核台</span>
+      </button>
+      <button aria-label="切换深色 / 浅色模式" class="nx-icon-btn" data-nx-theme-toggle title="切换深色 / 浅色模式" type="button">
+        <span class="material-symbols-outlined nx-theme-icon-light text-xl">dark_mode</span>
+        <span class="material-symbols-outlined nx-theme-icon-dark text-xl">light_mode</span>
+      </button>
+      <a class="nx-icon-btn" href="settings.html" title="设置">
+        <span class="material-symbols-outlined text-xl">settings</span>
+      </a>
+      <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="sc-logout-btn" type="button">
+        <span class="material-symbols-outlined text-lg">logout</span>
+        <span class="hidden md:inline">退出登录</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="flex-1 px-5 py-8 md:px-8 md:py-12">
+  <div class="mx-auto w-full max-w-7xl">
+
+    <!-- ── 刊头 ─────────────────────────────────────────────────────── -->
+    <header class="mb-8 border-b border-base-300 pb-6">
+      <p class="nx-kicker">§ 28 · Student / Second Class</p>
+      <h1 data-nx-split="1" class="mt-2 font-serif text-3xl leading-tight sm:text-4xl lg:text-5xl">第二课堂成绩单</h1>
+      <p class="mt-4 max-w-2xl text-sm text-base-content/70">
+        学时与学分口径由学校设定；未设置即显示「未设置」，系统不代填标准。
+      </p>
+      <p class="mt-3 text-xs leading-relaxed text-base-content/65">
+        本页面向学生本人：查看自己第二课堂各板块已认定 / 待认定学时、学分与年度上限提示，申报已发布的第二课堂活动，
+        或对没有活动可挂的成果做自主申报（须自报标题与证明材料链接）。提交后先由辅导员初审，再由管理员认定；
+        <b>认定之后的学时与学分才计入成绩单</b>。本页只呈现与你本人有关的数据。
+      </p>
+    </header>
+
+    <div id="sc-page-message" class="alert hidden mb-6 items-start gap-2"></div>
+
+    <!-- ── 我的成绩单 ───────────────────────────────────────────────── -->
+    <section class="mt-10 rounded-box border border-base-300 bg-base-100 p-6">
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <div class="flex-1">
+          <h2 class="font-serif text-2xl">我的成绩单</h2>
+          <p class="mt-1 text-xs leading-relaxed text-base-content/65">
+            按板块汇总；要求学时 / 年度上限 / 学分系数由学校在板块台账里设定，未设定的显示「未设置」。
+          </p>
+        </div>
+        <div class="flex flex-wrap items-end gap-2">
+          <label class="form-control">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学年</span>
+            <select class="select select-bordered select-sm" id="sc-summary-year"></select>
+          </label>
+          <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="sc-summary-refresh" type="button">
+            <span class="material-symbols-outlined text-lg">refresh</span>
+            <span>刷新</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-5 overflow-x-auto">
+        <table class="table table-zebra w-full">
+          <thead>
+            <tr>
+              <th class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">板块</th>
+              <th class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">已认定学时</th>
+              <th class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">待认定学时</th>
+              <th class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">学分</th>
+              <th class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">要求学时</th>
+              <th class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">年度上限</th>
+            </tr>
+          </thead>
+          <tbody id="sc-summary-rows"></tbody>
+          <tfoot id="sc-summary-total-row"></tfoot>
+        </table>
+      </div>
+
+      <div class="mt-4 grid gap-2" id="sc-summary-warnings"></div>
+      <p class="mt-4 text-xs leading-relaxed text-base-content/65" id="sc-policy-note"></p>
+    </section>
+
+    <!-- ── 可申报活动 ───────────────────────────────────────────────── -->
+    <section class="mt-10 rounded-box border border-base-300 bg-base-100 p-6">
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <div class="flex-1">
+          <h2 class="font-serif text-2xl">可申报活动</h2>
+          <p class="mt-1 text-xs leading-relaxed text-base-content/65">
+            这里只列出已发布的第二课堂活动；同一活动不能重复申报。没有活动可挂的成果，用右侧「自主申报」提交。
+          </p>
+        </div>
+        <button class="btn btn-primary btn-sm gap-2 rounded-full" id="sc-act-open-custom" type="button">
+          <span class="material-symbols-outlined text-lg">add_notes</span>
+          <span>自主申报（无活动）</span>
+        </button>
+      </div>
+
+      <div class="mt-5 flex flex-wrap items-end gap-2">
+        <label class="form-control">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">板块</span>
+          <select class="select select-bordered select-sm" id="sc-act-category"></select>
+        </label>
+        <label class="form-control flex-1">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关键词</span>
+          <input class="input input-bordered input-sm w-full" id="sc-act-keyword" placeholder="活动标题 / 主办方" type="search"/>
+        </label>
+        <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="sc-act-search" type="button">
+          <span class="material-symbols-outlined text-lg">search</span>
+          <span>查询</span>
+        </button>
+      </div>
+
+      <div class="mt-5 grid gap-3" id="sc-act-list"></div>
+      <p class="hidden mt-5 rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="sc-act-empty">当前没有可申报的活动。</p>
+
+      <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <p class="font-mono text-xs text-base-content/65" id="sc-act-total"></p>
+        <div class="flex items-center gap-2">
+          <button class="btn btn-ghost btn-sm rounded-full" id="sc-act-prev" type="button">上一页</button>
+          <span class="font-mono text-xs" id="sc-act-page">1 / 1</span>
+          <button class="btn btn-ghost btn-sm rounded-full" id="sc-act-next" type="button">下一页</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 我的申报 ─────────────────────────────────────────────────── -->
+    <section class="mt-10 rounded-box border border-base-300 bg-base-100 p-6">
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <div class="flex-1">
+          <h2 class="font-serif text-2xl">我的申报</h2>
+          <p class="mt-1 text-xs leading-relaxed text-base-content/65">
+            待初审的申报可以自己撤回；被退回的可以改学时 / 证明材料 / 备注后重新提交；已认定与已否定的不能再改。
+          </p>
+        </div>
+        <div class="flex flex-wrap items-end gap-2">
+          <label class="form-control">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学年</span>
+            <select class="select select-bordered select-sm" id="sc-my-year"></select>
+          </label>
+          <label class="form-control">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</span>
+            <select class="select select-bordered select-sm" id="sc-my-status">
+              <option value="">全部状态</option>
+              <option value="submitted">待初审</option>
+              <option value="counselor_approved">待认定</option>
+              <option value="confirmed">已认定</option>
+              <option value="returned">已退回</option>
+              <option value="rejected">已否定</option>
+              <option value="withdrawn">已撤回</option>
+            </select>
+          </label>
+          <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="sc-my-refresh" type="button">
+            <span class="material-symbols-outlined text-lg">refresh</span>
+            <span>刷新</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-5 grid gap-3" id="sc-my-list"></div>
+      <p class="hidden mt-5 rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="sc-my-empty">还没有第二课堂申报。</p>
+
+      <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <p class="font-mono text-xs text-base-content/65" id="sc-my-total"></p>
+        <div class="flex items-center gap-2">
+          <button class="btn btn-ghost btn-sm rounded-full" id="sc-my-prev" type="button">上一页</button>
+          <span class="font-mono text-xs" id="sc-my-page">1 / 1</span>
+          <button class="btn btn-ghost btn-sm rounded-full" id="sc-my-next" type="button">下一页</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer class="nx-hairline-t border-base-300 px-5 py-6 md:px-8">
+  <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
+    <p class="font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65">学工平台 · Second class</p>
+    <p class="text-xs text-base-content/60">学时与学分口径由学校设定；本平台只登记、初审与认定，不代填任何标准。</p>
+  </div>
+</footer>
+
+<!-- ── 弹窗：申报活动 ───────────────────────────────────────────── -->
+<div class="absolute inset-0 nx-scrim hidden items-center justify-center p-4" id="sc-dialog-apply">
+  <div class="card nx-dialog w-full max-w-lg p-6">
+    <h2 class="font-serif text-2xl">申报活动</h2>
+    <p class="mt-2 text-xs text-base-content/65" id="sc-apply-target">—</p>
+    <p class="mt-3 text-xs leading-relaxed text-base-content/70">
+      申报学时默认取活动学时，可以改小但<b>不得超过活动学时</b>，单条也不超过 100 学时。提交后进入待初审，由辅导员初审、管理员认定。
+    </p>
+    <label class="form-control mt-5">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">申报学时（不超过活动学时）</span>
+      <input class="input input-bordered" id="sc-apply-hours" min="0.5" step="0.5" type="number"/>
+    </label>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">证明材料链接（选填）</span>
+      <input class="input input-bordered" id="sc-apply-evidence" placeholder="https:// 照片 / 证明 / 公示页链接" type="url"/>
+    </label>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">备注（选填，不超过 500 字）</span>
+      <textarea class="textarea textarea-bordered" id="sc-apply-note" placeholder="例如：担任志愿者组长，全程参与 3 天" rows="3"></textarea>
+    </label>
+    <div id="sc-apply-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="sc-apply-close" type="button">返回</button>
+      <button class="btn btn-primary rounded-full" id="sc-apply-save" type="button">提交申报</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 弹窗：自主申报（无活动） ─────────────────────────────────── -->
+<div class="absolute inset-0 nx-scrim hidden items-center justify-center p-4" id="sc-dialog-custom">
+  <div class="card nx-dialog w-full max-w-lg p-6">
+    <h2 class="font-serif text-2xl">自主申报（无活动）</h2>
+    <p class="mt-3 text-xs leading-relaxed text-base-content/70">
+      适用于没有在册活动的成果（证书、竞赛、讲座记录等）。<b>标题与证明材料链接都必须填</b>，否则后端会拒收；
+      学时口径由学校设定，未设置标准时由初审 / 认定环节裁定。
+    </p>
+    <label class="form-control mt-5">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">板块（必选）</span>
+      <select class="select select-bordered" id="sc-custom-category"></select>
+    </label>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">申报标题（必填）</span>
+      <input class="input input-bordered" id="sc-custom-title" maxlength="100" placeholder="例如：2025 年福建省大学生程序设计竞赛二等奖" type="text"/>
+    </label>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">申报学时（必填，不超过 100）</span>
+      <input class="input input-bordered" id="sc-custom-hours" min="0.5" step="0.5" type="number"/>
+    </label>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">证明材料链接（必填）</span>
+      <input class="input input-bordered" id="sc-custom-evidence" placeholder="https:// 证书 / 主办方证明链接" type="url"/>
+    </label>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">备注（选填，不超过 500 字）</span>
+      <textarea class="textarea textarea-bordered" id="sc-custom-note" placeholder="例如：获奖名单见附件第 3 页" rows="3"></textarea>
+    </label>
+    <div id="sc-custom-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="sc-custom-close" type="button">返回</button>
+      <button class="btn btn-primary rounded-full" id="sc-custom-save" type="button">提交申报</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 弹窗：修改后重交 ─────────────────────────────────────────── -->
+<div class="absolute inset-0 nx-scrim hidden items-center justify-center p-4" id="sc-dialog-resubmit">
+  <div class="card nx-dialog w-full max-w-lg p-6">
+    <h2 class="font-serif text-2xl">修改后重新提交</h2>
+    <p class="mt-2 text-xs text-base-content/65" id="sc-resubmit-target">—</p>
+    <p class="mt-3 text-xs leading-relaxed text-base-content/70">
+      请按退回原因改好后重交；重交后状态回到<b>待初审</b>，需要辅导员重新初审。只改你要改的项，留空的项按原值保留。
+    </p>
+    <label class="form-control mt-5">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">申报学时</span>
+      <input class="input input-bordered" id="sc-resubmit-hours" min="0.5" step="0.5" type="number"/>
+    </label>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">证明材料链接</span>
+      <input class="input input-bordered" id="sc-resubmit-evidence" placeholder="https:// 补充后的证明材料" type="url"/>
+    </label>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">备注（说明改成什么了）</span>
+      <textarea class="textarea textarea-bordered" id="sc-resubmit-note" placeholder="例如：已补上主办方盖章的参与证明，学时按实际 6 小时申报" rows="3"></textarea>
+    </label>
+    <div id="sc-resubmit-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="sc-resubmit-close" type="button">返回</button>
+      <button class="btn btn-primary rounded-full" id="sc-resubmit-save" type="button">重新提交</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(async function () {
+  'use strict';
+
+  // ── 常量 ────────────────────────────────────────────────────────
+  var PAGE_SIZE = 10;
+  var MAX_HOURS = 100;
+  var MAX_NOTE = 500;
+
+  var STATUS_LABEL = {
+    submitted: '待初审',
+    counselor_approved: '待认定',
+    confirmed: '已认定',
+    returned: '已退回',
+    rejected: '已否定',
+    withdrawn: '已撤回'
+  };
+  var STATUS_CLS = {
+    submitted: 'badge-warning',
+    counselor_approved: 'badge-info',
+    confirmed: 'badge-success',
+    returned: 'badge-error',
+    rejected: 'badge-ghost',
+    withdrawn: 'badge-ghost'
+  };
+  var LEVEL_LABEL = { school: '校级', college: '院级', class: '班级', other: '其他' };
+
+  var state = {
+    actPage: 1,
+    actTotal: 0,
+    myPage: 1,
+    myTotal: 0,
+    pickActivity: null,
+    resubmitId: null,
+    activities: {},
+    records: {}
+  };
+
+  // ── 通用工具（与 volunteer.html 保持同一套写法） ────────────────
+  function escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  async function callApi(url, options) {
+    var config = options || {};
+    config.credentials = 'same-origin';
+    if (config.body && typeof config.body !== 'string') {
+      config.headers = config.headers || {};
+      config.headers['Content-Type'] = 'application/json';
+      config.body = JSON.stringify(config.body);
+    }
+    var response = await fetch(url, config);
+    var result = null;
+    try { result = await response.json(); } catch (error) { result = { code: response.status, message: '服务没有返回可解析的内容', data: null }; }
+    if (result && result.code === 401) { window.location.href = 'login.html'; }
+    return result;
+  }
+
+  function showMessage(message, type) {
+    var box = document.getElementById('sc-page-message');
+    if (!box) { return; }
+    var toneCls = type === 'success' ? 'alert-success' : (type === 'warn' ? 'alert-warning' : 'alert-error');
+    var icon = type === 'success' ? 'check_circle' : (type === 'warn' ? 'warning' : 'error');
+    box.className = 'alert mb-6 items-start gap-2 ' + toneCls;
+    box.innerHTML = '<span class="material-symbols-outlined text-lg">' + icon + '</span>'
+        + '<span class="text-sm">' + escapeHtml(message) + '</span>';
+  }
+
+  // nest-ui.js 是 defer 加载的（这段内联脚本先跑），所以只在调用时取 window.NestUI。
+  // 它的 toast 第二参是 options 对象（{kind:'ok'|'warn'|'danger'|'info'}），这里把
+  // 页面里惯用的 'success' / 'error' 字样翻译过去，失败时退回页内 alert 条。
+  function toast(message, kind) {
+    var text = message === null || message === undefined || message === '' ? '操作失败' : String(message);
+    var tone = kind === 'error' ? 'danger' : (kind === 'warn' ? 'warn' : (kind === 'info' ? 'info' : 'ok'));
+    if (window.NestUI && window.NestUI.toast) {
+      window.NestUI.toast(text, { kind: tone });
+      return;
+    }
+    showMessage(text, tone === 'danger' ? 'error' : (tone === 'warn' ? 'warn' : 'success'));
+  }
+
+  function nestDialog() {
+    return (window.NestUI && window.NestUI.dialog) ? window.NestUI.dialog : null;
+  }
+
+  async function askConfirm(message) {
+    var api = nestDialog();
+    if (api && api.confirm) {
+      var ok = await api.confirm(message);
+      return !!ok;
+    }
+    // 对话框还没加载出来（极早期点击）：不放行，也不自己弹浏览器原生框。
+    toast('对话框还没加载好，请稍后重试', 'warn');
+    return false;
+  }
+
+  function text(value) {
+    if (value === null || value === undefined || value === '') { return '—'; }
+    return String(value);
+  }
+
+  function formatTime(value) {
+    if (!value) { return '—'; }
+    return String(value).replace('T', ' ').slice(0, 16);
+  }
+
+  function formatDay(value) {
+    if (!value) { return '—'; }
+    return String(value).replace('T', ' ').slice(0, 10);
+  }
+
+  function numOf(value) {
+    if (value === null || value === undefined || value === '') { return null; }
+    var n = Number(value);
+    return isFinite(n) ? n : null;
+  }
+
+  function plain(n) {
+    return String(Math.round(n * 100) / 100);
+  }
+
+  // 口径列：后端下发 null = 未设置。绝不补 0、绝不显示 0。
+  function settingText(value) {
+    var n = numOf(value);
+    if (n === null) { return '未设置'; }
+    return plain(n);
+  }
+
+  function settingHourText(value) {
+    var n = numOf(value);
+    if (n === null) { return '未设置'; }
+    return plain(n) + ' 学时';
+  }
+
+  function hourText(value) {
+    var n = numOf(value);
+    if (n === null) { return '0 学时'; }
+    return plain(n) + ' 学时';
+  }
+
+  function setText(id, value) {
+    var el = document.getElementById(id);
+    if (el) { el.textContent = value === null || value === undefined ? '' : String(value); }
+  }
+
+  function inputValue(id) {
+    var el = document.getElementById(id);
+    return el ? String(el.value == null ? '' : el.value).trim() : '';
+  }
+
+  function setInput(id, value) {
+    var el = document.getElementById(id);
+    if (el) { el.value = (value === null || value === undefined) ? '' : String(value); }
+  }
+
+  function openDialog(id) {
+    var d = document.getElementById(id);
+    if (!d) { return; }
+    d.classList.remove('hidden');
+    d.classList.add('flex');
+  }
+
+  function closeDialog(id) {
+    var d = document.getElementById(id);
+    if (!d) { return; }
+    d.classList.add('hidden');
+    d.classList.remove('flex');
+  }
+
+  function showBoxMessage(hostId, message, type) {
+    var box = document.getElementById(hostId);
+    if (!box) { return; }
+    box.className = 'alert mt-4 items-start gap-2 ' + (type === 'success' ? 'alert-success' : 'alert-error');
+    box.innerHTML = '<span class="text-sm">' + escapeHtml(message) + '</span>';
+  }
+
+  function clearBoxMessage(hostId) {
+    var box = document.getElementById(hostId);
+    if (box) { box.className = 'alert hidden mt-4 items-start gap-2'; box.innerHTML = ''; }
+  }
+
+  function toggleEmpty(id, isEmpty) {
+    var el = document.getElementById(id);
+    if (!el) { return; }
+    if (isEmpty) { el.classList.remove('hidden'); } else { el.classList.add('hidden'); }
+  }
+
+  function statusTextOf(item) {
+    if (item && item.statusText) { return String(item.statusText); }
+    var key = item && item.status ? String(item.status) : '';
+    return STATUS_LABEL[key] || key || '—';
+  }
+
+  function statusBadgeCls(item) {
+    var key = item && item.status ? String(item.status) : '';
+    return STATUS_CLS[key] || 'badge-ghost';
+  }
+
+  function renderPager(prefix, page, total) {
+    var pages = Math.max(1, Math.ceil((total || 0) / PAGE_SIZE));
+    if (page > pages) { page = pages; }
+    setText(prefix + '-page', page + ' / ' + pages);
+    setText(prefix + '-total', '共 ' + (total || 0) + ' 条');
+    return page;
+  }
+
+  function fillYearSelect(id) {
+    var el = document.getElementById(id);
+    if (!el) { return; }
+    var cur = new Date().getFullYear();
+    el.innerHTML = '<option value="">本年度（' + cur + '）</option>'
+        + '<option value="' + (cur - 1) + '">上一年（' + (cur - 1) + '）</option>';
+    el.value = '';
+  }
+
+  function totalsValue(totals, camel, snake) {
+    if (!totals) { return null; }
+    if (totals[camel] !== undefined && totals[camel] !== null) { return totals[camel]; }
+    if (totals[snake] !== undefined && totals[snake] !== null) { return totals[snake]; }
+    return null;
+  }
+
+  // ── 我的成绩单 ──────────────────────────────────────────────────
+  function categoryRow(item) {
+    return '<tr>'
+        + '<td class="font-bold">' + escapeHtml(text(item.categoryName)) + '</td>'
+        + '<td>' + escapeHtml(hourText(item.confirmedHours)) + '</td>'
+        + '<td>' + escapeHtml(hourText(item.pendingHours)) + '</td>'
+        + '<td>' + escapeHtml(item.confirmedCredit === null || item.confirmedCredit === undefined ? '0' : plain(numOf(item.confirmedCredit) || 0)) + '</td>'
+        + '<td>' + escapeHtml(settingHourText(item.requiredHours)) + '</td>'
+        + '<td>' + escapeHtml(settingHourText(item.yearlyCapHours)) + '</td>'
+        + '</tr>';
+  }
+
+  function renderSummary(data) {
+    var categories = Array.isArray(data.categories) ? data.categories : [];
+    var body = document.getElementById('sc-summary-rows');
+    if (body) {
+      if (!categories.length) {
+        body.innerHTML = '<tr><td class="text-center text-sm text-base-content/60" colspan="6">本学年还没有可汇总的板块数据。</td></tr>';
+      } else {
+        body.innerHTML = categories.map(categoryRow).join('');
+      }
+    }
+
+    var totals = data.totals || {};
+    var totalRow = document.getElementById('sc-summary-total-row');
+    if (totalRow) {
+      totalRow.innerHTML = '<tr>'
+          + '<td class="font-bold">合计</td>'
+          + '<td class="font-bold">' + escapeHtml(hourText(totalsValue(totals, 'confirmedHours', 'confirmed_hours'))) + '</td>'
+          + '<td class="font-bold">' + escapeHtml(hourText(totalsValue(totals, 'pendingHours', 'pending_hours'))) + '</td>'
+          + '<td class="font-bold">' + escapeHtml(settingText(totalsValue(totals, 'confirmedCredit', 'confirmed_credit') || 0)) + '</td>'
+          + '<td>—</td>'
+          + '<td>—</td>'
+          + '</tr>';
+    }
+
+    var warnings = Array.isArray(data.warnings) ? data.warnings : [];
+    var host = document.getElementById('sc-summary-warnings');
+    if (host) {
+      host.innerHTML = warnings.map(function (warn) {
+        return '<p class="alert alert-warning items-start gap-2 text-sm">' + escapeHtml(warn) + '</p>';
+      }).join('');
+    }
+
+    setText('sc-policy-note', data.policyNote || '学时与学分口径由学校设定：未设置时显示「未设置」，系统不代填任何国家或校级标准。');
+  }
+
+  async function loadSummary() {
+    var year = inputValue('sc-summary-year');
+    var url = '/api/second-class/summary' + (year ? '?year=' + encodeURIComponent(year) : '');
+    var result = await callApi(url);
+    if (!result || result.code !== 200) {
+      toast((result && result.message) || '成绩单加载失败', 'error');
+      return;
+    }
+    renderSummary(result.data || {});
+  }
+
+  // ── 板块与活动 ──────────────────────────────────────────────────
+  async function loadCategories() {
+    var result = await callApi('/api/second-class/categories');
+    if (!result || result.code !== 200) {
+      toast((result && result.message) || '板块加载失败', 'error');
+      return [];
+    }
+    var data = result.data || {};
+    var list = Array.isArray(data.categories) ? data.categories : [];
+    var options = list.map(function (item) {
+      return '<option value="' + escapeHtml(String(item.id)) + '">' + escapeHtml(text(item.name)) + '</option>';
+    }).join('');
+    var filter = document.getElementById('sc-act-category');
+    if (filter) { filter.innerHTML = '<option value="">全部板块</option>' + options; }
+    var picker = document.getElementById('sc-custom-category');
+    if (picker) { picker.innerHTML = '<option value="">请选择板块</option>' + options; }
+    return list;
+  }
+
+  function activityCard(item) {
+    var level = item.levelText || LEVEL_LABEL[item.level] || text(item.level);
+    var when = formatDay(item.startDate);
+    if (item.endDate && formatDay(item.endDate) !== when) { when = when + ' — ' + formatDay(item.endDate); }
+    return '<article class="card rounded-box border border-base-300 bg-base-100 p-5">'
+        + '<div class="flex flex-wrap items-start justify-between gap-3">'
+        + '<div class="flex-1">'
+        + '<p class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">'
+        + escapeHtml(text(item.categoryName)) + ' · ' + escapeHtml(level) + '</p>'
+        + '<h3 class="mt-1 text-lg font-bold">' + escapeHtml(text(item.title)) + '</h3>'
+        + '<p class="mt-2 text-sm text-base-content/70">'
+        + escapeHtml(text(item.organizer)) + ' · ' + escapeHtml(when) + ' · ' + escapeHtml(text(item.location)) + '</p>'
+        + '<p class="mt-2 text-xs text-base-content/65">学时 ' + escapeHtml(hourText(item.hours))
+        + ' · 学分 ' + escapeHtml(settingText(item.credit))
+        + ' · 已报名 ' + escapeHtml(String(item.recordCount === null || item.recordCount === undefined ? 0 : item.recordCount)) + ' 人</p>'
+        + '</div>'
+        + '<button class="btn btn-primary btn-sm rounded-full" data-apply="' + escapeHtml(String(item.id)) + '" type="button">申报</button>'
+        + '</div>'
+        + '</article>';
+  }
+
+  async function loadActivities() {
+    var params = ['page=' + state.actPage, 'size=' + PAGE_SIZE];
+    var categoryId = inputValue('sc-act-category');
+    if (categoryId) { params.push('categoryId=' + encodeURIComponent(categoryId)); }
+    var keyword = inputValue('sc-act-keyword');
+    if (keyword) { params.push('keyword=' + encodeURIComponent(keyword)); }
+    var result = await callApi('/api/second-class/activities?' + params.join('&'));
+    if (!result || result.code !== 200) {
+      toast((result && result.message) || '活动列表加载失败', 'error');
+      return;
+    }
+    var data = result.data || {};
+    var list = Array.isArray(data.list) ? data.list : [];
+    state.actTotal = Number(data.total) || 0;
+    state.activities = {};
+    list.forEach(function (item) { state.activities[String(item.id)] = item; });
+
+    var host = document.getElementById('sc-act-list');
+    if (host) { host.innerHTML = list.map(activityCard).join(''); }
+    toggleEmpty('sc-act-empty', list.length === 0);
+    state.actPage = renderPager('sc-act', state.actPage, state.actTotal);
+  }
+
+  // ── 我的申报 ────────────────────────────────────────────────────
+  function recordActions(item) {
+    var id = escapeHtml(String(item.id));
+    if (item.status === 'submitted') {
+      return '<button class="btn btn-ghost btn-sm rounded-full" data-withdraw="' + id + '" type="button">撤回</button>';
+    }
+    if (item.status === 'returned') {
+      return '<button class="btn btn-primary btn-sm rounded-full" data-resubmit="' + id + '" type="button">修改后重交</button>';
+    }
+    return '';
+  }
+
+  function recordCard(item) {
+    var reason = item.returnReason
+        ? '<p class="mt-2 text-sm text-error">退回原因：' + escapeHtml(item.returnReason) + '</p>'
+        : '';
+    return '<article class="card rounded-box border border-base-300 bg-base-100 p-5">'
+        + '<div class="flex flex-wrap items-start justify-between gap-3">'
+        + '<div class="flex-1">'
+        + '<div class="flex flex-wrap items-center gap-2">'
+        + '<span class="badge badge-sm ' + statusBadgeCls(item) + '">' + escapeHtml(statusTextOf(item)) + '</span>'
+        + '<span class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">'
+        + escapeHtml(text(item.categoryName)) + '</span>'
+        + '</div>'
+        + '<h3 class="mt-2 text-base font-bold">' + escapeHtml(text(item.titleSnapshot)) + '</h3>'
+        + '<p class="mt-2 text-xs text-base-content/65">学时 ' + escapeHtml(hourText(item.hours))
+        + ' · 学分 ' + escapeHtml(settingText(item.credit))
+        + ' · 提交 ' + escapeHtml(formatTime(item.submittedAt)) + '</p>'
+        + reason
+        + '</div>'
+        + '<div class="flex items-center gap-2">' + recordActions(item) + '</div>'
+        + '</div>'
+        + '</article>';
+  }
+
+  async function loadMy() {
+    var params = ['page=' + state.myPage, 'size=' + PAGE_SIZE];
+    var status = inputValue('sc-my-status');
+    if (status) { params.push('status=' + encodeURIComponent(status)); }
+    var year = inputValue('sc-my-year');
+    if (year) { params.push('year=' + encodeURIComponent(year)); }
+    var result = await callApi('/api/second-class/my?' + params.join('&'));
+    if (!result || result.code !== 200) {
+      toast((result && result.message) || '我的申报加载失败', 'error');
+      return;
+    }
+    var data = result.data || {};
+    var list = Array.isArray(data.list) ? data.list : [];
+    state.myTotal = Number(data.total) || 0;
+    state.records = {};
+    list.forEach(function (item) { state.records[String(item.id)] = item; });
+
+    var host = document.getElementById('sc-my-list');
+    if (host) { host.innerHTML = list.map(recordCard).join(''); }
+    toggleEmpty('sc-my-empty', list.length === 0);
+    state.myPage = renderPager('sc-my', state.myPage, state.myTotal);
+  }
+
+  // ── 申报活动 ────────────────────────────────────────────────────
+  function openApply(activityId) {
+    var activity = state.activities[String(activityId)];
+    if (!activity) { return; }
+    state.pickActivity = activity;
+    var level = activity.levelText || LEVEL_LABEL[activity.level] || text(activity.level);
+    setText('sc-apply-target', text(activity.title) + ' · ' + text(activity.categoryName) + ' · ' + level
+        + ' · 活动学时 ' + hourText(activity.hours));
+    setInput('sc-apply-hours', numOf(activity.hours));
+    setInput('sc-apply-evidence', '');
+    setInput('sc-apply-note', '');
+    clearBoxMessage('sc-apply-message');
+    openDialog('sc-dialog-apply');
+  }
+
+  async function saveApply() {
+    var activity = state.pickActivity;
+    if (!activity) { return; }
+    var hours = numOf(inputValue('sc-apply-hours'));
+    if (hours === null || hours <= 0) {
+      showBoxMessage('sc-apply-message', '申报学时必须大于 0。', 'error');
+      toast('申报学时必须大于 0', 'error');
+      return;
+    }
+    var cap = numOf(activity.hours);
+    if (cap !== null && hours > cap) {
+      var over = '申报学时不能超过活动学时（' + plain(cap) + ' 学时）';
+      showBoxMessage('sc-apply-message', over, 'error');
+      toast(over, 'error');
+      return;
+    }
+    if (hours > MAX_HOURS) {
+      var tooMuch = '单条申报学时不能超过 ' + MAX_HOURS;
+      showBoxMessage('sc-apply-message', tooMuch, 'error');
+      toast(tooMuch, 'error');
+      return;
+    }
+    var note = inputValue('sc-apply-note');
+    if (note.length > MAX_NOTE) {
+      showBoxMessage('sc-apply-message', '备注不能超过 ' + MAX_NOTE + ' 字。', 'error');
+      toast('备注不能超过 ' + MAX_NOTE + ' 字', 'error');
+      return;
+    }
+    var result = await callApi('/api/second-class/records', {
+      method: 'POST',
+      body: {
+        activityId: activity.id,
+        hours: hours,
+        note: note || null,
+        evidenceUrl: inputValue('sc-apply-evidence') || null
+      }
+    });
+    if (!result || result.code !== 200) {
+      showBoxMessage('sc-apply-message', (result && result.message) || '申报失败', 'error');
+      toast((result && result.message) || '申报失败', 'error');
+      return;
+    }
+    closeDialog('sc-dialog-apply');
+    toast((result && result.message) || '申报已提交，等待辅导员初审', 'success');
+    state.myPage = 1;
+    await loadMy();
+    await loadSummary();
+  }
+
+  // ── 自主申报（无活动） ──────────────────────────────────────────
+  function openCustom() {
+    setInput('sc-custom-category', '');
+    setInput('sc-custom-title', '');
+    setInput('sc-custom-hours', '');
+    setInput('sc-custom-evidence', '');
+    setInput('sc-custom-note', '');
+    clearBoxMessage('sc-custom-message');
+    openDialog('sc-dialog-custom');
+  }
+
+  async function saveCustom() {
+    var categoryId = inputValue('sc-custom-category');
+    var title = inputValue('sc-custom-title');
+    var evidenceUrl = inputValue('sc-custom-evidence');
+    var hours = numOf(inputValue('sc-custom-hours'));
+    var note = inputValue('sc-custom-note');
+
+    if (!categoryId) {
+      showBoxMessage('sc-custom-message', '请选择申报板块。', 'error');
+      toast('请选择申报板块', 'error');
+      return;
+    }
+    if (!title) {
+      showBoxMessage('sc-custom-message', '自报学时须填写申报标题。', 'error');
+      toast('自报学时须填写申报标题', 'error');
+      return;
+    }
+    if (hours === null || hours <= 0) {
+      showBoxMessage('sc-custom-message', '申报学时必须大于 0。', 'error');
+      toast('申报学时必须大于 0', 'error');
+      return;
+    }
+    if (hours > MAX_HOURS) {
+      showBoxMessage('sc-custom-message', '单条申报学时不能超过 ' + MAX_HOURS + '。', 'error');
+      toast('单条申报学时不能超过 ' + MAX_HOURS, 'error');
+      return;
+    }
+    if (!evidenceUrl) {
+      showBoxMessage('sc-custom-message', '自报学时须填写证明材料链接（获奖证书 / 主办方证明等）。', 'error');
+      toast('自报学时须填写证明材料链接（获奖证书 / 主办方证明等）', 'error');
+      return;
+    }
+    if (note.length > MAX_NOTE) {
+      showBoxMessage('sc-custom-message', '备注不能超过 ' + MAX_NOTE + ' 字。', 'error');
+      toast('备注不能超过 ' + MAX_NOTE + ' 字', 'error');
+      return;
+    }
+    var result = await callApi('/api/second-class/records', {
+      method: 'POST',
+      body: {
+        categoryId: Number(categoryId),
+        title: title,
+        hours: hours,
+        evidenceUrl: evidenceUrl,
+        note: note || null
+      }
+    });
+    if (!result || result.code !== 200) {
+      showBoxMessage('sc-custom-message', (result && result.message) || '申报失败', 'error');
+      toast((result && result.message) || '申报失败', 'error');
+      return;
+    }
+    closeDialog('sc-dialog-custom');
+    toast((result && result.message) || '自主申报已提交，等待辅导员初审', 'success');
+    state.myPage = 1;
+    await loadMy();
+    await loadSummary();
+  }
+
+  // ── 撤回 / 修改后重交 ───────────────────────────────────────────
+  async function doWithdraw(recordId) {
+    var record = state.records[String(recordId)] || {};
+    var ok = await askConfirm('确认撤回「' + text(record.titleSnapshot) + '」这条申报？撤回后状态变为「已撤回」，'
+        + '要再申报只能重新提交一次。');
+    if (!ok) { return; }
+    var result = await callApi('/api/second-class/records/' + encodeURIComponent(recordId) + '/withdraw', { method: 'POST' });
+    if (!result || result.code !== 200) {
+      toast((result && result.message) || '撤回失败', 'error');
+      return;
+    }
+    toast((result && result.message) || '申报已撤回', 'success');
+    await loadMy();
+    await loadSummary();
+  }
+
+  function openResubmit(recordId) {
+    var record = state.records[String(recordId)];
+    if (!record) { return; }
+    state.resubmitId = recordId;
+    setText('sc-resubmit-target', text(record.titleSnapshot) + ' · ' + text(record.categoryName)
+        + (record.returnReason ? ' · 退回原因：' + record.returnReason : ''));
+    setInput('sc-resubmit-hours', numOf(record.hours));
+    setInput('sc-resubmit-evidence', record.evidenceUrl || '');
+    setInput('sc-resubmit-note', record.note || '');
+    clearBoxMessage('sc-resubmit-message');
+    openDialog('sc-dialog-resubmit');
+  }
+
+  async function saveResubmit() {
+    if (!state.resubmitId) { return; }
+    var record = state.records[String(state.resubmitId)] || {};
+    var hours = numOf(inputValue('sc-resubmit-hours'));
+    if (hours === null || hours <= 0) {
+      showBoxMessage('sc-resubmit-message', '申报学时必须大于 0。', 'error');
+      toast('申报学时必须大于 0', 'error');
+      return;
+    }
+    if (hours > MAX_HOURS) {
+      showBoxMessage('sc-resubmit-message', '单条申报学时不能超过 ' + MAX_HOURS + '。', 'error');
+      toast('单条申报学时不能超过 ' + MAX_HOURS, 'error');
+      return;
+    }
+    var note = inputValue('sc-resubmit-note');
+    var evidence = inputValue('sc-resubmit-evidence');
+    // 自报（没有挂活动的）本来就要求证明材料链接，改后重交也不能留空。
+    if (!evidence && !record.activityId) {
+      showBoxMessage('sc-resubmit-message', '自报学时须填写证明材料链接（获奖证书 / 主办方证明等）。', 'error');
+      toast('自报学时须填写证明材料链接（获奖证书 / 主办方证明等）', 'error');
+      return;
+    }
+    var result = await callApi('/api/second-class/records/' + encodeURIComponent(state.resubmitId), {
+      method: 'PUT',
+      body: {
+        hours: hours,
+        evidenceUrl: evidence || null,
+        note: note || null
+      }
+    });
+    if (!result || result.code !== 200) {
+      showBoxMessage('sc-resubmit-message', (result && result.message) || '重新提交失败', 'error');
+      toast((result && result.message) || '重新提交失败', 'error');
+      return;
+    }
+    closeDialog('sc-dialog-resubmit');
+    toast((result && result.message) || '已重新提交，回到待初审', 'success');
+    await loadMy();
+    await loadSummary();
+  }
+
+  // ── 登录态 ──────────────────────────────────────────────────────
+  async function checkAuth() {
+    try {
+      var result = await callApi('/api/auth/me');
+      if (!result || result.code !== 200) { window.location.href = 'login.html'; return null; }
+      var data = result.data || {};
+      var role = data.role || (data.user && data.user.role) || '';
+      state.role = role;
+      if (role === 'teacher' || role === 'admin') {
+        var staffBtn = document.getElementById('sc-staff-btn');
+        if (staffBtn) { staffBtn.classList.remove('hidden'); }
+      }
+      return data;
+    } catch (error) {
+      window.location.href = 'login.html';
+      return null;
+    }
+  }
+
+  function logout() {
+    callApi('/api/auth/logout', { method: 'POST' }).then(function () {
+      window.location.href = 'login.html';
+    }).catch(function () {
+      window.location.href = 'login.html';
+    });
+  }
+
+  // ── 绑定 ────────────────────────────────────────────────────────
+  document.getElementById('sc-logout-btn').addEventListener('click', logout);
+
+  document.getElementById('sc-staff-btn').addEventListener('click', function () {
+    window.location.href = 'second-class-review.html';
+  });
+
+  document.getElementById('sc-summary-year').addEventListener('change', function () { loadSummary(); });
+  document.getElementById('sc-summary-refresh').addEventListener('click', function () { loadSummary(); });
+
+  document.getElementById('sc-act-search').addEventListener('click', function () {
+    state.actPage = 1;
+    loadActivities();
+  });
+  document.getElementById('sc-act-keyword').addEventListener('keydown', function (event) {
+    if (event.key === 'Enter') {
+      state.actPage = 1;
+      loadActivities();
+    }
+  });
+  document.getElementById('sc-act-category').addEventListener('change', function () {
+    state.actPage = 1;
+    loadActivities();
+  });
+  document.getElementById('sc-act-prev').addEventListener('click', function () {
+    if (state.actPage <= 1) { return; }
+    state.actPage = state.actPage - 1;
+    loadActivities();
+  });
+  document.getElementById('sc-act-next').addEventListener('click', function () {
+    var pages = Math.max(1, Math.ceil(state.actTotal / PAGE_SIZE));
+    if (state.actPage >= pages) { return; }
+    state.actPage = state.actPage + 1;
+    loadActivities();
+  });
+  document.getElementById('sc-act-list').addEventListener('click', function (event) {
+    var target = event.target;
+    var button = target && target.closest ? target.closest('[data-apply]') : null;
+    if (!button) { return; }
+    openApply(button.getAttribute('data-apply'));
+  });
+  document.getElementById('sc-act-open-custom').addEventListener('click', openCustom);
+
+  document.getElementById('sc-my-year').addEventListener('change', function () {
+    state.myPage = 1;
+    loadMy();
+  });
+  document.getElementById('sc-my-status').addEventListener('change', function () {
+    state.myPage = 1;
+    loadMy();
+  });
+  document.getElementById('sc-my-refresh').addEventListener('click', function () { loadMy(); });
+  document.getElementById('sc-my-prev').addEventListener('click', function () {
+    if (state.myPage <= 1) { return; }
+    state.myPage = state.myPage - 1;
+    loadMy();
+  });
+  document.getElementById('sc-my-next').addEventListener('click', function () {
+    var pages = Math.max(1, Math.ceil(state.myTotal / PAGE_SIZE));
+    if (state.myPage >= pages) { return; }
+    state.myPage = state.myPage + 1;
+    loadMy();
+  });
+  document.getElementById('sc-my-list').addEventListener('click', function (event) {
+    var target = event.target;
+    var withdraw = target && target.closest ? target.closest('[data-withdraw]') : null;
+    if (withdraw) {
+      doWithdraw(withdraw.getAttribute('data-withdraw'));
+      return;
+    }
+    var resubmit = target && target.closest ? target.closest('[data-resubmit]') : null;
+    if (resubmit) { openResubmit(resubmit.getAttribute('data-resubmit')); }
+  });
+
+  document.getElementById('sc-apply-close').addEventListener('click', function () { closeDialog('sc-dialog-apply'); });
+  document.getElementById('sc-apply-save').addEventListener('click', saveApply);
+  document.getElementById('sc-custom-close').addEventListener('click', function () { closeDialog('sc-dialog-custom'); });
+  document.getElementById('sc-custom-save').addEventListener('click', saveCustom);
+  document.getElementById('sc-resubmit-close').addEventListener('click', function () { closeDialog('sc-dialog-resubmit'); });
+  document.getElementById('sc-resubmit-save').addEventListener('click', saveResubmit);
+
+  // ── 启动 ────────────────────────────────────────────────────────
+  fillYearSelect('sc-summary-year');
+  fillYearSelect('sc-my-year');
+  var me = await checkAuth();
+  if (me) {
+    await loadCategories();
+    await loadSummary();
+    await loadActivities();
+    await loadMy();
+  }
+})();
+</script>
+
+<script defer src="/js/nest-ui.js"></script>
+<script defer src="/libs/animejs/anime.umd.min.js"></script>
+<script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+</body>
+</html>

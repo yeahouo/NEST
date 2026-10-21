@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.HonorApplicationMapper">
+
+    <!-- 申报单处处要显示学生姓名/学号/班级/专业/年级/辅导员与批次名，统一在这里 JOIN，避免每个查询各写一遍口径：
+         users u（学生本人）、student_profile sp（学号/班级/辅导员）、users c（辅导员，优先取申报单固化的
+         counselor_id，固化为空时才回退档案里的当前辅导员）、honor_batch b（批次名与批次状态） -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.HonorApplication">
+        <id column="id" property="id"/>
+        <result column="batch_id" property="batchId"/>
+        <result column="student_id" property="studentId"/>
+        <result column="honor_type" property="honorType"/>
+        <result column="academic_year" property="academicYear"/>
+        <result column="self_statement" property="selfStatement"/>
+        <result column="honors_text" property="honorsText"/>
+        <result column="scholarships_text" property="scholarshipsText"/>
+        <result column="pe_score" property="peScore"/>
+        <result column="no_fail_declared" property="noFailDeclared"/>
+        <result column="no_violation_declared" property="noViolationDeclared"/>
+        <result column="material_note" property="materialNote"/>
+        <result column="contact_phone" property="contactPhone"/>
+        <result column="status" property="status"/>
+        <result column="reject_reason" property="rejectReason"/>
+        <result column="counselor_id" property="counselorId"/>
+        <result column="submitted_at" property="submittedAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="major" property="major"/>
+        <result column="grade" property="grade"/>
+        <result column="counselor_name" property="counselorName"/>
+        <result column="batch_name" property="batchName"/>
+        <result column="batch_status" property="batchStatus"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        a.id, a.batch_id, a.student_id, a.honor_type, a.academic_year, a.self_statement,
+        a.honors_text, a.scholarships_text, a.pe_score, a.no_fail_declared, a.no_violation_declared,
+        a.material_note, a.contact_phone, a.status, a.reject_reason, a.counselor_id, a.submitted_at,
+        a.created_at, a.updated_at, a.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(sp.student_no, u.student_id) AS student_no,
+        COALESCE(NULLIF(sp.class_name, ''), '未填班级') AS class_name,
+        COALESCE(sp.major, u.major) AS major,
+        COALESCE(sp.grade, u.grade) AS grade,
+        COALESCE(NULLIF(c.real_name, ''), c.username) AS counselor_name,
+        b.batch_name AS batch_name,
+        b.status AS batch_status
+    </sql>
+
+    <sql id="Joined_From">
+        FROM honor_application a
+        LEFT JOIN users u ON u.id = a.student_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = a.student_id AND sp.deleted = 0
+        LEFT JOIN users c ON c.id = COALESCE(a.counselor_id, sp.counselor_id)
+        LEFT JOIN honor_batch b ON b.id = a.batch_id
+    </sql>
+
+    <sql id="Review_Filters">
+        <!-- 草稿是学生的未提交工作稿：审核人对它没有任何动作可做，一律不进审核列表（统计口径也一致） -->
+        AND a.status != 'draft'
+        <if test="status != null and status != ''">AND a.status = #{status}</if>
+        <if test="batchId != null">AND a.batch_id = #{batchId}</if>
+        <if test="scopeCounselorId != null">
+            AND (a.counselor_id = #{scopeCounselorId} OR sp.counselor_id = #{scopeCounselorId})
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.nickname LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.student_no LIKE CONCAT('%', #{keyword}, '%')
+                 OR b.batch_name LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.HonorApplication"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO honor_application
+            (batch_id, student_id, honor_type, academic_year, self_statement, honors_text,
+             scholarships_text, pe_score, no_fail_declared, no_violation_declared, material_note,
+             contact_phone, status, reject_reason, counselor_id, submitted_at, created_at, updated_at, deleted)
+        VALUES
+            (#{batchId}, #{studentId}, #{honorType}, #{academicYear}, #{selfStatement}, #{honorsText},
+             #{scholarshipsText}, #{peScore}, #{noFailDeclared}, #{noViolationDeclared}, #{materialNote},
+             #{contactPhone}, #{status}, #{rejectReason}, #{counselorId}, #{submittedAt}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE a.id = #{id} AND a.deleted = 0
+    </select>
+
+    <select id="findByBatchAndStudent" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE a.batch_id = #{batchId} AND a.student_id = #{studentId} AND a.deleted = 0
+        ORDER BY a.id DESC
+        LIMIT 1
+    </select>
+
+    <!-- 「我的申报」：一次带出全部（含已驳回），前端要展示驳回原因与每一步审核意见 -->
+    <select id="listMine" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE a.student_id = #{studentId} AND a.deleted = 0
+        ORDER BY a.id DESC
+    </select>
+
+    <!-- 审核列表按「先来先审」排（提交早的排前面），未提交的（不可能出现）兜底排最后 -->
+    <select id="listReview" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE a.deleted = 0
+        <include refid="Review_Filters"/>
+        ORDER BY a.submitted_at IS NULL, a.submitted_at ASC, a.id ASC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countReview" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE a.deleted = 0
+        <include refid="Review_Filters"/>
+    </select>
+
+    <!-- 公示名单：脱敏放在 SQL 出口（只给学号后四位），不让整串学号进结果集 -->
+    <select id="listPublicity" resultType="java.util.Map">
+        SELECT COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS studentName,
+               RIGHT(COALESCE(sp.student_no, u.student_id), 4) AS studentNoTail,
+               a.honor_type AS honorType,
+               COALESCE(NULLIF(sp.class_name, ''), '未填班级') AS className,
+               COALESCE(sp.major, u.major) AS major
+        FROM honor_application a
+        LEFT JOIN users u ON u.id = a.student_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = a.student_id AND sp.deleted = 0
+        WHERE a.deleted = 0
+          AND a.batch_id = #{batchId}
+          AND a.status IN ('publicized', 'awarded')
+        ORDER BY className, studentNoTail
+    </select>
+
+    <!-- 导出列刻意排除 a.self_statement：通知要求「名单以平台导出为准」，
+         自述是学生写给审核人看的隐私内容，不该跟着表格流向全院邮箱 -->
+    <sql id="Export_Columns">
+        a.id, a.batch_id, a.student_id, a.honor_type, a.academic_year,
+        a.pe_score, a.no_fail_declared, a.no_violation_declared,
+        a.material_note, a.contact_phone, a.status, a.reject_reason, a.counselor_id, a.submitted_at,
+        a.created_at, a.updated_at, a.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(sp.student_no, u.student_id) AS student_no,
+        COALESCE(NULLIF(sp.class_name, ''), '未填班级') AS class_name,
+        COALESCE(sp.major, u.major) AS major,
+        COALESCE(sp.grade, u.grade) AS grade,
+        COALESCE(NULLIF(c.real_name, ''), c.username) AS counselor_name,
+        b.batch_name AS batch_name,
+        b.status AS batch_status
+    </sql>
+
+    <select id="listForExport" resultMap="BaseResultMap">
+        SELECT <include refid="Export_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE a.deleted = 0
+        <if test="batchId != null">AND a.batch_id = #{batchId}</if>
+        <if test="scopeCounselorId != null">
+            AND (a.counselor_id = #{scopeCounselorId} OR sp.counselor_id = #{scopeCounselorId})
+        </if>
+        ORDER BY a.batch_id DESC, a.id ASC
+    </select>
+
+    <!-- 自动核验①：校级及以上荣誉称号次数。
+         level 是英文码（sql\nest_xuegong.sql 列注释：national/provincial/school/college），
+         院级 college 与更低的不计入「校级以上」 -->
+    <select id="countHonorAwards" resultType="int">
+        SELECT COUNT(*)
+        FROM award_punishment
+        WHERE student_id = #{studentId}
+          AND deleted = 0
+          AND kind = 'award'
+          AND level IN ('school', 'provincial', 'national')
+    </select>
+
+    <!-- 自动核验②：其中标题含「奖学金」的（荣誉不足 2 次时，用获奖学金的记录佐证） -->
+    <select id="countScholarshipAwards" resultType="int">
+        SELECT COUNT(*)
+        FROM award_punishment
+        WHERE student_id = #{studentId}
+          AND deleted = 0
+          AND kind = 'award'
+          AND level IN ('school', 'provincial', 'national')
+          AND title LIKE '%奖学金%'
+    </select>
+
+    <select id="countGroupByStatus" resultType="java.util.Map">
+        SELECT a.status AS status, COUNT(*) AS cnt
+        FROM honor_application a
+        LEFT JOIN student_profile sp ON sp.user_id = a.student_id AND sp.deleted = 0
+        WHERE a.deleted = 0
+        <if test="batchId != null">AND a.batch_id = #{batchId}</if>
+        <if test="scopeCounselorId != null">
+            AND (a.counselor_id = #{scopeCounselorId} OR sp.counselor_id = #{scopeCounselorId})
+        </if>
+        GROUP BY a.status
+    </select>
+
+    <!-- 学生改稿 + 重提：CAS 用 status = fromStatus，同时锁死 student_id（只能改自己的单子）；
+         提交即 submitted（草稿只存在于 UI），并把驳回原因清空，避免重提后还挂着上一次的驳回话术 -->
+    <update id="updateMine">
+        UPDATE honor_application
+        SET honor_type = #{application.honorType},
+            academic_year = #{application.academicYear},
+            self_statement = #{application.selfStatement},
+            honors_text = #{application.honorsText},
+            scholarships_text = #{application.scholarshipsText},
+            pe_score = #{application.peScore},
+            no_fail_declared = #{application.noFailDeclared},
+            no_violation_declared = #{application.noViolationDeclared},
+            material_note = #{application.materialNote},
+            contact_phone = #{application.contactPhone},
+            status = 'submitted',
+            reject_reason = NULL,
+            counselor_id = #{application.counselorId},
+            submitted_at = NOW(),
+            updated_at = NOW()
+        WHERE id = #{application.id}
+          AND student_id = #{application.studentId}
+          AND deleted = 0
+          AND status = #{fromStatus}
+    </update>
+
+    <!-- 审核流转：CAS。reject 时把审核意见写进 reject_reason 供学生端直接看到 -->
+    <update id="updateStatus">
+        UPDATE honor_application
+        SET status = #{toStatus},
+            reject_reason = #{rejectReason},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- 撤回：submitted → draft（CAS + 本人）。申报期外由 service 拦截 -->
+    <update id="withdraw">
+        UPDATE honor_application
+        SET status = 'draft', updated_at = NOW()
+        WHERE id = #{id} AND student_id = #{studentId} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- 批次进入公示：集合式 CAS（WHERE 带 status='dept_approved'），重复调用不会把已 awarded 的单子打回去 -->
+    <update id="publicizeByBatch">
+        UPDATE honor_application
+        SET status = 'publicized', updated_at = NOW()
+        WHERE batch_id = #{batchId} AND deleted = 0 AND status = 'dept_approved'
+    </update>
+
+    <!-- 批次结束：公示无异议 → 获评 -->
+    <update id="awardByBatch">
+        UPDATE honor_application
+        SET status = 'awarded', updated_at = NOW()
+        WHERE batch_id = #{batchId} AND deleted = 0 AND status = 'publicized'
+    </update>
+
+</mapper>

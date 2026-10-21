@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html data-theme="nestlight" lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>账号设置 · 学工平台</title>
+  <!--
+    主题必须在样式表之前定下来。放到 defer 的共享脚本里会先按浅色画一帧、
+    再翻成深色 —— 也就是俗称的「闪白」，比没有深色模式更难受。
+    所以这段必须内联，且必须排在 <link rel="stylesheet"> 前面。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <script src="/pwa.js" defer></script>
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+<link rel="stylesheet" href="/css/nest-art3.css">
+</head>
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content selection:bg-primary/30">
+
+  <div class="relative z-10 flex min-h-screen flex-col">
+    <div class="layout-container flex h-full grow flex-col">
+      <!-- Header -->
+      <header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none px-6 py-2 md:px-20">
+        <div class="navbar-start w-auto min-w-0 flex-1 items-center gap-3">
+          <div class="text-primary">
+            <span class="material-symbols-outlined text-3xl">terminal</span>
+          </div>
+          <h2 class="nx-brand">学工平台</h2>
+        </div>
+        <div class="navbar-end w-auto flex-none items-center gap-1 md:gap-2">
+          <button onclick="location.href='dashboard.html'" class="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-primary/10 transition-colors">
+            <span class="material-symbols-outlined text-xl">dashboard</span>
+            <span class="text-sm font-medium hidden md:inline">Dashboard</span>
+          </button>
+          <button onclick="logout()" class="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-red-500/10 text-red-500 transition-colors">
+            <span class="material-symbols-outlined text-xl">logout</span>
+            <span class="text-sm font-medium hidden md:inline">Logout</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Main Content -->
+      <main class="relative flex-1">
+        <div class="nx-rise mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-12 md:px-10">
+
+          <!-- Masthead：头像 + 编辑部刊头 -->
+          <section class="flex flex-col gap-8 border-b border-base-300 pb-8 md:flex-row md:items-end md:justify-between">
+            <div class="flex items-center gap-6">
+              <div class="group relative shrink-0 cursor-pointer" onclick="document.getElementById('avatar-input').click()">
+                <div class="h-20 w-20 overflow-hidden rounded-full border border-base-300 bg-base-200">
+                  <img id="settings-avatar" src="/api/user/avatar?t=1" alt="Avatar" class="h-full w-full object-cover" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%230751a6%22 width=%22100%22 height=%22100%22/><text x=%2250%22 y=%2255%22 font-size=%2240%22 text-anchor=%22middle%22 fill=%22white%22>?</text></svg>'"/>
+                </div>
+                <div class="absolute inset-0 flex items-center justify-center rounded-full bg-black/45 opacity-0 transition-opacity group-hover:opacity-100">
+                  <span class="material-symbols-outlined text-lg text-white">photo_camera</span>
+                </div>
+                <input type="file" id="avatar-input" accept="image/*" class="hidden" onchange="handleAvatarChange(event)"/>
+              </div>
+              <div>
+                <p class="nx-kicker">§ 30 · Account / Settings</p>
+                <h1 class="mt-2 font-serif text-4xl leading-tight tracking-tight sm:text-5xl">Account Settings</h1>
+                <p class="mt-3 text-sm text-base-content/70">Manage your profile and account security preferences.</p>
+                <p class="mt-3 font-mono text-[11px] uppercase tracking-[0.14em]">
+                  <span class="font-bold text-base-content" id="avatar-username">Loading...</span>
+                  <span class="mx-2 text-base-content/65">•</span>
+                  <span class="text-primary" id="avatar-role">Student</span>
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <!-- Section 1: Basic Account Info -->
+          <section class="card rounded-box border border-base-300 bg-base-100">
+            <div class="card-body gap-6 p-6 md:p-8">
+              <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-xl text-base-content/65">security</span>
+                <h3 class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Basic Account Information</h3>
+              </div>
+              <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div class="flex flex-col gap-2">
+                  <label class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Unique Username</label>
+                  <div class="relative">
+                    <input class="nx-inset w-full appearance-none cursor-not-allowed py-3 pl-4 pr-10 font-medium text-base-content/70 outline-none" readonly type="text" id="display-username" value="Loading..."/>
+                    <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-lg text-base-content/65">lock</span>
+                  </div>
+                  <p class="text-[10px] italic text-base-content/65">* Unique identifier constraint enforced.</p>
+                </div>
+                <div class="flex flex-col gap-2">
+                  <label class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">User Role</label>
+                  <div class="nx-inset px-4 py-3 font-medium capitalize text-base-content/80">
+                    <span id="display-role">Loading...</span>
+                  </div>
+                </div>
+                <div class="flex flex-col gap-2">
+                  <label class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Phone Number</label>
+                  <div class="flex flex-wrap items-center gap-3">
+                    <div class="nx-inset px-4 py-3 font-medium text-base-content/80 flex-1" id="display-phone">Not set</div>
+                    <span id="phone-verified-badge" class="hidden items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-black uppercase tracking-widest">
+                      <span class="material-symbols-outlined text-sm">verified</span>Verified
+                    </span>
+                    <button onclick="openPhoneModal()" class="font-bold nx-btn nx-btn-soft">Change/Bind</button>
+                  </div>
+                </div>
+                <div class="flex flex-col gap-2">
+                  <label class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Password</label>
+                  <div class="flex flex-wrap items-center gap-3">
+                    <div class="nx-inset px-4 py-3 font-medium text-base-content/80 flex-1">••••••••••••</div>
+                    <button onclick="openPasswordModal()" class="font-bold nx-btn nx-btn-soft">Modify</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Section 2: Personal Profile -->
+          <section class="card rounded-box border border-base-300 bg-base-100">
+            <div class="card-body gap-6 p-6 md:p-8">
+              <div class="flex items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                  <span class="material-symbols-outlined text-xl text-base-content/65">badge</span>
+                  <h3 class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Personal Profile</h3>
+                </div>
+                <button onclick="openProfileModal()" class="font-bold uppercase tracking-widest nx-btn nx-btn-soft">Edit</button>
+              </div>
+              <dl class="grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-4">
+                <div class="flex flex-col gap-1.5">
+                  <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Full Name</dt>
+                  <dd class="font-medium text-base-content" id="display-realName">Not set</dd>
+                </div>
+                <div class="flex flex-col gap-1.5">
+                  <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65" id="id-label">ID Number</dt>
+                  <dd class="font-medium text-base-content" id="display-studentId">Not set</dd>
+                </div>
+                <div class="flex flex-col gap-1.5">
+                  <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">School</dt>
+                  <dd class="font-medium text-base-content" id="display-school">Not set</dd>
+                </div>
+                <div class="flex flex-col gap-1.5">
+                  <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Department</dt>
+                  <dd class="font-medium text-base-content" id="display-department">Not set</dd>
+                </div>
+                <div class="student-only flex flex-col gap-1.5">
+                  <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Major</dt>
+                  <dd class="font-medium text-base-content" id="display-major">Not set</dd>
+                </div>
+                <div class="student-only flex flex-col gap-1.5">
+                  <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Class</dt>
+                  <dd class="font-medium text-base-content" id="display-className">Not set</dd>
+                </div>
+                <div class="student-only flex flex-col gap-1.5">
+                  <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Grade</dt>
+                  <dd class="font-medium text-base-content" id="display-grade">Not set</dd>
+                </div>
+                <div class="student-only flex flex-col gap-1.5">
+                  <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Enrollment</dt>
+                  <dd class="font-medium text-base-content" id="display-enrollmentDate">Not set</dd>
+                </div>
+              </dl>
+            </div>
+          </section>
+
+          <!-- Section 3: Account Binding -->
+          <section class="card rounded-box mb-10 border border-base-300 bg-base-100">
+            <div class="card-body gap-6 p-6 md:p-8">
+              <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-xl text-base-content/65">link</span>
+                <h3 class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Third-party Binding</h3>
+              </div>
+              <div class="flex flex-col gap-4">
+                <!-- WeChat -->
+                <div class="flex flex-wrap items-center justify-between gap-4 rounded-box border border-base-300 bg-base-200 p-4">
+                  <div class="flex items-center gap-4">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-md bg-green-500/10 font-bold text-green-600">W</div>
+                    <div>
+                      <p class="font-medium text-base-content">WeChat</p>
+                      <p class="text-xs font-medium text-base-content/65" id="wechat-status">Not bound</p>
+                      <p class="mt-1 hidden text-xs font-medium text-amber-600 dark:text-amber-400" id="wechat-note"></p>
+                    </div>
+                  </div>
+                  <button id="wechat-btn" onclick="handleWechat()" class="uppercase tracking-widest shadow-md nx-btn nx-btn-primary">Bind</button>
+                </div>
+                <!-- Email -->
+                <div class="flex flex-wrap items-center justify-between gap-4 rounded-box border border-base-300 bg-base-200 p-4">
+                  <div class="flex items-center gap-4">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+                      <span class="material-symbols-outlined text-xl">mail</span>
+                    </div>
+                    <div>
+                      <p class="font-medium text-base-content">Email Address</p>
+                      <p class="text-xs font-medium text-base-content/65" id="email-status">Not bound</p>
+                      <span id="email-verified-badge" class="hidden mt-1 items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-black uppercase tracking-widest">
+                        <span class="material-symbols-outlined text-sm">verified</span>Verified
+                      </span>
+                    </div>
+                  </div>
+                  <button id="email-btn" onclick="openEmailModal()" class="uppercase tracking-widest shadow-md nx-btn nx-btn-primary">Bind Now</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <footer class="flex flex-col items-center justify-between gap-4 border-t border-base-300 px-6 py-8 text-center md:flex-row md:px-10">
+        <p class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">© 2026 学工平台 · All rights reserved.</p>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Change Password Modal -->
+  <div class="fixed inset-0 z-50 hidden items-center justify-center p-4" id="password-modal">
+    <div class="absolute inset-0 nx-scrim" onclick="closePasswordModal()"></div>
+    <div class="modal-container-animate relative w-full max-w-md">
+      <div class="card nx-dialog w-full">
+        <div class="card-body gap-5 p-7">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <p class="nx-kicker">§ 30 · Security</p>
+              <h3 class="mt-1 font-serif text-2xl">Change Password</h3>
+            </div>
+            <button onclick="closePasswordModal()" class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65 hover:text-base-content" aria-label="Close">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <form id="passwordForm" class="flex flex-col gap-4">
+            <div class="form-control">
+              <label class="label px-0 pb-1" for="currentPassword"><span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Current Password</span></label>
+              <input type="password" id="currentPassword" class="input input-bordered h-12 w-full" placeholder="Enter current password" required/>
+            </div>
+            <div class="form-control">
+              <label class="label px-0 pb-1" for="newPassword"><span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">New Password</span></label>
+              <input type="password" id="newPassword" class="input input-bordered h-12 w-full" placeholder="Enter new password" required/>
+            </div>
+            <div class="form-control">
+              <label class="label px-0 pb-1" for="confirmPassword"><span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Confirm New Password</span></label>
+              <input type="password" id="confirmPassword" class="input input-bordered h-12 w-full" placeholder="Confirm new password" required/>
+            </div>
+          <div id="passwordError" class="alert alert-error hidden text-center text-xs"></div>
+            <button type="submit" class="nx-btn nx-btn-primary nx-btn-lg w-full hover:scale-[1.02]">
+              Update Password
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change Phone Modal -->
+  <div class="fixed inset-0 z-50 hidden items-center justify-center p-4" id="phone-modal">
+    <div class="absolute inset-0 nx-scrim" onclick="closePhoneModal()"></div>
+    <div class="modal-container-animate relative w-full max-w-md">
+      <div class="card nx-dialog w-full">
+        <div class="card-body gap-5 p-7">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <p class="nx-kicker">§ 30 · Security</p>
+              <h3 class="mt-1 font-serif text-2xl">Change Phone</h3>
+            </div>
+            <button onclick="closePhoneModal()" class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65 hover:text-base-content" aria-label="Close">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <form id="phoneForm" class="flex flex-col gap-4">
+            <div class="form-control">
+              <label class="label px-0 pb-1" for="newPhone"><span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">New Phone Number</span></label>
+              <div class="flex gap-2">
+                <select id="phoneCountryCode" class="select select-bordered h-12 w-24 font-mono">
+                  <option value="+86">+86</option>
+                  <option value="+1">+1</option>
+                  <option value="+44">+44</option>
+                </select>
+                <input type="tel" id="newPhone" class="input input-bordered h-12 flex-1 font-mono" placeholder="138 1234 5678" required/>
+              </div>
+            </div>
+            <div class="form-control">
+              <label class="label px-0 pb-1" for="phoneVerifyCode"><span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Verification Code</span></label>
+              <div class="flex gap-2">
+                <input type="text" id="phoneVerifyCode" class="input input-bordered h-12 flex-1 font-mono tracking-[0.3em]" placeholder="000000" required/>
+                <button type="button" id="sendPhoneCodeBtn" onclick="sendPhoneCode()" class="nx-btn nx-btn-soft whitespace-nowrap font-bold">
+                  Send Code
+                </button>
+              </div>
+            </div>
+            <div id="phoneCodeStatus" class="hidden text-xs leading-relaxed text-base-content/65"></div>
+          <div id="phoneError" class="alert alert-error hidden text-center text-xs"></div>
+            <button type="submit" class="nx-btn nx-btn-primary nx-btn-lg w-full hover:scale-[1.02]">
+              Update Phone
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Profile Modal -->
+  <div class="fixed inset-0 z-50 hidden items-center justify-center p-4" id="profile-modal">
+    <div class="absolute inset-0 nx-scrim" onclick="closeProfileModal()"></div>
+    <div class="modal-container-animate relative max-h-[90vh] w-full max-w-lg overflow-y-auto">
+      <div class="card nx-dialog w-full">
+        <div class="card-body gap-5 p-7">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <p class="nx-kicker">§ 30 · Profile</p>
+              <h3 class="mt-1 font-serif text-2xl">Edit Profile</h3>
+            </div>
+            <button onclick="closeProfileModal()" class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65 hover:text-base-content" aria-label="Close">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <form id="profileForm" class="flex flex-col gap-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div class="form-control">
+                <label class="label px-0 pb-1" for="editRealName"><span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Real Name</span></label>
+                <input type="text" id="editRealName" class="input input-bordered h-12 w-full" placeholder="Your real name"/>
+              </div>
+              <div class="form-control">
+                <label class="label px-0 pb-1" for="editStudentId"><span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65" id="edit-id-label">ID Number</span></label>
+                <input type="text" id="editStudentId" class="input input-bordered h-12 w-full font-mono" placeholder="e.g. 2023001"/>
+              </div>
+            </div>
+            <div class="form-control">
+              <label class="label px-0 pb-1" for="editSchool"><span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">School</span></label>
+              <input type="text" id="editSchool" class="input input-bordered h-12 w-full" placeholder="Your university"/>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="form-control">
+                <label class="label px-0 pb-1" for="editDepartment"><span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Department</span></label>
+                <input type="text" id="editDepartment" class="input input-bordered h-12 w-full" placeholder="e.g. Computer Science"/>
+              </div>
+              <div class="form-control student-only">
+                <label class="label px-0 pb-1" for="editMajor"><span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Major</span></label>
+                <input type="text" id="editMajor" class="input input-bordered h-12 w-full" placeholder="e.g. Software Engineering"/>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4 student-only">
+              <div class="form-control">
+                <label class="label px-0 pb-1" for="editClassName"><span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Class</span></label>
+                <input type="text" id="editClassName" class="input input-bordered h-12 w-full" placeholder="e.g. Class 1"/>
+              </div>
+              <div class="form-control">
+                <label class="label px-0 pb-1" for="editGrade"><span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Grade</span></label>
+                <select id="editGrade" class="select select-bordered h-12 w-full">
+                  <option value="">Select grade</option>
+                  <option value="2024">2024</option>
+                  <option value="2023">2023</option>
+                  <option value="2022">2022</option>
+                  <option value="2021">2021</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-control student-only">
+              <label class="label px-0 pb-1" for="editEnrollmentDate"><span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Enrollment Date</span></label>
+              <input type="date" id="editEnrollmentDate" class="input input-bordered h-12 w-full"/>
+            </div>
+          <div id="profileError" class="alert alert-error hidden text-center text-xs"></div>
+            <button type="submit" class="nx-btn nx-btn-primary nx-btn-lg w-full hover:scale-[1.02]">
+              Save Changes
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bind Email Modal -->
+  <div class="fixed inset-0 z-50 hidden items-center justify-center p-4" id="email-modal">
+    <div class="absolute inset-0 nx-scrim" onclick="closeEmailModal()"></div>
+    <div class="modal-container-animate relative w-full max-w-md">
+      <div class="card nx-dialog w-full">
+        <div class="card-body gap-5 p-7">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <p class="nx-kicker">§ 30 · Security</p>
+              <h3 class="mt-1 font-serif text-2xl">Bind Email</h3>
+            </div>
+            <button onclick="closeEmailModal()" class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65 hover:text-base-content" aria-label="Close">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <form id="emailForm" class="flex flex-col gap-4">
+            <div class="form-control">
+              <label class="label px-0 pb-1" for="bindEmail"><span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Email Address</span></label>
+              <input type="email" id="bindEmail" class="input input-bordered h-12 w-full" placeholder="your@email.com" required/>
+            </div>
+            <div class="form-control">
+              <label class="label px-0 pb-1" for="emailVerifyCode"><span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Verification Code</span></label>
+              <div class="flex gap-2">
+                <input type="text" id="emailVerifyCode" class="input input-bordered h-12 flex-1 font-mono tracking-[0.3em]" placeholder="000000" required/>
+                <button type="button" id="sendEmailCodeBtn" onclick="sendEmailCode()" class="nx-btn nx-btn-soft whitespace-nowrap font-bold">
+                  Send Code
+                </button>
+              </div>
+            </div>
+            <div id="emailCodeStatus" class="hidden text-xs leading-relaxed text-base-content/65"></div>
+          <div id="emailBindError" class="alert alert-error hidden text-center text-xs"></div>
+            <button type="submit" class="nx-btn nx-btn-primary nx-btn-lg w-full hover:scale-[1.02]">
+              Bind Email
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let userData = null;
+
+    // ---------- 统一对话框的页内兜底 ----------
+    // nest-ui.js 是 defer 加载的（这段内联脚本先跑），所以只能在**调用时**看 window.NestUI；
+    // 拿不到就退回原生弹窗，绝不静默吞掉提示。
+    function nxConfirm(message, options) {
+      if (window.NestUI && NestUI.dialog) return NestUI.dialog.confirm(message, options);
+      return Promise.resolve(window.confirm(message));
+    }
+
+    // Check auth and load data
+    async function init() {
+      try {
+        const response = await fetch('/api/auth/me');
+        const result = await response.json();
+
+        if (result.code !== 200) {
+          window.location.href = 'login.html';
+          return;
+        }
+        userData = result.data;
+        updateDisplay();
+        // 从微信授权页跳回来时会带上 ?code=...，在这里把绑定做完。
+        await completeWechatOAuthIfPresent();
+      } catch (error) {
+        window.location.href = 'login.html';
+      }
+    }
+
+    // Update display with user data
+    function updateDisplay() {
+      if (!userData) return;
+
+      document.getElementById('display-username').value = userData.username || 'N/A';
+      document.getElementById('display-role').textContent = userData.role || 'student';
+
+      // Avatar section
+      document.getElementById('avatar-username').textContent = userData.username || 'N/A';
+      document.getElementById('avatar-role').textContent = userData.role || 'student';
+
+      // Hide student-only fields for non-students
+      if (userData.role !== 'student') {
+        document.querySelectorAll('.student-only').forEach(el => el.style.display = 'none');
+      }
+
+      // Change ID label based on role
+      const idLabel = document.getElementById('id-label');
+      if (userData.role === 'teacher') {
+        idLabel.textContent = 'Employee ID';
+      } else if (userData.role === 'admin') {
+        idLabel.textContent = 'Admin ID';
+      } else {
+        idLabel.textContent = 'Student ID';
+      }
+
+      // Update avatar image with cache buster
+      const avatarImg = document.getElementById('settings-avatar');
+      avatarImg.src = '/api/user/avatar?t=' + Date.now();
+
+      // Phone
+      if (userData.phone) {
+        document.getElementById('display-phone').textContent = userData.phone;
+        // 以前这里写的是 document.getElementById('phone-verified-badge')?.classList...
+        // 而 #phone-verified-badge 这个元素**根本不在 HTML 里**，`?.` 于是把
+        // 「手机号已验证」这件事安静地吞掉了：验证过也永远没有徽标，也没有报错。
+        // 元素补上了，`?.` 也去掉了 —— 真的会抛异常，比安静地不显示好。
+        if (userData.phoneVerified === 1) {
+          showVerifiedBadge('phone-verified-badge');
+        }
+      }
+
+      // Profile fields
+      document.getElementById('display-realName').textContent = userData.realName || 'Not set';
+      document.getElementById('display-studentId').textContent = userData.studentId || 'Not set';
+      document.getElementById('display-school').textContent = userData.school || 'Not set';
+      document.getElementById('display-department').textContent = userData.department || 'Not set';
+      document.getElementById('display-major').textContent = userData.major || 'Not set';
+      document.getElementById('display-className').textContent = userData.className || 'Not set';
+      document.getElementById('display-grade').textContent = userData.grade || 'Not set';
+      document.getElementById('display-enrollmentDate').textContent = userData.enrollmentDate || 'Not set';
+
+      // WeChat binding status
+      // 这里以前读的是 `userData.wechatOpenid`，而接口从来不返回这个字段
+      // （服务端只给 wechatBound 布尔值），于是这个 if 恒为假：
+      // 已经绑定微信的用户，界面上永远显示 "Not bound"，也永远拿不到 Unbind 按钮。
+      if (userData.wechatBound) {
+        document.getElementById('wechat-status').textContent = userData.wechatNickname || 'Bound';
+        document.getElementById('wechat-btn').textContent = 'Unbind';
+        document.getElementById('wechat-btn').classList.add('bg-red-500/10', 'text-red-500');
+        document.getElementById('wechat-btn').classList.remove('bg-primary/10', 'text-primary');
+      } else if (userData.wechatAvailable === false) {
+        // 没接微信开放平台时，把按钮换成一句实话，而不是让用户点了没反应。
+        showWechatNote(userData.wechatUnavailableReason
+          || 'WeChat binding is not available on this server.');
+      }
+
+      // Email binding status
+      if (userData.email) {
+        document.getElementById('email-status').textContent = userData.email;
+        document.getElementById('email-btn').textContent = 'Change';
+        if (userData.emailVerified === 1) {
+          showVerifiedBadge('email-verified-badge');
+        }
+      }
+    }
+
+    // `hidden` 和 `inline-flex` 都是 display 工具类，谁生效取决于 CSS 的先后顺序，
+    // 而不是 class 的先后顺序 —— 所以这里显式地换掉，不靠「谁写在后面」。
+    function showVerifiedBadge(id) {
+      const badge = document.getElementById(id);
+      if (!badge) {
+        console.error('Verified badge is missing from the page:', id);
+        return;
+      }
+      badge.classList.remove('hidden');
+      badge.classList.add('inline-flex');
+    }
+
+    // Logout
+    async function logout() {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        window.location.href = 'login.html';
+      } catch (error) {
+        window.location.href = 'login.html';
+      }
+    }
+
+    // ========== Modal Functions ==========
+    function openModal(id) {
+      document.getElementById(id).classList.remove('hidden');
+      document.getElementById(id).classList.add('flex');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add('hidden');
+      document.getElementById(id).classList.remove('flex');
+    }
+
+    function openPasswordModal() { openModal('password-modal'); }
+    function closePasswordModal() { closeModal('password-modal'); }
+    function openPhoneModal() { resetCodeStatus('phone'); openModal('phone-modal'); }
+    function closePhoneModal() { closeModal('phone-modal'); }
+
+    // 打开弹窗时清掉上一次的验证码提示和倒计时残留，
+    // 避免把上一轮的「已发送」误读成「这次已经发过了」。
+    function resetCodeStatus(scene) {
+      const isPhone = scene === 'phone';
+      const statusEl = document.getElementById(isPhone ? 'phoneCodeStatus' : 'emailCodeStatus');
+      const errorEl = document.getElementById(isPhone ? 'phoneError' : 'emailBindError');
+      const btn = document.getElementById(isPhone ? 'sendPhoneCodeBtn' : 'sendEmailCodeBtn');
+      if (statusEl) statusEl.classList.add('hidden');
+      if (errorEl) errorEl.classList.add('hidden');
+      if (btn) {
+        clearInterval(codeCountdowns[scene]);
+        btn.disabled = false;
+        btn.textContent = 'Send Code';
+      }
+    }
+    function openProfileModal() {
+      // Pre-fill form
+      document.getElementById('editRealName').value = userData?.realName || '';
+      document.getElementById('editStudentId').value = userData?.studentId || '';
+      document.getElementById('editSchool').value = userData?.school || '';
+      document.getElementById('editDepartment').value = userData?.department || '';
+      document.getElementById('editMajor').value = userData?.major || '';
+      document.getElementById('editClassName').value = userData?.className || '';
+      document.getElementById('editGrade').value = userData?.grade || '';
+      document.getElementById('editEnrollmentDate').value = userData?.enrollmentDate || '';
+
+      // Update ID label and hide student-only fields based on role
+      const editIdLabel = document.getElementById('edit-id-label');
+      const modal = document.getElementById('profile-modal');
+
+      if (userData?.role === 'teacher') {
+        editIdLabel.textContent = 'Employee ID';
+        modal.querySelectorAll('.student-only').forEach(el => el.style.display = 'none');
+      } else if (userData?.role === 'admin') {
+        editIdLabel.textContent = 'Admin ID';
+        modal.querySelectorAll('.student-only').forEach(el => el.style.display = 'none');
+      } else {
+        editIdLabel.textContent = 'Student ID';
+        modal.querySelectorAll('.student-only').forEach(el => el.style.display = '');
+      }
+
+      openModal('profile-modal');
+    }
+    function closeProfileModal() { closeModal('profile-modal'); }
+    function openEmailModal() { resetCodeStatus('email'); openModal('email-modal'); }
+    function closeEmailModal() { closeModal('email-modal'); }
+
+    // ========== Form Handlers ==========
+    document.getElementById('passwordForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const currentPassword = document.getElementById('currentPassword').value;
+      const newPassword = document.getElementById('newPassword').value;
+      const confirmPassword = document.getElementById('confirmPassword').value;
+      const errorEl = document.getElementById('passwordError');
+
+      if (newPassword !== confirmPassword) {
+        errorEl.textContent = 'Passwords do not match';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/user/password', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ currentPassword, newPassword, confirmPassword })
+        });
+        const result = await response.json();
+
+        if (result.code === 200) {
+          closePasswordModal();
+        } else {
+          errorEl.textContent = result.message || 'Failed to update password';
+          errorEl.classList.remove('hidden');
+        }
+      } catch (error) {
+        errorEl.textContent = 'Network error';
+        errorEl.classList.remove('hidden');
+      }
+    });
+
+    document.getElementById('phoneForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const newPhone = normalizePhoneInput();
+      const verifyCode = document.getElementById('phoneVerifyCode').value;
+      const errorEl = document.getElementById('phoneError');
+
+      try {
+        const response = await fetch('/api/user/phone', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: newPhone, code: verifyCode })
+        });
+        const result = await response.json();
+
+        if (result.code === 200) {
+          closePhoneModal();
+          location.reload();
+        } else {
+          errorEl.textContent = result.message || 'Failed to update phone';
+          errorEl.classList.remove('hidden');
+        }
+      } catch (error) {
+        errorEl.textContent = 'Network error';
+        errorEl.classList.remove('hidden');
+      }
+    });
+
+    document.getElementById('profileForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const profileData = {
+        realName: document.getElementById('editRealName').value,
+        studentId: document.getElementById('editStudentId').value,
+        school: document.getElementById('editSchool').value,
+        department: document.getElementById('editDepartment').value,
+        major: document.getElementById('editMajor').value,
+        className: document.getElementById('editClassName').value,
+        grade: document.getElementById('editGrade').value,
+        enrollmentDate: document.getElementById('editEnrollmentDate').value
+      };
+      const errorEl = document.getElementById('profileError');
+
+      try {
+        const response = await fetch('/api/user/profile', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(profileData)
+        });
+        const result = await response.json();
+
+        if (result.code === 200) {
+          closeProfileModal();
+          location.reload();
+        } else {
+          errorEl.textContent = result.message || 'Failed to update profile';
+          errorEl.classList.remove('hidden');
+        }
+      } catch (error) {
+        errorEl.textContent = 'Network error';
+        errorEl.classList.remove('hidden');
+      }
+    });
+
+    document.getElementById('emailForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const email = document.getElementById('bindEmail').value.trim();
+      const verifyCode = document.getElementById('emailVerifyCode').value;
+      const errorEl = document.getElementById('emailBindError');
+
+      try {
+        const response = await fetch('/api/user/email', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, code: verifyCode })
+        });
+        const result = await response.json();
+
+        if (result.code === 200) {
+          closeEmailModal();
+          location.reload();
+        } else {
+          errorEl.textContent = result.message || 'Failed to bind email';
+          errorEl.classList.remove('hidden');
+        }
+      } catch (error) {
+        errorEl.textContent = 'Network error';
+        errorEl.classList.remove('hidden');
+      }
+    });
+
+    // WeChat bind/unbind
+    // 微信卡片上的一句实话。以前这个位置没有元素，绑定不可用时只知道
+    // console.log('WeChat OAuth integration required') —— 用户点按钮，屏幕上什么都不会发生。
+    function showWechatNote(reason) {
+      const note = document.getElementById('wechat-note');
+      if (!note) return;
+      note.textContent = reason;
+      note.classList.remove('hidden');
+      const btn = document.getElementById('wechat-btn');
+      if (btn) {
+        btn.textContent = 'Unavailable';
+        btn.disabled = true;
+        btn.classList.add('opacity-60', 'cursor-not-allowed');
+        btn.classList.remove('hover:brightness-110');
+      }
+    }
+
+    async function handleWechat() {
+      if (userData?.wechatBound) {
+        // Unbind
+        if (!(await nxConfirm('Are you sure you want to unbind WeChat?'))) return;
+        try {
+          const response = await fetch('/api/user/unbind-wechat', { method: 'DELETE' });
+          const result = await response.json();
+          if (result.code === 200) {
+            location.reload();
+          } else {
+            showWechatNote(result.message || 'Could not unbind WeChat.');
+          }
+        } catch (error) {
+          showWechatNote('Could not reach the server.');
+        }
+        return;
+      }
+
+      // Bind：需要微信开放平台（appid/secret）。没配就如实说明，绝不假装成功。
+      if (userData?.wechatAvailable === false) {
+        showWechatNote(userData.wechatUnavailableReason
+          || 'WeChat binding is not available on this server.');
+        return;
+      }
+      const state = Math.random().toString(36).slice(2);
+      sessionStorage.setItem('wechatOAuthState', state);
+      const redirectUri = window.location.origin + '/settings.html';
+      const url = 'https://open.weixin.qq.com/connect/qrconnect'
+        + '?appid=' + encodeURIComponent(userData.wechatAppid || '')
+        + '&redirect_uri=' + encodeURIComponent(redirectUri)
+        + '&response_type=code&scope=snsapi_login'
+        + '&state=' + encodeURIComponent(state)
+        + '#wechat_redirect';
+      window.location.href = url;
+    }
+
+    // 微信授权页跳回 settings.html?code=...&state=... 之后，把 code 交给服务端换绑定。
+    async function completeWechatOAuthIfPresent() {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      if (!code) return;
+      const expected = sessionStorage.getItem('wechatOAuthState');
+      const got = params.get('state');
+      sessionStorage.removeItem('wechatOAuthState');
+      if (expected && got && expected !== got) {
+        showWechatNote('WeChat returned a mismatched state; the binding was not completed.');
+        return;
+      }
+      try {
+        const response = await fetch('/api/user/bind-wechat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code })
+        });
+        const result = await response.json();
+        if (result.code === 200) {
+          window.history.replaceState({}, '', 'settings.html');
+          location.reload();
+        } else {
+          showWechatNote(result.message || 'WeChat binding failed.');
+        }
+      } catch (error) {
+        showWechatNote('Could not reach the server.');
+      }
+    }
+
+    // ========== 验证码 ==========
+    // 这两个函数以前是假的：只检查输入非空，然后把按钮禁用 60 秒开始倒计时，
+    // 从头到尾没有发过任何请求（原注释：`// TODO: Implement actual code sending`）。
+    // 结果 "Send Code" 按钮唯一的效果，是让用户以为验证码已经发出去了。
+    const codeCountdowns = {};
+
+    function normalizePhoneInput() {
+      const cc = document.getElementById('phoneCountryCode').value;
+      const raw = document.getElementById('newPhone').value.trim();
+      if (!raw) return '';
+      return cc + raw.replace(/[\s\-()]/g, '');
+    }
+
+    async function requestVerifyCode(scene, target, btnId, errorElId, statusElId) {
+      const btn = document.getElementById(btnId);
+      const errorEl = document.getElementById(errorElId);
+      const statusEl = document.getElementById(statusElId);
+      errorEl.classList.add('hidden');
+      statusEl.classList.add('hidden');
+      btn.disabled = true;
+
+      try {
+        const response = await fetch('/api/user/verify-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scene: scene, target: target })
+        });
+        const result = await response.json();
+
+        if (result.code !== 200) {
+          errorEl.textContent = result.message || 'Failed to send code';
+          errorEl.classList.remove('hidden');
+          btn.disabled = false;
+          return;
+        }
+
+        // 后端如实告诉我们码有没有真的送出去。默认渠道是服务器日志（delivered=false），
+        // 那就明说还没接网关，而不是让用户干等一条永远不会来的短信。
+        const data = result.data || {};
+        const minutes = Math.round((data.expiresIn || 300) / 60);
+        statusEl.textContent = data.delivered === false
+          ? `Code generated (valid ${minutes} min), but no SMS/email gateway is configured yet — it was written to the server log.`
+          : `Code sent via ${data.channel} — valid for ${minutes} min.`;
+        statusEl.classList.remove('hidden');
+
+        startCodeCountdown(scene, btn);
+      } catch (err) {
+        errorEl.textContent = 'Network error';
+        errorEl.classList.remove('hidden');
+        btn.disabled = false;
+      }
+    }
+
+    function startCodeCountdown(scene, btn) {
+      let left = 60;
+      btn.disabled = true;
+      btn.textContent = `${left}s`;
+      clearInterval(codeCountdowns[scene]);
+      codeCountdowns[scene] = setInterval(() => {
+        left--;
+        btn.textContent = `${left}s`;
+        if (left <= 0) {
+          clearInterval(codeCountdowns[scene]);
+          btn.textContent = 'Send Code';
+          btn.disabled = false;
+        }
+      }, 1000);
+    }
+
+    function sendPhoneCode() {
+      const errorEl = document.getElementById('phoneError');
+      const target = normalizePhoneInput();
+      if (!target) {
+        errorEl.textContent = 'Enter a phone number first';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+      requestVerifyCode('phone', target, 'sendPhoneCodeBtn', 'phoneError', 'phoneCodeStatus');
+    }
+
+    function sendEmailCode() {
+      const errorEl = document.getElementById('emailBindError');
+      const email = document.getElementById('bindEmail').value.trim();
+      if (!email) {
+        errorEl.textContent = 'Enter an email address first';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+      requestVerifyCode('email', email, 'sendEmailCodeBtn', 'emailBindError', 'emailCodeStatus');
+    }
+
+    // ========== Avatar Upload ==========
+    async function handleAvatarChange(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        return;
+      }
+
+      // Validate file size (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const response = await fetch('/api/user/avatar', {
+          method: 'POST',
+          body: formData
+        });
+        const result = await response.json();
+
+        if (result.code === 200) {
+          // Refresh avatar with cache buster
+          const avatarImg = document.getElementById('settings-avatar');
+          avatarImg.src = '/api/user/avatar?t=' + Date.now();
+        }
+      } catch (error) {
+        console.error('Failed to upload avatar:', error);
+      }
+
+      // Clear input
+      event.target.value = '';
+    }
+
+    // Initialize on load
+    init();
+  </script>
+  <script defer src="/js/nest-ui.js"></script>
+    <script defer src="/libs/animejs/anime.umd.min.js"></script>
+    <script defer src="/libs/countup/countUp.umd.js"></script>
+    <script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+    <script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+    <script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+</body>
+</html>

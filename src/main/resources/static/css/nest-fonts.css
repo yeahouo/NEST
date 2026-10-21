@@ -1,0 +1,110 @@
+/*
+ * NEST 安居 · 本地字体
+ *
+ * 全部字体本地托管，不再引用 fonts.googleapis.com。
+ * 原因：学校内网访问不了 Google。外链一旦失败，页面上 37 个图标会退化成
+ * "fact_check"、"insights" 这样的字面文字——功能还在，但看起来像坏了，
+ * 这是交付给学校时最难解释的一类问题。
+ *
+ * 中文不打包 Web 字体：一套中文字体动辄好几 MB，而 Windows / macOS / 安卓 / iOS
+ * 都自带足够好的中文字体，交给系统是更划算的选择。
+ *
+ * 新增图标后需要重新生成子集字体，命令见 tools/webbuild/build-web-assets.ps1。
+ */
+
+/* ── Material Symbols Outlined ─────────────────────────────────────────
+ * 只保留本项目真正用到的 73 个字形：8,732 字节（官方完整变体字体 4,003,088 字节）。
+ * font-display: block 是刻意的——图标字体加载期间宁可空着，也不要先闪一下
+ * "fact_check" 这串字母再变成图标。
+ */
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('/fonts/material-symbols-outlined.woff2') format('woff2');
+}
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Public Sans（仅 latin 子集，约 14KB / 字重）──────────────────────
+ * 页面里写的是 300;400;600;700;900 五个字重，这里一一对应。
+ * font-display: swap 而不是 block：正文文字晚一点变成 Public Sans 没关系，
+ * 用系统字体先显示出来反而更快。
+ */
+@font-face {
+  font-family: 'Public Sans';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url('/fonts/public-sans-latin-300-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Public Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/public-sans-latin-400-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Public Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/public-sans-latin-600-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Public Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/public-sans-latin-700-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Public Sans';
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url('/fonts/public-sans-latin-900-normal.woff2') format('woff2');
+}
+
+/* ── Instrument Serif（仅 latin 子集，约 21KB / 字重）────────────────────────
+ * 第十七轮「整站艺术化」的标题衬线体，OFL-1.1（许可证 /libs/instrument-serif-OFL.txt，
+ * 与概念页 /art.html 用的是同一份文件）。
+ * 它只覆盖拉丁字母与数字：中文会按 fontFamily.serif 的回退链落到系统无衬线中文字
+ * （刻意不落到宋体 —— Windows 的 SimSun 在大字号下发虚）。所以整站的标题观感是
+ * 「拉丁与数字是衬线、中文是无衬线」这一种编辑设计的常见混排，不是整段宋体。
+ */
+@font-face {
+  font-family: 'Instrument Serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/instrument-serif-latin-400-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Instrument Serif';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/instrument-serif-latin-400-italic.woff2') format('woff2');
+}

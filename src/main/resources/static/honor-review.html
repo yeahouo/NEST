@@ -1,0 +1,1749 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="nestlight">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>评奖评优审核 · 学工平台</title>
+  <!--
+    主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
+    daisyUI 的组件颜色跟的是 [data-theme] 属性（不是 .dark 类），两处都必须写，
+    与 nest-ui.js 的 paintTheme() 保持一致。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/nest-art3.css">
+</head>
+
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content">
+
+<header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none border-0 p-0">
+  <div class="navbar mx-auto min-h-0 w-full max-w-7xl gap-3 px-5 py-2 md:px-8">
+    <div class="navbar-start gap-3">
+      <a class="flex items-center gap-3" href="teacher-dashboard.html">
+        <span class="nx-logo">
+          <span class="material-symbols-outlined text-xl">terminal</span>
+        </span>
+        <span class="hidden text-lg font-black uppercase tracking-tight sm:inline">学工平台</span>
+      </a>
+      <span class="hidden h-5 w-px bg-base-300 lg:block"></span>
+      <span class="hidden font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65 lg:block">§ 15 · Staff affairs / Honors</span>
+    </div>
+    <div class="navbar-end gap-1.5">
+      <a class="btn btn-ghost btn-sm gap-2 rounded-full" href="teacher-dashboard.html">
+        <span class="material-symbols-outlined text-lg">dashboard</span>
+        <span class="hidden md:inline">工作台</span>
+      </a>
+      <button aria-label="切换深色 / 浅色模式" class="nx-icon-btn" data-nx-theme-toggle title="切换深色 / 浅色模式" type="button">
+        <span class="material-symbols-outlined nx-theme-icon-light text-xl">dark_mode</span>
+        <span class="material-symbols-outlined nx-theme-icon-dark text-xl">light_mode</span>
+      </button>
+      <a class="nx-icon-btn" href="settings.html" title="设置">
+        <span class="material-symbols-outlined text-xl">settings</span>
+      </a>
+      <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="logout-btn" type="button">
+        <span class="material-symbols-outlined text-lg">logout</span>
+        <span class="hidden md:inline">退出登录</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="flex-1 px-5 py-8 md:px-8 md:py-12">
+  <div class="mx-auto w-full max-w-7xl">
+
+    <!-- ── 刊头 ─────────────────────────────────────────────────────── -->
+    <header class="mb-8 border-b border-base-300 pb-6">
+      <p class="nx-kicker">§ 15 · Staff / Honors</p>
+      <h1 data-nx-split="1" class="mt-2 font-serif text-3xl leading-tight sm:text-4xl lg:text-5xl">评奖评优审核</h1>
+      <p class="mt-4 max-w-2xl text-sm text-base-content/70">
+        辅导员初审 → 学院初评 → 学工部复核 → 报学校评审领导小组审批 → 公示 → 学校发文表彰，六步都在本页留痕。
+        两条通知口径是本页的硬规则：<span class="font-semibold">学院推荐意见不可只写「同意推荐」</span>，应写明学生表现或推荐理由；
+        审核不通过要驳回并写清原因，<span class="font-semibold">以便学生及时知晓学院审核进度及意见</span>（通知注意事项 4）。
+      </p>
+    </header>
+
+    <!-- ── 状态发丝格：静态 HTML，JS 只改 textContent ─────────────────── -->
+    <section class="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 sm:grid-cols-3 lg:grid-cols-6" id="stat-row">
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">待初审</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-counselor">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">待学院审核</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-college">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">待学工部复核</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-dept">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">已通过</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-approved">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">已驳回</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-rejected">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">已公示</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-publicity">—</dd>
+      </div>
+    </section>
+
+    <div id="manage-message" class="alert hidden mb-6 items-start gap-2"></div>
+
+    <!-- ── 页签 ──────────────────────────────────────────────────────── -->
+    <section class="mb-8 flex flex-wrap items-center gap-2 rounded-box border border-base-300 bg-base-100 p-1.5" id="honor-tabs">
+      <button class="tab-btn nx-tab is-active" id="tab-counselor" type="button">辅导员初审</button>
+      <button class="tab-btn nx-tab" id="tab-college" type="button">学院初评</button>
+      <button class="tab-btn nx-tab" id="tab-dept" type="button">学工部复核</button>
+      <button class="tab-btn nx-tab" id="tab-publicity" type="button">公示与导出</button>
+    </section>
+
+    <!-- ── 面板 1：辅导员初审 ───────────────────────────────────────── -->
+    <section id="panel-counselor">
+      <div class="card mb-6 rounded-box border border-base-300 bg-base-200 shadow-xl">
+        <div class="p-6 md:p-7">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Counselor · 辅导员初审</p>
+              <h2 class="mt-2 font-serif text-2xl">待初审名单</h2>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="badge badge-ghost badge-sm font-mono" id="counselor-count">—</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="counselor-refresh" type="button">刷新</button>
+            </div>
+          </div>
+          <p class="mt-3 text-xs text-base-content/60">辅导员只处理自己名下学生的申报；初审通过或驳回都要写清意见（通知要求：不可只写「同意推荐」）。</p>
+          <div class="mt-5 flex flex-wrap items-end gap-3">
+            <label class="form-control w-64">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">批次</span>
+              <select class="select select-bordered select-sm" id="counselor-batch"><option value="">全部批次</option></select>
+            </label>
+            <label class="form-control w-44">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</span>
+              <select class="select select-bordered select-sm" id="counselor-status">
+                <option value="">全部状态</option>
+                <option value="submitted">待初审</option>
+                <option value="counselor_approved">已通过（待学院）</option>
+                <option value="rejected">已驳回</option>
+              </select>
+            </label>
+            <label class="form-control w-56">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关键词</span>
+              <input class="input input-bordered input-sm" id="counselor-keyword" placeholder="学号 / 姓名" type="text"/>
+            </label>
+            <button class="btn btn-primary btn-sm rounded-full" id="counselor-search" type="button">查询</button>
+          </div>
+        </div>
+      </div>
+      <div class="grid gap-4" data-nx-autoanimate="1" id="counselor-list"></div>
+      <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="counselor-empty">没有符合条件的申报。</p>
+      <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <p class="font-mono text-xs text-base-content/65" id="counselor-total"></p>
+        <div class="flex items-center gap-2">
+          <button class="btn btn-ghost btn-sm rounded-full" id="counselor-prev" type="button">上一页</button>
+          <span class="font-mono text-xs" id="counselor-page">1 / 1</span>
+          <button class="btn btn-ghost btn-sm rounded-full" id="counselor-next" type="button">下一页</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 面板 2：学院初评 ─────────────────────────────────────────── -->
+    <section class="hidden" id="panel-college">
+      <div class="card mb-6 rounded-box border border-base-300 bg-base-200 shadow-xl">
+        <div class="p-6 md:p-7">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">College · 学院初评</p>
+              <h2 class="mt-2 font-serif text-2xl">学院初评名单</h2>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="badge badge-ghost badge-sm font-mono" id="college-count">—</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="college-refresh" type="button">刷新</button>
+            </div>
+          </div>
+          <p class="mt-3 text-xs text-base-content/60">学院审核申请材料、组织评选并形成初评名单；推荐意见要写明学生表现或推荐理由，最后由学院盖章。</p>
+          <div class="mt-5 flex flex-wrap items-end gap-3">
+            <label class="form-control w-64">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">批次</span>
+              <select class="select select-bordered select-sm" id="college-batch"><option value="">全部批次</option></select>
+            </label>
+            <label class="form-control w-48">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</span>
+              <select class="select select-bordered select-sm" id="college-status">
+                <option value="">全部状态</option>
+                <option value="counselor_approved">待学院初评</option>
+                <option value="college_approved">已通过（待学工部）</option>
+                <option value="rejected">已驳回</option>
+              </select>
+            </label>
+            <label class="form-control w-56">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关键词</span>
+              <input class="input input-bordered input-sm" id="college-keyword" placeholder="学号 / 姓名" type="text"/>
+            </label>
+            <button class="btn btn-primary btn-sm rounded-full" id="college-search" type="button">查询</button>
+          </div>
+        </div>
+      </div>
+      <div class="grid gap-4" data-nx-autoanimate="1" id="college-list"></div>
+      <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="college-empty">没有符合条件的申报。</p>
+      <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <p class="font-mono text-xs text-base-content/65" id="college-total"></p>
+        <div class="flex items-center gap-2">
+          <button class="btn btn-ghost btn-sm rounded-full" id="college-prev" type="button">上一页</button>
+          <span class="font-mono text-xs" id="college-page">1 / 1</span>
+          <button class="btn btn-ghost btn-sm rounded-full" id="college-next" type="button">下一页</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 面板 3：学工部复核 ───────────────────────────────────────── -->
+    <section class="hidden" id="panel-dept">
+      <div class="card mb-6 rounded-box border border-base-300 bg-base-200 shadow-xl">
+        <div class="p-6 md:p-7">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Department · 学工部复核</p>
+              <h2 class="mt-2 font-serif text-2xl">学工部复核名单</h2>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="badge badge-ghost badge-sm font-mono" id="dept-count">—</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="dept-refresh" type="button">刷新</button>
+            </div>
+          </div>
+          <p class="mt-3 text-xs text-base-content/60">学工部复核学院初评名单后报学校评审领导小组审批；复核通过即进入待公示状态。</p>
+          <div class="mt-5 flex flex-wrap items-end gap-3">
+            <label class="form-control w-64">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">批次</span>
+              <select class="select select-bordered select-sm" id="dept-batch"><option value="">全部批次</option></select>
+            </label>
+            <label class="form-control w-48">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</span>
+              <select class="select select-bordered select-sm" id="dept-status">
+                <option value="">全部状态</option>
+                <option value="college_approved">待学工部复核</option>
+                <option value="dept_approved">已通过（待公示）</option>
+                <option value="rejected">已驳回</option>
+              </select>
+            </label>
+            <label class="form-control w-56">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关键词</span>
+              <input class="input input-bordered input-sm" id="dept-keyword" placeholder="学号 / 姓名" type="text"/>
+            </label>
+            <button class="btn btn-primary btn-sm rounded-full" id="dept-search" type="button">查询</button>
+          </div>
+        </div>
+      </div>
+      <div class="grid gap-4" data-nx-autoanimate="1" id="dept-list"></div>
+      <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="dept-empty">没有符合条件的申报。</p>
+      <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <p class="font-mono text-xs text-base-content/65" id="dept-total"></p>
+        <div class="flex items-center gap-2">
+          <button class="btn btn-ghost btn-sm rounded-full" id="dept-prev" type="button">上一页</button>
+          <span class="font-mono text-xs" id="dept-page">1 / 1</span>
+          <button class="btn btn-ghost btn-sm rounded-full" id="dept-next" type="button">下一页</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 面板 4：公示与导出 ───────────────────────────────────────── -->
+    <section class="hidden" id="panel-publicity">
+      <div class="card mb-6 rounded-box border border-base-300 bg-base-200 shadow-xl">
+        <div class="p-6 md:p-7">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Publicity · 公示与导出</p>
+              <h2 class="mt-2 font-serif text-2xl">公示名单与导出</h2>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="badge badge-ghost badge-sm font-mono" id="pub-count">—</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="pub-refresh" type="button">刷新</button>
+            </div>
+          </div>
+          <div class="mt-5 flex flex-wrap items-end gap-3">
+            <label class="form-control w-64">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">批次</span>
+              <select class="select select-bordered select-sm" id="pub-batch"><option value="">选择批次</option></select>
+            </label>
+            <button class="btn btn-primary btn-sm rounded-full gap-2" id="pub-export" type="button">
+              <span class="material-symbols-outlined text-lg">download</span>
+              <span>导出 CSV</span>
+            </button>
+          </div>
+          <p class="mt-3 text-xs text-base-content/60">
+            通知「三、材料提交」写明：<span class="font-semibold">学院推荐参评学生名单以学工平台导出为准</span>，
+            所以对外用表请用这里的导出 CSV，不要手抄名单。公示栏只展示脱敏字段。
+          </p>
+        </div>
+      </div>
+      <div class="card rounded-box border border-base-300 bg-base-200 shadow-xl">
+        <div class="p-6 md:p-7">
+          <div class="mt-1 overflow-x-auto">
+            <table class="w-full border-collapse text-sm">
+              <thead>
+                <tr class="border-b border-base-300">
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">姓名</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学号后四位</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">荣誉类型</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">班级</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">专业</th>
+                </tr>
+              </thead>
+              <tbody id="pub-list"></tbody>
+            </table>
+          </div>
+          <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="pub-empty">请先选择批次；批次进入「公示中」后脱敏名单会显示在这里。</p>
+          <p class="mt-4 text-xs text-base-content/60">公示内容只含姓名、学号后四位、荣誉类型、班级与专业；公示天数按批次配置折算。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 批次管理（常驻：发布 / 公示 / 结束 / 导出） ───────────────── -->
+    <section class="card mt-10 rounded-box border border-base-300 bg-base-200 shadow-xl" id="panel-batches">
+      <div class="p-6 md:p-7">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Batch · 批次管理</p>
+            <h2 class="mt-2 font-serif text-2xl">评奖评优批次</h2>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="badge badge-ghost badge-sm font-mono" id="batch-count">—</span>
+            <button class="btn btn-ghost btn-sm rounded-full" id="batch-refresh" type="button">刷新</button>
+            <button class="btn btn-primary btn-sm rounded-full gap-2" id="batch-create" type="button">
+              <span class="material-symbols-outlined text-lg">add</span>
+              <span>新建批次</span>
+            </button>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-base-content/60">
+          状态流转：草稿 → 申报中（发布）→ 审核中（进入审核）→ 公示中（进入公示）→ 已结束。
+          名额与比例以当年评选文件为准，填写时请照抄文件口径，平台不作断言。
+        </p>
+        <div class="mt-5 grid gap-4" data-nx-autoanimate="1" id="batch-list"></div>
+        <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="batch-empty">还没有批次：点「新建批次」创建后发布，学生端才会出现申报入口。</p>
+      </div>
+    </section>
+
+    <!-- ── 相关入口 ─────────────────────────────────────────────────── -->
+    <section class="card mt-8 rounded-box border border-base-300 bg-base-100" data-nx-reveal>
+      <div class="card-body gap-4 p-5 md:p-6">
+        <h2 class="text-lg font-black tracking-tight">相关入口</h2>
+        <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="eval-review.html">
+          <span class="material-symbols-outlined text-xl text-primary">insights</span>
+          <span class="min-w-0">
+            <span class="block text-sm font-semibold">综测审核</span>
+            <span class="mt-0.5 block text-xs text-base-content/65">自动核验读的是综测汇总：批次里配了 eval_term，才能自动判定「综测排名前 15%」。</span>
+          </span>
+        </a>
+        <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="award-manage.html">
+          <span class="material-symbols-outlined text-xl text-primary">military_tech</span>
+          <span class="min-w-0">
+            <span class="block text-sm font-semibold">奖惩管理</span>
+            <span class="mt-0.5 block text-xs text-base-content/65">校级以上荣誉称号次数与奖学金记录来自奖惩模块；数据不准先在这里更正。</span>
+          </span>
+        </a>
+        <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="poverty-review.html">
+          <span class="material-symbols-outlined text-xl text-primary">volunteer_activism</span>
+          <span class="min-w-0">
+            <span class="block text-sm font-semibold">困难认定管理</span>
+            <span class="mt-0.5 block text-xs text-base-content/65">家庭经济困难认定与评优是两条线，互不作前置。</span>
+          </span>
+        </a>
+        <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="teacher-dashboard.html">
+          <span class="material-symbols-outlined text-xl text-primary">dashboard</span>
+          <span class="min-w-0">
+            <span class="block text-sm font-semibold">返回工作台</span>
+            <span class="mt-0.5 block text-xs text-base-content/65">教师工作台汇总待办与名下学生。</span>
+          </span>
+        </a>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<!-- ── 详情与审核弹窗 ─────────────────────────────────────────────── -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="detail-dialog">
+  <div class="card nx-dialog w-full max-w-2xl p-6">
+    <h2 class="font-serif text-2xl" id="detail-title">申报详情</h2>
+    <p class="mt-2 text-xs text-base-content/65" id="detail-sub">—</p>
+    <div class="mt-3 flex flex-wrap items-center gap-2">
+      <span class="badge badge-ghost badge-sm whitespace-nowrap" id="detail-status">—</span>
+      <span class="badge badge-ghost badge-sm whitespace-nowrap" id="detail-type">—</span>
+    </div>
+
+    <dl class="mt-5 grid grid-cols-2 gap-x-6 gap-y-3 md:grid-cols-3">
+      <div>
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">姓名</dt>
+        <dd class="mt-0.5 text-sm" id="detail-name">—</dd>
+      </div>
+      <div>
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学号</dt>
+        <dd class="mt-0.5 text-sm" id="detail-student-no">—</dd>
+      </div>
+      <div>
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">班级</dt>
+        <dd class="mt-0.5 text-sm" id="detail-class">—</dd>
+      </div>
+      <div>
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">专业</dt>
+        <dd class="mt-0.5 text-sm" id="detail-major">—</dd>
+      </div>
+      <div>
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学年</dt>
+        <dd class="mt-0.5 text-sm" id="detail-year">—</dd>
+      </div>
+      <div>
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">提交时间</dt>
+        <dd class="mt-0.5 text-sm" id="detail-submitted">—</dd>
+      </div>
+      <div>
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">体测成绩（自报）</dt>
+        <dd class="mt-0.5 text-sm" id="detail-pe">—</dd>
+      </div>
+      <div>
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">联系电话</dt>
+        <dd class="mt-0.5 text-sm" id="detail-phone">—</dd>
+      </div>
+      <div>
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">自报声明</dt>
+        <dd class="mt-0.5 text-sm" id="detail-confirm">—</dd>
+      </div>
+    </dl>
+
+    <div class="mt-5 border-t border-base-300 pt-4">
+      <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">个人自述 / 主要表现</p>
+      <p class="mt-1 whitespace-pre-wrap text-sm text-base-content/80" id="detail-statement">—</p>
+    </div>
+    <div class="mt-4">
+      <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">荣誉称号清单（自报）</p>
+      <p class="mt-1 whitespace-pre-wrap text-sm text-base-content/80" id="detail-honors">—</p>
+    </div>
+    <div class="mt-4">
+      <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">奖学金清单（自报）</p>
+      <p class="mt-1 whitespace-pre-wrap text-sm text-base-content/80" id="detail-scholarships">—</p>
+    </div>
+    <div class="mt-4">
+      <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">材料说明（线下交件登记）</p>
+      <p class="mt-1 whitespace-pre-wrap text-sm text-base-content/80" id="detail-material-note">—</p>
+    </div>
+    <div class="mt-4 hidden" id="detail-reject">
+      <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">驳回原因（学生可见）</p>
+      <p class="mt-1 whitespace-pre-wrap text-sm text-base-content/80" id="detail-reject-reason">—</p>
+    </div>
+
+    <div class="mt-5 rounded-box border border-base-300 p-4">
+      <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Auto check · 自动核验结果</p>
+      <div class="mt-3 grid gap-2" id="detail-checks"></div>
+    </div>
+
+    <div class="mt-5 rounded-box border border-base-300 p-4">
+      <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Track · 已有审核流水</p>
+      <ul class="mt-3 grid gap-2" id="detail-reviews"></ul>
+    </div>
+
+    <div class="mt-5 rounded-box border border-base-300 p-4">
+      <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Review · 审核结论</p>
+      <div class="mt-3 flex flex-wrap items-center gap-4">
+        <label class="flex items-center gap-2">
+          <input class="radio" name="detail-verdict" type="radio" value="pass"/>
+          <span class="text-sm">通过</span>
+        </label>
+        <label class="flex items-center gap-2">
+          <input class="radio" name="detail-verdict" type="radio" value="reject"/>
+          <span class="text-sm">驳回</span>
+        </label>
+      </div>
+      <label class="form-control mt-4">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">审核意见（必填，≥8 字）</span>
+        <textarea class="textarea textarea-bordered" id="detail-comment" placeholder="如：该生综测毕业排名班级第 4（前 12%），无不及格科目，获校级三好学生 2 次、校级奖学金 1 次，任班级学习委员期间组织学风活动，同意推荐" rows="4"></textarea>
+      </label>
+      <p class="mt-1 text-xs text-base-content/60" id="detail-comment-hint">学院推荐意见不可只写「同意推荐」：请写明学生表现或推荐理由（通知注意事项 4）。</p>
+      <p class="mt-2 text-xs text-base-content/60" id="detail-verdict-hint">驳回时请写清缺什么、怎么补，学生端会看到这段意见与进度。</p>
+    </div>
+
+    <div id="detail-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="detail-close" type="button">关闭</button>
+      <button class="btn btn-ghost rounded-full" id="detail-cancel" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="detail-save" type="button">提交审核意见</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 批次新建 / 编辑弹窗 ────────────────────────────────────────── -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="batch-dialog">
+  <div class="card nx-dialog w-full max-w-2xl p-6">
+    <h2 class="font-serif text-2xl" id="batch-dialog-title">新建批次</h2>
+    <p class="mt-2 text-xs text-base-content/65" id="batch-target">名额与比例请照抄当年评选文件；留空的字段学生在申报页会看到「以当年文件为准」。</p>
+    <input id="batch-id" type="hidden"/>
+
+    <div class="mt-5 grid gap-4 sm:grid-cols-2">
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">批次名（必填）</span>
+        <input class="input input-bordered" id="batch-name" placeholder="如 2026届优秀毕业生评选" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">荣誉类型（必填）</span>
+        <select class="select select-bordered" id="batch-type">
+          <option value="graduate_outstanding">优秀毕业生</option>
+          <option value="merit_outstanding">优秀三好学生</option>
+          <option value="merit_student">三好学生</option>
+          <option value="cadres_outstanding">优秀学生干部</option>
+        </select>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学年（必填）</span>
+        <input class="input input-bordered" id="batch-year" placeholder="如 2025-2026" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">自动核验用学期 eval_term</span>
+        <input class="input input-bordered" id="batch-eval-term" placeholder="如 2025-2026-1；留空则综测排名只能人工核验" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">名额</span>
+        <input class="input input-bordered" id="batch-quota" placeholder="留空＝按文件比例" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">名额说明</span>
+        <input class="input input-bordered" id="batch-quota-note" placeholder="如：按当年文件，各学院按毕业生人数比例推荐" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">申报开始日</span>
+        <input class="input input-bordered" id="batch-apply-start" type="date"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">申报截止日</span>
+        <input class="input input-bordered" id="batch-apply-end" type="date"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学院审核截止日</span>
+        <input class="input input-bordered" id="batch-review-end" type="date"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">公示天数</span>
+        <input class="input input-bordered" id="batch-publicity-days" placeholder="如 5" type="text"/>
+      </label>
+    </div>
+
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">参评条件摘要（通知原文要点）</span>
+      <textarea class="textarea textarea-bordered" id="batch-criteria" placeholder="如：无违法违纪；无不及格科目；综合测评毕业排名前 15%；校级以上荣誉称号 ≥2 次，或 ≥1 次且获国家奖学金/校级奖学金 ≥1 次；体测 ≥50 分" rows="4"></textarea>
+    </label>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">需交材料说明（线下交件）</span>
+      <textarea class="textarea textarea-bordered" id="batch-materials" placeholder="如：学院--学生名字--优秀毕业生申请表（纸质、盖章）；校内奖项不需附证明，校外奖项附证明复印件" rows="3"></textarea>
+    </label>
+    <div class="mt-4 grid gap-4 sm:grid-cols-2">
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">通知标题</span>
+        <input class="input input-bordered" id="batch-notice-title" placeholder="如：关于评选2026届优秀毕业生的通知" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">通知链接</span>
+        <input class="input input-bordered" id="batch-notice-url" placeholder="https://..." type="text"/>
+      </label>
+    </div>
+
+    <div id="batch-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="batch-cancel" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="batch-save" type="button">保存批次</button>
+    </div>
+  </div>
+</div>
+
+<footer class="nx-hairline-t border-base-300 px-5 py-6 md:px-8">
+  <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
+    <p class="font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65">学工平台 · Honors review</p>
+    <p class="text-xs text-base-content/60">学院推荐参评学生名单以平台导出为准；驳回要让学生看到进度与意见。</p>
+  </div>
+</footer>
+
+<script>
+  // ─────────────────────────────── 常量 ───────────────────────────────
+  const HONOR_TYPE_TEXT = {
+    graduate_outstanding: '优秀毕业生',
+    merit_outstanding: '优秀三好学生',
+    merit_student: '三好学生',
+    cadres_outstanding: '优秀学生干部'
+  };
+  const BATCH_STATUS_TEXT = { draft: '草稿', recruiting: '申报中', reviewing: '审核中', publicity: '公示中', finished: '已结束' };
+  // 展示文案照库表 COMMENT 的值域映射（页面里不出现英文枚举）
+  const APPLY_STATUS_TEXT = {
+    draft: '草稿',
+    submitted: '已提交',
+    counselor_approved: '辅导员初审通过',
+    college_approved: '学院初评通过',
+    dept_approved: '学工部复核通过',
+    publicized: '公示中',
+    awarded: '已表彰',
+    rejected: '已驳回'
+  };
+  const NODE_TEXT = { counselor: '辅导员', college: '学院', dept: '学工部', leader: '学校审批' };
+  const VERDICT_TEXT = { pass: '通过', reject: '驳回' };
+  const CHECK_SOURCE_TEXT = {
+    rank_percent: '综测汇总（综合测评成绩）',
+    honors: '奖惩记录（P5 奖惩管理）',
+    scholarships: '奖惩记录（P5 奖惩管理）'
+  };
+  // 统计格：用审核列表接口的 total 逐状态取数（后端没有独立统计接口）
+  const STAT_QUERIES = [
+    { id: 'stat-counselor', node: 'counselor', status: 'submitted' },
+    { id: 'stat-college', node: 'college', status: 'counselor_approved' },
+    { id: 'stat-dept', node: 'dept', status: 'college_approved' },
+    { id: 'stat-approved', node: 'dept', status: 'dept_approved' },
+    { id: 'stat-rejected', node: '', status: 'rejected' },
+    { id: 'stat-publicity', node: '', status: 'publicized' }
+  ];
+  // 三个审核页签各自一份控件 id（列表接口同一支，靠 node 区分）
+  const LISTS = {
+    counselor: {
+      node: 'counselor', batch: 'counselor-batch', status: 'counselor-status', keyword: 'counselor-keyword',
+      list: 'counselor-list', empty: 'counselor-empty', count: 'counselor-count', total: 'counselor-total',
+      page: 'counselor-page', prev: 'counselor-prev', next: 'counselor-next'
+    },
+    college: {
+      node: 'college', batch: 'college-batch', status: 'college-status', keyword: 'college-keyword',
+      list: 'college-list', empty: 'college-empty', count: 'college-count', total: 'college-total',
+      page: 'college-page', prev: 'college-prev', next: 'college-next'
+    },
+    dept: {
+      node: 'dept', batch: 'dept-batch', status: 'dept-status', keyword: 'dept-keyword',
+      list: 'dept-list', empty: 'dept-empty', count: 'dept-count', total: 'dept-total',
+      page: 'dept-page', prev: 'dept-prev', next: 'dept-next'
+    }
+  };
+  const TAB_PANELS = {
+    counselor: 'panel-counselor',
+    college: 'panel-college',
+    dept: 'panel-dept',
+    publicity: 'panel-publicity'
+  };
+  const TAB_BUTTONS = {
+    counselor: 'tab-counselor',
+    college: 'tab-college',
+    dept: 'tab-dept',
+    publicity: 'tab-publicity'
+  };
+  const LIST_PAGE_SIZE = '8';
+
+  let batches = [];
+  const batchCache = {};
+  const listPage = { counselor: 1, college: 1, dept: 1 };
+  const listPages = { counselor: 1, college: 1, dept: 1 };
+  let currentTab = 'counselor';
+  let currentActionId = null;
+
+  // ───────────────────────────── 工具函数 ─────────────────────────────
+  function escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  async function callApi(url, options) {
+    const config = options || {};
+    config.credentials = 'same-origin';
+    let response;
+    try {
+      response = await fetch(url, config);
+    } catch (err) {
+      return { code: 0, message: '无法连接服务，请稍后再试' };
+    }
+    let result;
+    try {
+      result = await response.json();
+    } catch (err) {
+      result = { code: response.status, message: '服务没有返回可解析的内容' };
+    }
+    if (result && result.code === 401) {
+      window.location.href = 'login.html';
+      return { code: 401, message: '登录状态已失效' };
+    }
+    return result;
+  }
+
+  function showMessage(message, type) {
+    const box = document.getElementById('manage-message');
+    if (!box) { return; }
+    const toneCls = type === 'success' ? 'alert-success' : 'alert-error';
+    const iconName = type === 'success' ? 'check_circle' : 'error';
+    box.className = 'alert mb-6 items-start gap-2 ' + toneCls;
+    box.innerHTML = '<span class="material-symbols-outlined text-lg">' + iconName + '</span>'
+      + '<span class="text-sm">' + escapeHtml(message) + '</span>';
+  }
+
+  function clearMessage() {
+    const box = document.getElementById('manage-message');
+    if (!box) { return; }
+    box.className = 'alert hidden mb-6 items-start gap-2';
+    box.innerHTML = '';
+  }
+
+  function showBoxMessage(hostId, message, type) {
+    const box = document.getElementById(hostId);
+    if (!box) { return; }
+    const toneCls = type === 'success' ? 'alert-success' : 'alert-error';
+    const iconName = type === 'success' ? 'check_circle' : 'error';
+    box.className = 'alert mt-4 items-start gap-2 ' + toneCls;
+    box.innerHTML = '<span class="material-symbols-outlined text-lg">' + iconName + '</span>'
+      + '<span class="text-sm">' + escapeHtml(message) + '</span>';
+  }
+
+  function hideBoxMessage(hostId) {
+    const box = document.getElementById(hostId);
+    if (!box) { return; }
+    box.className = 'alert hidden mt-4 items-start gap-2';
+    box.innerHTML = '';
+  }
+
+  function text(value) {
+    return value === null || value === undefined || value === '' ? '—' : String(value);
+  }
+
+  function formatTime(value) {
+    if (!value) { return '—'; }
+    return String(value).replace('T', ' ').slice(0, 16);
+  }
+
+  function typeText(value) {
+    if (!value) { return '—'; }
+    return HONOR_TYPE_TEXT[value] || String(value);
+  }
+
+  function toNumber(value) {
+    return /^[0-9]+$/.test(String(value)) ? Number(value) : value;
+  }
+
+  function openDialog(id) {
+    const node = document.getElementById(id);
+    if (!node) { return; }
+    node.classList.remove('hidden');
+    node.classList.add('flex');
+  }
+
+  function closeDialog(id) {
+    const node = document.getElementById(id);
+    if (!node) { return; }
+    node.classList.add('hidden');
+    node.classList.remove('flex');
+  }
+
+  function closeOpenDialogs() {
+    const nodes = document.querySelectorAll('.nx-scrim');
+    for (let i = 0; i < nodes.length; i += 1) {
+      if (!nodes[i].classList.contains('hidden')) {
+        nodes[i].classList.add('hidden');
+        nodes[i].classList.remove('flex');
+      }
+    }
+  }
+
+  function statusCls(status) {
+    switch (status) {
+      case 'awarded':
+      case 'publicized':
+      case 'dept_approved':
+        return 'badge-success';
+      case 'college_approved':
+        return 'badge-info';
+      case 'submitted':
+      case 'counselor_approved':
+        return 'badge-warning';
+      case 'rejected':
+        return 'badge-error';
+      default:
+        return 'badge-ghost';
+    }
+  }
+
+  function batchStatusCls(status) {
+    switch (status) {
+      case 'recruiting':
+        return 'badge-success';
+      case 'reviewing':
+        return 'badge-info';
+      case 'publicity':
+        return 'badge-warning';
+      case 'finished':
+        return 'badge-ghost';
+      default:
+        return 'badge-ghost';
+    }
+  }
+
+  function radioValue(name) {
+    const node = document.querySelector('input[name="' + name + '"]:checked');
+    return node ? node.value : '';
+  }
+
+  function checkRadio(name, value) {
+    const nodes = document.querySelectorAll('input[name="' + name + '"]');
+    for (let i = 0; i < nodes.length; i += 1) {
+      nodes[i].checked = nodes[i].value === value;
+    }
+  }
+
+  function setValue(id, value) {
+    const node = document.getElementById(id);
+    if (node) { node.value = value === null || value === undefined ? '' : String(value); }
+  }
+
+  function setText(id, value) {
+    const node = document.getElementById(id);
+    if (node) { node.textContent = text(value); }
+  }
+
+  function field(data, names, fallback) {
+    if (data) {
+      for (let i = 0; i < names.length; i += 1) {
+        const value = data[names[i]];
+        if (value !== undefined && value !== null && value !== '') { return value; }
+      }
+    }
+    return fallback;
+  }
+
+  async function checkAuth() {
+    try {
+      const result = await callApi('/api/auth/me');
+      if (result.code !== 200) { return null; }
+      const me = result.data || {};
+      if (me.role === 'student') {
+        window.location.href = 'honor.html';
+        return null;
+      }
+      return me;
+    } catch (err) {
+      window.location.href = 'login.html';
+      return null;
+    }
+  }
+
+  // ───────────────────────────── 统计格 ─────────────────────────────
+  function setStat(id, value) {
+    const node = document.getElementById(id);
+    if (!node) { return; }
+    node.textContent = value === null || value === undefined || value === '' ? '—' : String(value);
+  }
+
+  async function refreshStats() {
+    const results = await Promise.all(STAT_QUERIES.map(function (item) {
+      const params = new URLSearchParams();
+      if (item.node) { params.set('node', item.node); }
+      if (item.status) { params.set('status', item.status); }
+      params.set('page', '1');
+      params.set('size', '1');
+      return callApi('/api/honor/review/list?' + params.toString());
+    }));
+    for (let i = 0; i < STAT_QUERIES.length; i += 1) {
+      const result = results[i];
+      if (result && result.code === 200 && result.data) {
+        const value = result.data.total;
+        setStat(STAT_QUERIES[i].id, value === null || value === undefined ? '—' : String(value));
+      } else {
+        setStat(STAT_QUERIES[i].id, '—');
+      }
+    }
+    const grid = document.getElementById('stat-row');
+    if (grid) {
+      grid.setAttribute('title', '逐状态查询审核列表接口的 total 汇总，不是独立统计接口。');
+    }
+  }
+
+  // ───────────────────────────── 列表 ─────────────────────────────
+  function summaryOf(value) {
+    const content = String(value === null || value === undefined ? '' : value).replace(/\s+/g, ' ').trim();
+    if (!content) { return '—'; }
+    return content.length > 80 ? content.slice(0, 80) + '…' : content;
+  }
+
+  function reviewCardHtml(item) {
+    const reject = item.status === 'rejected'
+      ? '<div class="alert alert-error mt-4 items-start gap-2">'
+        + '<span class="material-symbols-outlined text-lg">error</span>'
+        + '<span class="min-w-0"><span class="block text-sm font-semibold">已驳回</span>'
+        + '<span class="mt-0.5 block text-sm whitespace-pre-wrap">'
+        + escapeHtml(item.rejectReason || '审核未通过。') + '</span></span>'
+        + '</div>'
+      : '';
+    return '<article class="card rounded-box border border-base-300 bg-base-200 p-5 shadow-sm">'
+      + '<div class="flex flex-wrap items-start justify-between gap-3">'
+      + '<div class="min-w-0">'
+      + '<h3 class="font-bold">' + escapeHtml(text(item.studentName || item.name)) + '</h3>'
+      + '<p class="mt-1 text-xs text-base-content/65">' + escapeHtml(text(item.studentNo)) + ' · '
+      + escapeHtml(text(item.className)) + ' · ' + escapeHtml(text(item.major)) + ' · '
+      + escapeHtml(text(item.academicYear)) + '</p>'
+      + '</div>'
+      + '<div class="flex flex-wrap items-center gap-1.5">'
+      + '<span class="badge badge-info badge-sm whitespace-nowrap">' + escapeHtml(typeText(item.honorType)) + '</span>'
+      + '<span class="badge ' + statusCls(item.status) + ' badge-sm whitespace-nowrap">'
+      + escapeHtml(APPLY_STATUS_TEXT[item.status] || text(item.status)) + '</span>'
+      + '</div>'
+      + '</div>'
+      + '<p class="mt-2 text-xs text-base-content/60">提交于 ' + escapeHtml(formatTime(item.submittedAt))
+      + ' · 体测 ' + escapeHtml(text(item.peScore)) + '</p>'
+      + '<p class="mt-3 whitespace-pre-wrap text-sm text-base-content/80">'
+      + escapeHtml(summaryOf(item.selfStatement)) + '</p>'
+      + reject
+      + '<div class="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-base-300 pt-4">'
+      + '<button class="btn btn-primary btn-sm rounded-full" data-detail="' + escapeHtml(item.id) + '" type="button">详情与审核</button>'
+      + '</div>'
+      + '</article>';
+  }
+
+  function bindCardActions(kind) {
+    const config = LISTS[kind];
+    const host = document.getElementById(config.list);
+    if (!host) { return; }
+    const buttons = host.querySelectorAll('[data-detail]');
+    for (let i = 0; i < buttons.length; i += 1) {
+      buttons[i].addEventListener('click', function () {
+        openDetail(this.getAttribute('data-detail'));
+      });
+    }
+  }
+
+  async function loadList(kind) {
+    const config = LISTS[kind];
+    if (!config) { return; }
+    const host = document.getElementById(config.list);
+    const empty = document.getElementById(config.empty);
+    const count = document.getElementById(config.count);
+    const total = document.getElementById(config.total);
+    const page = document.getElementById(config.page);
+    const prev = document.getElementById(config.prev);
+    const next = document.getElementById(config.next);
+    const batchNode = document.getElementById(config.batch);
+    const statusNode = document.getElementById(config.status);
+    const keywordNode = document.getElementById(config.keyword);
+
+    const params = new URLSearchParams();
+    params.set('node', config.node);
+    if (batchNode && batchNode.value) { params.set('batchId', batchNode.value); }
+    if (statusNode && statusNode.value) { params.set('status', statusNode.value); }
+    if (keywordNode && keywordNode.value.trim()) { params.set('keyword', keywordNode.value.trim()); }
+    params.set('page', String(listPage[kind]));
+    params.set('size', LIST_PAGE_SIZE);
+
+    const result = await callApi('/api/honor/review/list?' + params.toString());
+    if (result.code !== 200) {
+      if (host) { host.innerHTML = ''; }
+      if (empty) {
+        empty.textContent = '暂时读不到名单：该接口可能尚未开放，或服务暂不可用。请稍后刷新。';
+        empty.classList.remove('hidden');
+      }
+      if (count) { count.textContent = '—'; }
+      if (total) { total.textContent = ''; }
+      return;
+    }
+    const data = result.data;
+    // 后端 /api/honor/review/list 返回 { list, total, page, size }；兼容 { items } 与纯数组两种形态。
+    const items = (data && (data.list || data.items)) || (Array.isArray(data) ? data : []);
+    if (host) { host.innerHTML = items.map(reviewCardHtml).join(''); }
+    bindCardActions(kind);
+    if (empty) {
+      empty.textContent = '没有符合条件的申报。';
+      empty.classList.toggle('hidden', items.length > 0);
+    }
+    if (count) { count.textContent = String(data && data.total !== undefined ? data.total : items.length); }
+    listPages[kind] = (data && data.pages)
+      || Math.max(1, Math.ceil(((data && data.total) || items.length) / LIST_PAGE_SIZE));
+    if (page) { page.textContent = ((data && data.page) || listPage[kind]) + ' / ' + listPages[kind]; }
+    if (total) {
+      total.textContent = '本页 ' + items.length + ' 条 / 共 ' + ((data && data.total) || items.length) + ' 条';
+    }
+    if (prev) { prev.disabled = listPage[kind] <= 1; }
+    if (next) { next.disabled = listPage[kind] >= listPages[kind]; }
+  }
+
+  // ───────────────────────────── 公示与导出 ─────────────────────────────
+  function publicityRowHtml(item) {
+    return '<tr class="border-b border-base-200">'
+      + '<td class="py-2 pr-4">' + escapeHtml(text(item.name || item.studentName)) + '</td>'
+      + '<td class="py-2 pr-4 font-mono">' + escapeHtml(text(item.studentNoTail || item.tail || item.studentNoLast4)) + '</td>'
+      + '<td class="py-2 pr-4">' + escapeHtml(typeText(item.honorType)) + '</td>'
+      + '<td class="py-2 pr-4">' + escapeHtml(text(item.className)) + '</td>'
+      + '<td class="py-2 pr-4">' + escapeHtml(text(item.major)) + '</td>'
+      + '</tr>';
+  }
+
+  async function loadPublicity() {
+    const select = document.getElementById('pub-batch');
+    const host = document.getElementById('pub-list');
+    const empty = document.getElementById('pub-empty');
+    const count = document.getElementById('pub-count');
+    const batchId = select ? select.value : '';
+    if (!batchId) {
+      if (host) { host.innerHTML = ''; }
+      if (count) { count.textContent = '—'; }
+      if (empty) {
+        empty.textContent = '请先选择批次；批次进入「公示中」后脱敏名单会显示在这里。';
+        empty.classList.remove('hidden');
+      }
+      return;
+    }
+    const result = await callApi('/api/honor/publicity?batchId=' + encodeURIComponent(batchId));
+    if (result.code !== 200) {
+      if (host) { host.innerHTML = ''; }
+      if (count) { count.textContent = '—'; }
+      if (empty) {
+        empty.textContent = '暂时读不到公示名单：该接口可能尚未开放，或你当前没有查看权限。';
+        empty.classList.remove('hidden');
+      }
+      return;
+    }
+    const data = result.data;
+    const items = (data && data.items) || (Array.isArray(data) ? data : []);
+    if (host) { host.innerHTML = items.map(publicityRowHtml).join(''); }
+    if (count) { count.textContent = items.length ? String(items.length) + ' 人' : '—'; }
+    if (empty) {
+      empty.textContent = '该批次还没有公示名单：批次进入「公示中」后脱敏名单会显示在这里。';
+      empty.classList.toggle('hidden', items.length > 0);
+    }
+  }
+
+  async function exportBatch(batchId) {
+    if (!batchId) {
+      showMessage('请先选择批次再导出 CSV。', 'error');
+      return;
+    }
+    let response;
+    try {
+      response = await fetch('/api/honor/export?batchId=' + encodeURIComponent(batchId), { credentials: 'same-origin' });
+    } catch (err) {
+      showMessage('导出失败：无法连接服务，请稍后再试。', 'error');
+      return;
+    }
+    const contentType = response.headers.get('Content-Type') || '';
+    if (contentType.indexOf('json') >= 0) {
+      let result = null;
+      try { result = await response.json(); } catch (err) { result = null; }
+      if (result && result.code === 401) {
+        window.location.href = 'login.html';
+        return;
+      }
+      showMessage((result && result.message) || '导出失败：当前账号没有导出权限，或该批次没有名单。', 'error');
+      return;
+    }
+    if (!response.ok) {
+      showMessage('导出失败：服务返回 ' + response.status + '，请稍后再试。', 'error');
+      return;
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'honor-batch-' + batchId + '.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    showMessage('已开始下载导出名单（通知口径：推荐名单以平台导出为准）。', 'success');
+  }
+
+  // ───────────────────────────── 详情与审核 ─────────────────────────────
+  function checkItemsFrom(data) {
+    if (!data) { return []; }
+    if (Array.isArray(data.checks)) { return data.checks; }
+    if (Array.isArray(data.checkItems)) { return data.checkItems; }
+    return [];
+  }
+
+  function checkLabel(item) {
+    if (!item) { return '需人工核验'; }
+    if (item.auto !== true) { return '需人工核验'; }
+    if (item.passed === true) { return '自动核验通过'; }
+    if (item.passed === false) { return '自动核验不通过'; }
+    return '需人工核验';
+  }
+
+  function checkCls(item) {
+    if (!item || item.auto !== true) { return 'badge-ghost'; }
+    if (item.passed === true) { return 'badge-success'; }
+    if (item.passed === false) { return 'badge-error'; }
+    return 'badge-ghost';
+  }
+
+  function checkSource(item) {
+    if (item && item.source) { return String(item.source); }
+    if (item && item.key && CHECK_SOURCE_TEXT[item.key]) { return CHECK_SOURCE_TEXT[item.key]; }
+    return '人工核验（辅导员 / 学院审核意见）';
+  }
+
+  function checkValueText(item) {
+    const parts = [];
+    if (item && item.value !== null && item.value !== undefined && item.value !== '') {
+      parts.push('当前：' + String(item.value));
+    }
+    if (item && item.expected !== null && item.expected !== undefined && item.expected !== '') {
+      parts.push('要求：' + String(item.expected));
+    }
+    if (!parts.length) { return '该条件无法用平台已有数据自动判定，请在审核意见里说明。'; }
+    return parts.join(' · ');
+  }
+
+  function renderDetailChecks(list) {
+    const host = document.getElementById('detail-checks');
+    if (!host) { return; }
+    if (!list.length) {
+      host.innerHTML = '<p class="text-xs text-base-content/60">暂无自动核验结果：批次未配置 eval_term 或接口未返回该项，请人工核验全部条件。</p>';
+      return;
+    }
+    host.innerHTML = list.map(function (item) {
+      return '<div class="rounded-box border border-base-300 bg-base-100 p-3">'
+        + '<div class="flex flex-wrap items-center justify-between gap-2">'
+        + '<p class="text-sm font-semibold">' + escapeHtml(text(item.title || item.name)) + '</p>'
+        + '<span class="badge ' + checkCls(item) + ' badge-sm whitespace-nowrap">' + escapeHtml(checkLabel(item)) + '</span>'
+        + '</div>'
+        + '<p class="mt-1 text-xs text-base-content/70">' + escapeHtml(checkValueText(item)) + '</p>'
+        + '<p class="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/60">来源：'
+        + escapeHtml(checkSource(item)) + '</p>'
+        + '</div>';
+    }).join('');
+  }
+
+  function reviewRowHtml(review) {
+    return '<li class="rounded-box border border-base-300 bg-base-100 p-3">'
+      + '<div class="flex flex-wrap items-center justify-between gap-2">'
+      + '<p class="text-sm font-semibold">' + escapeHtml(text(NODE_TEXT[review.node] || review.nodeText || review.node)) + '</p>'
+      + '<span class="badge ' + (review.verdict === 'reject' ? 'badge-error' : 'badge-success')
+      + ' badge-sm whitespace-nowrap">' + escapeHtml(text(VERDICT_TEXT[review.verdict] || review.verdict)) + '</span>'
+      + '</div>'
+      + '<p class="mt-1 whitespace-pre-wrap text-sm text-base-content/80">'
+      + escapeHtml(review.comment || '未填写审核意见') + '</p>'
+      + '<p class="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/60">'
+      + escapeHtml(formatTime(review.reviewedAt)) + ' · 审核人 '
+      + escapeHtml(text(review.reviewerName || review.reviewerId)) + '</p>'
+      + '</li>';
+  }
+
+  function renderReviews(list) {
+    const host = document.getElementById('detail-reviews');
+    if (!host) { return; }
+    if (!list.length) {
+      host.innerHTML = '<li class="text-xs text-base-content/60">暂无审核流水：本申报还没有审核记录。</li>';
+      return;
+    }
+    host.innerHTML = list.map(reviewRowHtml).join('');
+  }
+
+  async function openDetail(id) {
+    currentActionId = id;
+    hideBoxMessage('detail-message');
+    setText('detail-title', '申报详情');
+    setText('detail-sub', '申报 #' + text(id) + '：正在读取…');
+    setValue('detail-comment', '');
+    checkRadio('detail-verdict', 'pass');
+    openDialog('detail-dialog');
+    const result = await callApi('/api/honor/review/detail/' + encodeURIComponent(id));
+    if (result.code !== 200 || !result.data) {
+      setText('detail-sub', '暂时读不到这份申报：该接口可能尚未开放，或它已经被撤回。');
+      renderDetailChecks([]);
+      renderReviews([]);
+      return;
+    }
+    const data = result.data;
+    const app = data.application || data;
+    const student = data.student || {};
+    setText('detail-title', field(app, ['batchName'], '申报详情'));
+    setText('detail-sub', field(app, ['studentName', 'name'], '') + ' · ' + field(app, ['studentNo'], '—')
+      + ' · ' + field(app, ['className'], '—') + ' · 提交于 ' + formatTime(field(app, ['submittedAt'], '')));
+    const statusNode = document.getElementById('detail-status');
+    if (statusNode) {
+      statusNode.textContent = APPLY_STATUS_TEXT[app.status] || text(app.status);
+    }
+    const typeNode = document.getElementById('detail-type');
+    if (typeNode) {
+      typeNode.textContent = typeText(app.honorType);
+    }
+    setText('detail-name', field(app, ['studentName', 'name'], '—'));
+    setText('detail-student-no', field(app, ['studentNo'], field(student, ['studentNo'], '—')));
+    setText('detail-class', field(app, ['className'], field(student, ['className'], '—')));
+    setText('detail-major', field(app, ['major'], field(student, ['major'], '—')));
+    setText('detail-year', field(app, ['academicYear'], '—'));
+    setText('detail-submitted', formatTime(field(app, ['submittedAt'], '')));
+    setText('detail-pe', field(app, ['peScore'], '—'));
+    setText('detail-phone', field(app, ['contactPhone'], '—'));
+    const noFail = field(app, ['noFailDeclared'], false);
+    const noViolation = field(app, ['noViolationDeclared'], false);
+    setText('detail-confirm', (noFail ? '已勾选：无不及格科目' : '未勾选：无不及格科目') + '；'
+      + (noViolation ? '已勾选：无违法违纪行为' : '未勾选：无违法违纪行为'));
+    setText('detail-statement', field(app, ['selfStatement'], '—'));
+    setText('detail-honors', field(app, ['honorsText'], '—'));
+    setText('detail-scholarships', field(app, ['scholarshipsText'], '—'));
+    setText('detail-material-note', field(app, ['materialNote'], '—'));
+    const rejectBox = document.getElementById('detail-reject');
+    if (rejectBox) {
+      if (app.status === 'rejected') {
+        rejectBox.classList.remove('hidden');
+        setText('detail-reject-reason', field(app, ['rejectReason'], '审核未通过。'));
+      } else {
+        rejectBox.classList.add('hidden');
+      }
+    }
+    renderDetailChecks(checkItemsFrom(data));
+    renderReviews(data.reviews || data.tracks || []);
+    updateCommentHint();
+  }
+
+  // 前端先按同一口径校验（以后端返回为准）
+  function commentProblem(value) {
+    const content = String(value === null || value === undefined ? '' : value).trim();
+    if (content.length < 8) {
+      return '学院推荐意见至少 8 字：请写明学生表现或推荐理由（通知要求：不可只写「同意推荐」）。';
+    }
+    const plain = content.replace(/[。．.，,、；;：:！!？?「」【】（）()\s]/g, '');
+    const empty = ['同意推荐', '同意', '通过', '同意通过', '无意见', '无', '可以', '同意上报'];
+    for (let i = 0; i < empty.length; i += 1) {
+      if (plain === empty[i]) {
+        return '学院推荐意见请简要写明学生表现或推荐理由（通知要求：不可只写「同意推荐」）。';
+      }
+    }
+    return '';
+  }
+
+  function updateCommentHint() {
+    const node = document.getElementById('detail-comment');
+    const hint = document.getElementById('detail-comment-hint');
+    if (!node || !hint) { return; }
+    const length = node.value.trim().length;
+    const problem = commentProblem(node.value);
+    if (!length) {
+      hint.textContent = '学院推荐意见不可只写「同意推荐」：请写明学生表现或推荐理由（通知注意事项 4）。';
+      return;
+    }
+    hint.textContent = '已填 ' + length + ' 字' + (problem ? '：' + problem : '（格式检查通过，最终以后端校验为准）。');
+  }
+
+  function updateVerdictHint() {
+    const hint = document.getElementById('detail-verdict-hint');
+    if (!hint) { return; }
+    if (radioValue('detail-verdict') === 'reject') {
+      hint.textContent = '驳回时请写清缺什么、怎么补：学生端会看到这段意见与审核进度（通知要求让学生及时知晓学院审核意见）。';
+    } else {
+      hint.textContent = '通过也要写实：写明学生表现或推荐理由，学院推荐意见不可只写「同意推荐」。';
+    }
+  }
+
+  async function submitReview() {
+    if (!currentActionId) {
+      showBoxMessage('detail-message', '没有选中申报，请关闭后重新打开。', 'error');
+      return;
+    }
+    const verdict = radioValue('detail-verdict');
+    if (!verdict) {
+      showBoxMessage('detail-message', '请先选择审核结论：通过或驳回。', 'error');
+      return;
+    }
+    const commentNode = document.getElementById('detail-comment');
+    const comment = commentNode ? commentNode.value.trim() : '';
+    const problem = commentProblem(comment);
+    if (problem) {
+      showBoxMessage('detail-message', problem, 'error');
+      return;
+    }
+    const save = document.getElementById('detail-save');
+    if (save) { save.disabled = true; }
+    const result = await callApi('/api/honor/review/' + encodeURIComponent(currentActionId), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ verdict: verdict, comment: comment })
+    });
+    if (save) { save.disabled = false; }
+    if (result.code !== 200) {
+      showBoxMessage('detail-message', result.message
+        || '提交失败：学院推荐意见请简要写明学生表现或推荐理由（通知要求：不可只写「同意推荐」）。', 'error');
+      return;
+    }
+    closeDialog('detail-dialog');
+    showMessage(result.message || (verdict === 'reject' ? '已驳回：学生端会看到意见与进度。' : '审核意见已提交。'), 'success');
+    await loadList(currentTab === 'publicity' ? currentTab : currentTab);
+    await loadBatches();
+    await refreshStats();
+  }
+
+  // ───────────────────────────── 批次管理 ─────────────────────────────
+  function quotaText(batch) {
+    if (batch && batch.quota !== null && batch.quota !== undefined && batch.quota !== '') {
+      return String(batch.quota) + ' 名';
+    }
+    return '以当年文件为准';
+  }
+
+  function batchRowHtml(batch) {
+    const id = escapeHtml(batch.id);
+    const actions = [];
+    actions.push('<button class="btn btn-ghost btn-sm rounded-full" data-batch-edit="' + id + '" type="button">编辑</button>');
+    if (batch.status === 'draft') {
+      actions.push('<button class="btn btn-primary btn-sm rounded-full" data-batch-publish="' + id + '" type="button">发布（draft → 申报中）</button>');
+    }
+    if (batch.status === 'recruiting' || batch.status === 'reviewing') {
+      actions.push('<button class="btn btn-primary btn-sm rounded-full" data-batch-publicize="' + id + '" type="button">进入公示</button>');
+    }
+    if (batch.status === 'publicity') {
+      actions.push('<button class="btn btn-primary btn-sm rounded-full" data-batch-finish="' + id + '" type="button">结束（公示 → 已结束）</button>');
+    }
+    actions.push('<button class="btn btn-ghost btn-sm rounded-full gap-2" data-batch-export="' + id + '" type="button">'
+      + '<span class="material-symbols-outlined text-lg">download</span><span>导出 CSV</span></button>');
+    return '<article class="card rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">'
+      + '<div class="flex flex-wrap items-start justify-between gap-3">'
+      + '<div class="min-w-0">'
+      + '<h3 class="font-bold">' + escapeHtml(text(batch.batchName)) + '</h3>'
+      + '<p class="mt-1 text-xs text-base-content/65">' + escapeHtml(typeText(batch.honorType)) + ' · '
+      + escapeHtml(text(batch.academicYear)) + ' · 申报 ' + escapeHtml(text(batch.applyStart)) + ' 至 '
+      + escapeHtml(text(batch.applyEnd)) + ' · 审核截止 ' + escapeHtml(text(batch.reviewEnd)) + '</p>'
+      + '</div>'
+      + '<div class="flex flex-wrap items-center gap-1.5">'
+      + '<span class="badge ' + batchStatusCls(batch.status) + ' badge-sm whitespace-nowrap">'
+      + escapeHtml(BATCH_STATUS_TEXT[batch.status] || text(batch.status)) + '</span>'
+      + '</div>'
+      + '</div>'
+      + '<dl class="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 md:grid-cols-3">'
+      + '<div>'
+      + '<dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">名额</dt>'
+      + '<dd class="mt-0.5 text-sm">' + escapeHtml(quotaText(batch)) + '</dd>'
+      + '</div>'
+      + '<div>'
+      + '<dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">名额说明</dt>'
+      + '<dd class="mt-0.5 text-sm">' + escapeHtml(batch.quotaNote || '以当年文件为准') + '</dd>'
+      + '</div>'
+      + '<div>'
+      + '<dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">自动核验学期</dt>'
+      + '<dd class="mt-0.5 text-sm">' + escapeHtml(batch.evalTerm || '未配置（综测排名需人工核验）') + '</dd>'
+      + '</div>'
+      + '<div>'
+      + '<dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">公示天数</dt>'
+      + '<dd class="mt-0.5 text-sm">' + escapeHtml(text(batch.publicityDays)) + '</dd>'
+      + '</div>'
+      + '<div>'
+      + '<dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">公示期</dt>'
+      + '<dd class="mt-0.5 text-sm">' + escapeHtml(formatTime(batch.publicityStart)) + ' 至 '
+      + escapeHtml(formatTime(batch.publicityEnd)) + '</dd>'
+      + '</div>'
+      + '<div>'
+      + '<dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">通知</dt>'
+      + '<dd class="mt-0.5 text-sm">' + escapeHtml(batch.noticeTitle || '未登记') + '</dd>'
+      + '</div>'
+      + '</dl>'
+      + '<div class="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-base-300 pt-4">'
+      + actions.join('')
+      + '</div>'
+      + '</article>';
+  }
+
+  function bindBatchActions() {
+    const host = document.getElementById('batch-list');
+    if (!host) { return; }
+    const editButtons = host.querySelectorAll('[data-batch-edit]');
+    for (let i = 0; i < editButtons.length; i += 1) {
+      editButtons[i].addEventListener('click', function () {
+        openBatch(this.getAttribute('data-batch-edit'));
+      });
+    }
+    const publishButtons = host.querySelectorAll('[data-batch-publish]');
+    for (let j = 0; j < publishButtons.length; j += 1) {
+      publishButtons[j].addEventListener('click', function () {
+        runBatchAction(this.getAttribute('data-batch-publish'), 'publish', '批次已发布：学生端现在可以申报。');
+      });
+    }
+    const publicizeButtons = host.querySelectorAll('[data-batch-publicize]');
+    for (let k = 0; k < publicizeButtons.length; k += 1) {
+      publicizeButtons[k].addEventListener('click', function () {
+        runBatchAction(this.getAttribute('data-batch-publicize'), 'publicize', '批次已进入公示：公示栏会显示脱敏名单。');
+      });
+    }
+    const finishButtons = host.querySelectorAll('[data-batch-finish]');
+    for (let l = 0; l < finishButtons.length; l += 1) {
+      finishButtons[l].addEventListener('click', function () {
+        runBatchAction(this.getAttribute('data-batch-finish'), 'finish', '批次已结束。');
+      });
+    }
+    const exportButtons = host.querySelectorAll('[data-batch-export]');
+    for (let m = 0; m < exportButtons.length; m += 1) {
+      exportButtons[m].addEventListener('click', function () {
+        exportBatch(this.getAttribute('data-batch-export'));
+      });
+    }
+  }
+
+  async function loadBatches() {
+    const host = document.getElementById('batch-list');
+    const empty = document.getElementById('batch-empty');
+    const count = document.getElementById('batch-count');
+    batches = [];
+    const result = await callApi('/api/honor/batches');
+    if (result.code !== 200) {
+      if (host) { host.innerHTML = ''; }
+      if (empty) {
+        empty.textContent = '暂时读不到批次：该接口可能尚未开放，或服务暂不可用。请稍后刷新。';
+        empty.classList.remove('hidden');
+      }
+      if (count) { count.textContent = '—'; }
+      return;
+    }
+    const data = result.data;
+    batches = (data && data.items) || (Array.isArray(data) ? data : []);
+    for (let i = 0; i < batches.length; i += 1) {
+      batchCache[String(batches[i].id)] = batches[i];
+    }
+    if (host) { host.innerHTML = batches.map(batchRowHtml).join(''); }
+    bindBatchActions();
+    if (empty) {
+      empty.textContent = '还没有批次：点「新建批次」创建后发布，学生端才会出现申报入口。';
+      empty.classList.toggle('hidden', batches.length > 0);
+    }
+    if (count) { count.textContent = batches.length ? String(batches.length) + ' 个批次' : '—'; }
+  }
+
+  function fillBatchOptions() {
+    const ids = ['counselor-batch', 'college-batch', 'dept-batch', 'pub-batch'];
+    for (let i = 0; i < ids.length; i += 1) {
+      const select = document.getElementById(ids[i]);
+      if (!select) { continue; }
+      const keep = select.value;
+      let html = '<option value="">' + (ids[i] === 'pub-batch' ? '选择批次' : '全部批次') + '</option>';
+      for (let j = 0; j < batches.length; j += 1) {
+        html += '<option value="' + escapeHtml(batches[j].id) + '">' + escapeHtml(text(batches[j].batchName))
+          + ' · ' + escapeHtml(BATCH_STATUS_TEXT[batches[j].status] || text(batches[j].status)) + '</option>';
+      }
+      select.innerHTML = html;
+      if (keep) { select.value = keep; }
+    }
+  }
+
+  async function runBatchAction(batchId, action, okMessage) {
+    const result = await callApi('/api/honor/batches/' + encodeURIComponent(batchId) + '/' + action, { method: 'POST' });
+    if (result.code !== 200) {
+      showMessage(result.message || '操作失败：当前状态不允许这一步，请刷新后重试。', 'error');
+      return;
+    }
+    showMessage(result.message || okMessage, 'success');
+    await loadBatches();
+    fillBatchOptions();
+    await refreshStats();
+  }
+
+  function openBatch(id) {
+    const batch = id ? batchCache[id] : null;
+    hideBoxMessage('batch-message');
+    setText('batch-dialog-title', batch ? '编辑批次' : '新建批次');
+    setText('batch-target', batch
+      ? '编辑：' + text(batch.batchName) + '。已进入公示的批次请谨慎改名额与条件。'
+      : '名额与比例请照抄当年评选文件；留空的字段学生在申报页会看到「以当年文件为准」。');
+    setValue('batch-id', batch ? batch.id : '');
+    setValue('batch-name', batch ? batch.batchName : '');
+    setValue('batch-type', batch && batch.honorType ? batch.honorType : 'graduate_outstanding');
+    setValue('batch-year', batch ? batch.academicYear : '');
+    setValue('batch-eval-term', batch ? batch.evalTerm : '');
+    setValue('batch-quota', batch && batch.quota !== null && batch.quota !== undefined ? batch.quota : '');
+    setValue('batch-quota-note', batch ? batch.quotaNote : '');
+    setValue('batch-criteria', batch ? batch.criteria : '');
+    setValue('batch-materials', batch ? batch.materials : '');
+    setValue('batch-apply-start', batch ? batch.applyStart : '');
+    setValue('batch-apply-end', batch ? batch.applyEnd : '');
+    setValue('batch-review-end', batch ? batch.reviewEnd : '');
+    setValue('batch-publicity-days', batch && batch.publicityDays !== undefined ? batch.publicityDays : 5);
+    setValue('batch-notice-title', batch ? batch.noticeTitle : '');
+    setValue('batch-notice-url', batch ? batch.noticeUrl : '');
+    openDialog('batch-dialog');
+  }
+
+  async function submitBatch() {
+    const nameNode = document.getElementById('batch-name');
+    const yearNode = document.getElementById('batch-year');
+    const typeNode = document.getElementById('batch-type');
+    const name = nameNode ? nameNode.value.trim() : '';
+    const year = yearNode ? yearNode.value.trim() : '';
+    if (!name) {
+      showBoxMessage('batch-message', '批次名必填，如「2026届优秀毕业生评选」。', 'error');
+      return;
+    }
+    if (!year) {
+      showBoxMessage('batch-message', '学年必填，如「2025-2026」。', 'error');
+      return;
+    }
+    const idNode = document.getElementById('batch-id');
+    const id = idNode ? idNode.value.trim() : '';
+    const quotaNode = document.getElementById('batch-quota');
+    const quotaText2 = quotaNode ? quotaNode.value.trim() : '';
+    let quota = null;
+    if (quotaText2) {
+      const parsed = Number(quotaText2);
+      if (isNaN(parsed)) {
+        showBoxMessage('batch-message', '名额请填数字，或留空表示按文件比例。', 'error');
+        return;
+      }
+      quota = parsed;
+    }
+    const daysNode = document.getElementById('batch-publicity-days');
+    const days = daysNode && daysNode.value.trim() ? Number(daysNode.value.trim()) : 5;
+    if (isNaN(days) || days < 1) {
+      showBoxMessage('batch-message', '公示天数请填正整数，如 5。', 'error');
+      return;
+    }
+    const payload = {
+      batchName: name,
+      honorType: typeNode ? typeNode.value : 'graduate_outstanding',
+      academicYear: year,
+      evalTerm: (document.getElementById('batch-eval-term') || {}).value || '',
+      quota: quota,
+      quotaNote: (document.getElementById('batch-quota-note') || {}).value || '',
+      criteria: (document.getElementById('batch-criteria') || {}).value || '',
+      materials: (document.getElementById('batch-materials') || {}).value || '',
+      applyStart: (document.getElementById('batch-apply-start') || {}).value || null,
+      applyEnd: (document.getElementById('batch-apply-end') || {}).value || null,
+      reviewEnd: (document.getElementById('batch-review-end') || {}).value || null,
+      publicityDays: days,
+      noticeTitle: (document.getElementById('batch-notice-title') || {}).value || '',
+      noticeUrl: (document.getElementById('batch-notice-url') || {}).value || ''
+    };
+    if (id) { payload.id = toNumber(id); }
+    const result = await callApi('/api/honor/batches', {
+      method: id ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (result.code !== 200) {
+      showBoxMessage('batch-message', result.message || '保存失败：请检查必填项与日期格式。', 'error');
+      return;
+    }
+    closeDialog('batch-dialog');
+    showMessage(result.message || '批次已保存。', 'success');
+    await loadBatches();
+    fillBatchOptions();
+  }
+
+  // ───────────────────────────── 页签 ─────────────────────────────
+  async function switchTab(name) {
+    currentTab = TAB_PANELS[name] ? name : 'counselor';
+    const keys = Object.keys(TAB_PANELS);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = keys[i];
+      const panel = document.getElementById(TAB_PANELS[key]);
+      const button = document.getElementById(TAB_BUTTONS[key]);
+      const active = key === currentTab;
+      if (panel) { panel.classList.toggle('hidden', !active); }
+      if (button) { button.classList.toggle('is-active', active); }
+    }
+    if (currentTab === 'publicity') {
+      await loadPublicity();
+    } else {
+      await loadList(currentTab);
+    }
+  }
+
+  // ───────────────────────────── 事件接线 ─────────────────────────────
+  async function logout() {
+    await callApi('/api/auth/logout', { method: 'POST' });
+    window.location.href = 'login.html';
+  }
+
+  const FILTER_IDS = [
+    { id: 'counselor-batch', kind: 'counselor' },
+    { id: 'counselor-status', kind: 'counselor' },
+    { id: 'college-batch', kind: 'college' },
+    { id: 'college-status', kind: 'college' },
+    { id: 'dept-batch', kind: 'dept' },
+    { id: 'dept-status', kind: 'dept' }
+  ];
+  const SEARCH_IDS = [
+    { search: 'counselor-search', keyword: 'counselor-keyword', kind: 'counselor' },
+    { search: 'college-search', keyword: 'college-keyword', kind: 'college' },
+    { search: 'dept-search', keyword: 'dept-keyword', kind: 'dept' }
+  ];
+  const REFRESH_IDS = [
+    { id: 'counselor-refresh', kind: 'counselor' },
+    { id: 'college-refresh', kind: 'college' },
+    { id: 'dept-refresh', kind: 'dept' }
+  ];
+
+  function bindEvents() {
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) { logoutBtn.addEventListener('click', logout); }
+
+    const tabKeys = Object.keys(TAB_BUTTONS);
+    for (let i = 0; i < tabKeys.length; i += 1) {
+      const button = document.getElementById(TAB_BUTTONS[tabKeys[i]]);
+      if (button) {
+        button.addEventListener('click', function () { switchTab(this.getAttribute('data-tab') || ''); });
+        button.setAttribute('data-tab', tabKeys[i]);
+      }
+    }
+
+    for (let i = 0; i < FILTER_IDS.length; i += 1) {
+      const node = document.getElementById(FILTER_IDS[i].id);
+      const kind = FILTER_IDS[i].kind;
+      if (node) {
+        node.addEventListener('change', function () {
+          listPage[kind] = 1;
+          loadList(kind);
+        });
+      }
+    }
+
+    for (let j = 0; j < SEARCH_IDS.length; j += 1) {
+      const search = document.getElementById(SEARCH_IDS[j].search);
+      const keyword = document.getElementById(SEARCH_IDS[j].keyword);
+      const kind = SEARCH_IDS[j].kind;
+      if (search) {
+        search.addEventListener('click', function () {
+          listPage[kind] = 1;
+          loadList(kind);
+        });
+      }
+      if (keyword) {
+        keyword.addEventListener('keydown', function (event) {
+          if (event.key === 'Enter') {
+            listPage[kind] = 1;
+            loadList(kind);
+          }
+        });
+      }
+    }
+
+    for (let k = 0; k < REFRESH_IDS.length; k += 1) {
+      const refresh = document.getElementById(REFRESH_IDS[k].id);
+      const kind = REFRESH_IDS[k].kind;
+      if (refresh) {
+        refresh.addEventListener('click', function () { loadList(kind); });
+      }
+    }
+
+    const kindKeys = Object.keys(LISTS);
+    for (let m = 0; m < kindKeys.length; m += 1) {
+      const config = LISTS[kindKeys[m]];
+      const kind = kindKeys[m];
+      const prev = document.getElementById(config.prev);
+      const next = document.getElementById(config.next);
+      if (prev) {
+        prev.addEventListener('click', function () {
+          if (listPage[kind] > 1) { listPage[kind] -= 1; loadList(kind); }
+        });
+      }
+      if (next) {
+        next.addEventListener('click', function () {
+          if (listPage[kind] < listPages[kind]) { listPage[kind] += 1; loadList(kind); }
+        });
+      }
+    }
+
+    const pubBatch = document.getElementById('pub-batch');
+    if (pubBatch) { pubBatch.addEventListener('change', loadPublicity); }
+    const pubRefresh = document.getElementById('pub-refresh');
+    if (pubRefresh) { pubRefresh.addEventListener('click', loadPublicity); }
+    const pubExport = document.getElementById('pub-export');
+    if (pubExport) {
+      pubExport.addEventListener('click', function () {
+        const select = document.getElementById('pub-batch');
+        exportBatch(select ? select.value : '');
+      });
+    }
+
+    const batchRefresh = document.getElementById('batch-refresh');
+    if (batchRefresh) {
+      batchRefresh.addEventListener('click', function () {
+        loadBatches().then(fillBatchOptions);
+      });
+    }
+    const batchCreate = document.getElementById('batch-create');
+    if (batchCreate) { batchCreate.addEventListener('click', function () { openBatch(null); }); }
+    const batchCancel = document.getElementById('batch-cancel');
+    if (batchCancel) { batchCancel.addEventListener('click', function () { closeDialog('batch-dialog'); }); }
+    const batchSave = document.getElementById('batch-save');
+    if (batchSave) { batchSave.addEventListener('click', submitBatch); }
+
+    const detailClose = document.getElementById('detail-close');
+    if (detailClose) { detailClose.addEventListener('click', function () { closeDialog('detail-dialog'); }); }
+    const detailCancel = document.getElementById('detail-cancel');
+    if (detailCancel) { detailCancel.addEventListener('click', function () { closeDialog('detail-dialog'); }); }
+    const detailSave = document.getElementById('detail-save');
+    if (detailSave) { detailSave.addEventListener('click', submitReview); }
+    const comment = document.getElementById('detail-comment');
+    if (comment) { comment.addEventListener('input', updateCommentHint); }
+    const verdicts = document.querySelectorAll('input[name="detail-verdict"]');
+    for (let n = 0; n < verdicts.length; n += 1) {
+      verdicts[n].addEventListener('change', updateVerdictHint);
+    }
+
+    // ESC 关闭当前弹窗；点遮罩（容器自身）也关闭。
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') { closeOpenDialogs(); }
+    });
+    const scrims = document.querySelectorAll('.nx-scrim');
+    for (let p = 0; p < scrims.length; p += 1) {
+      scrims[p].addEventListener('click', function (event) {
+        if (event.target === this) {
+          this.classList.add('hidden');
+          this.classList.remove('flex');
+        }
+      });
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', async function () {
+    clearMessage();
+    // URL 预填：?node=&batchId=&keyword=（node 决定默认页签）
+    const params = new URLSearchParams(window.location.search);
+    const preNode = params.get('node') || '';
+    const preBatch = params.get('batchId') || '';
+    const preKeyword = params.get('keyword') || '';
+    if (preNode && TAB_PANELS[preNode]) {
+      currentTab = preNode;
+    }
+    if (preBatch) {
+      setValue('counselor-batch', preBatch);
+      setValue('college-batch', preBatch);
+      setValue('dept-batch', preBatch);
+    }
+    if (preKeyword) {
+      setValue('counselor-keyword', preKeyword);
+      setValue('college-keyword', preKeyword);
+      setValue('dept-keyword', preKeyword);
+    }
+    updateVerdictHint();
+    updateCommentHint();
+    bindEvents();
+    const me = await checkAuth();
+    if (!me) { return; }
+    await loadBatches();
+    fillBatchOptions();
+    if (preBatch) {
+      const pubBatch = document.getElementById('pub-batch');
+      if (pubBatch) { pubBatch.value = preBatch; }
+    }
+    await switchTab(currentTab);
+    await refreshStats();
+  });
+</script>
+<script defer src="/js/nest-ui.js"></script>
+<script defer src="/libs/animejs/anime.umd.min.js"></script>
+<script defer src="/libs/countup/countUp.umd.js"></script>
+<script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+<script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+<script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+</body>
+</html>

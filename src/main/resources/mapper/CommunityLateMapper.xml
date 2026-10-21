@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.CommunityLateMapper">
+
+    <!-- 晚归 / 夜不归宿台账（学工 P15）。handling 是状态列（CAS 谓词用它）。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.CommunityLate">
+        <id column="id" property="id"/>
+        <result column="student_id" property="studentId"/>
+        <result column="building" property="building"/>
+        <result column="room_no" property="roomNo"/>
+        <result column="occur_date" property="occurDate"/>
+        <result column="type" property="type"/>
+        <result column="out_time" property="outTime"/>
+        <result column="in_time" property="inTime"/>
+        <result column="source" property="source"/>
+        <result column="reason" property="reason"/>
+        <result column="reason_note" property="reasonNote"/>
+        <result column="student_note" property="studentNote"/>
+        <result column="confirmed" property="confirmed"/>
+        <result column="confirmed_by" property="confirmedBy"/>
+        <result column="confirmed_at" property="confirmedAt"/>
+        <result column="counselor_id" property="counselorId"/>
+        <result column="handling" property="handling"/>
+        <result column="handling_note" property="handlingNote"/>
+        <result column="violation_id" property="violationId"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="counselor_name" property="counselorName"/>
+        <result column="confirmed_by_name" property="confirmedByName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        l.id, l.student_id, l.building, l.room_no, l.occur_date, l.type, l.out_time, l.in_time,
+        l.source, l.reason, l.reason_note, l.student_note, l.confirmed, l.confirmed_by, l.confirmed_at,
+        l.counselor_id, l.handling, l.handling_note, l.violation_id,
+        l.created_at, l.updated_at, l.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        p.student_no AS student_no,
+        p.class_name AS class_name,
+        COALESCE(NULLIF(cs.real_name, ''), cs.nickname, cs.username) AS counselor_name,
+        COALESCE(NULLIF(cb.real_name, ''), cb.nickname, cb.username) AS confirmed_by_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM community_late l
+        LEFT JOIN users u ON u.id = l.student_id
+        LEFT JOIN student_profile p ON p.user_id = l.student_id AND p.deleted = 0
+        LEFT JOIN users cs ON cs.id = l.counselor_id
+        LEFT JOIN users cb ON cb.id = l.confirmed_by
+    </sql>
+
+    <sql id="List_Filters">
+        <if test="studentId != null">AND l.student_id = #{studentId}</if>
+        <if test="building != null and building != ''">AND l.building = #{building}</if>
+        <if test="type != null and type != ''">AND l.type = #{type}</if>
+        <if test="handling != null and handling != ''">AND l.handling = #{handling}</if>
+        <if test="confirmed != null">AND l.confirmed = #{confirmed}</if>
+        <if test="startDate != null">AND l.occur_date &gt;= #{startDate}</if>
+        <if test="endDate != null">AND l.occur_date &lt;= #{endDate}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (l.reason_note LIKE CONCAT('%', #{keyword}, '%')
+                 OR l.building LIKE CONCAT('%', #{keyword}, '%')
+                 OR l.room_no LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.real_name LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <!-- 辅导员只看名下学生（student_profile.counselor_id 口径） -->
+        <if test="counselorId != null">
+            AND EXISTS (SELECT 1 FROM student_profile sp
+                         WHERE sp.deleted = 0 AND sp.counselor_id = #{counselorId}
+                           AND sp.user_id = l.student_id)
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.CommunityLate" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO community_late
+            (student_id, building, room_no, occur_date, type, out_time, in_time, source, reason,
+             reason_note, student_note, confirmed, confirmed_by, confirmed_at, counselor_id,
+             handling, handling_note, violation_id, created_at, updated_at, deleted)
+        VALUES
+            (#{studentId}, #{building}, #{roomNo}, #{occurDate}, #{type}, #{outTime}, #{inTime}, #{source},
+             #{reason}, #{reasonNote}, #{studentNote}, #{confirmed}, #{confirmedBy}, #{confirmedAt},
+             #{counselorId}, #{handling}, #{handlingNote}, #{violationId}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE l.id = #{id} AND l.deleted = 0
+    </select>
+
+    <select id="findByStudentDate" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE l.student_id = #{studentId} AND l.occur_date = #{occurDate} AND l.type = #{type}
+          AND l.deleted = 0
+        ORDER BY l.id DESC
+        LIMIT 1
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE l.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY l.occur_date DESC, l.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countList" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE l.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <!-- CAS：只改事实字段，不动 handling（处理推进走 handle） -->
+    <update id="update">
+        UPDATE community_late
+        SET building = #{late.building},
+            room_no = #{late.roomNo},
+            occur_date = #{late.occurDate},
+            type = #{late.type},
+            out_time = #{late.outTime},
+            in_time = #{late.inTime},
+            source = #{late.source},
+            reason = #{late.reason},
+            reason_note = #{late.reasonNote},
+            updated_at = NOW()
+        WHERE id = #{late.id} AND deleted = 0 AND handling = #{fromStatus}
+    </update>
+
+    <update id="confirm">
+        UPDATE community_late
+        SET confirmed = 1, confirmed_by = #{by}, confirmed_at = #{at}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND confirmed = 0
+    </update>
+
+    <update id="handle">
+        UPDATE community_late
+        SET handling = #{handling},
+            handling_note = #{handlingNote},
+            violation_id = #{violationId},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND handling = #{fromStatus}
+    </update>
+
+    <update id="submitNote">
+        UPDATE community_late
+        SET student_note = #{note}, updated_at = NOW()
+        WHERE id = #{id} AND student_id = #{studentId} AND deleted = 0
+    </update>
+
+    <update id="linkViolation">
+        UPDATE community_late
+        SET violation_id = #{violationId}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND violation_id IS NULL
+    </update>
+
+    <sql id="Stat_Filters">
+        <if test="startDate != null">AND l.occur_date &gt;= #{startDate}</if>
+        <if test="endDate != null">AND l.occur_date &lt;= #{endDate}</if>
+        <if test="counselorId != null">
+            AND EXISTS (SELECT 1 FROM student_profile sp
+                         WHERE sp.deleted = 0 AND sp.counselor_id = #{counselorId}
+                           AND sp.user_id = l.student_id)
+        </if>
+    </sql>
+
+    <select id="countGroupByType" resultType="java.util.LinkedHashMap">
+        SELECT l.type AS type, COUNT(*) AS total
+        FROM community_late l
+        WHERE l.deleted = 0
+        <include refid="Stat_Filters"/>
+        GROUP BY l.type
+        ORDER BY l.type
+    </select>
+
+    <select id="countGroupByHandling" resultType="java.util.LinkedHashMap">
+        SELECT l.handling AS handling, COUNT(*) AS total
+        FROM community_late l
+        WHERE l.deleted = 0
+        <include refid="Stat_Filters"/>
+        GROUP BY l.handling
+        ORDER BY l.handling
+    </select>
+
+    <select id="summary" resultType="java.util.LinkedHashMap">
+        SELECT COUNT(*) AS total,
+               SUM(CASE WHEN l.type = 'late' THEN 1 ELSE 0 END) AS late_count,
+               SUM(CASE WHEN l.type = 'absent' THEN 1 ELSE 0 END) AS absent_count,
+               SUM(CASE WHEN l.confirmed = 0 THEN 1 ELSE 0 END) AS unconfirmed,
+               SUM(CASE WHEN l.handling = 'pending' THEN 1 ELSE 0 END) AS pending,
+               SUM(CASE WHEN l.handling = 'contacted' THEN 1 ELSE 0 END) AS contacted,
+               SUM(CASE WHEN l.handling = 'closed' THEN 1 ELSE 0 END) AS closed
+        FROM community_late l
+        WHERE l.deleted = 0
+        <include refid="Stat_Filters"/>
+    </select>
+
+    <select id="countStudentOfCounselor" resultType="int">
+        SELECT COUNT(*)
+        FROM student_profile p
+        WHERE p.deleted = 0 AND p.counselor_id = #{counselorId} AND p.user_id = #{studentId}
+    </select>
+
+</mapper>

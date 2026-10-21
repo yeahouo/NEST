@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.PsycheAppointmentMapper">
+
+    <!-- 学工 P14：预约咨询（S16 每次 50 分钟 / 周一至周五 8:00-17:00 / 提前一个工作日；S17 线上与续约）。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.PsycheAppointment">
+        <id column="id" property="id"/>
+        <result column="student_id" property="studentId"/>
+        <result column="counselor_id" property="counselorId"/>
+        <result column="mode" property="mode"/>
+        <result column="main_issue" property="mainIssue"/>
+        <result column="contact_phone" property="contactPhone"/>
+        <result column="expect_start" property="expectStart"/>
+        <result column="expect_end" property="expectEnd"/>
+        <result column="duration_minutes" property="durationMinutes"/>
+        <result column="status" property="status"/>
+        <result column="confirmed_at" property="confirmedAt"/>
+        <result column="confirmed_by" property="confirmedBy"/>
+        <result column="finished_at" property="finishedAt"/>
+        <result column="cancel_reason" property="cancelReason"/>
+        <result column="renewed_from" property="renewedFrom"/>
+        <result column="note" property="note"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="counselor_name" property="counselorName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        a.id, a.student_id, a.counselor_id, a.mode, a.main_issue, a.contact_phone, a.expect_start,
+        a.expect_end, a.duration_minutes, a.status, a.confirmed_at, a.confirmed_by, a.finished_at,
+        a.cancel_reason, a.renewed_from, a.note, a.created_at, a.updated_at, a.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(u.student_id, '') AS student_no,
+        COALESCE(sp.class_name, '') AS class_name,
+        COALESCE(NULLIF(c.real_name, ''), c.nickname, c.username) AS counselor_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM psyche_appointment a
+        LEFT JOIN users u ON u.id = a.student_id
+        LEFT JOIN student_profile sp ON sp.user_id = a.student_id AND sp.deleted = 0
+        LEFT JOIN users c ON c.id = a.counselor_id
+    </sql>
+
+    <!-- scope 非空 = teacher 口径：名下学生的预约，或自己作为咨询师的预约 -->
+    <sql id="List_Filters">
+        <if test="status != null and status != ''">AND a.status = #{status}</if>
+        <if test="mode != null and mode != ''">AND a.mode = #{mode}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.student_id LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="scope != null">AND (sp.counselor_id = #{scope} OR a.counselor_id = #{scope})</if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.PsycheAppointment"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO psyche_appointment
+            (student_id, counselor_id, mode, main_issue, contact_phone, expect_start, expect_end,
+             duration_minutes, status, confirmed_at, confirmed_by, finished_at, cancel_reason,
+             renewed_from, note, created_at, updated_at, deleted)
+        VALUES
+            (#{studentId}, #{counselorId}, #{mode}, #{mainIssue}, #{contactPhone}, #{expectStart}, #{expectEnd},
+             #{durationMinutes}, #{status}, #{confirmedAt}, #{confirmedBy}, #{finishedAt}, #{cancelReason},
+             #{renewedFrom}, #{note}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE a.id = #{id} AND a.deleted = 0
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE a.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY a.expect_start DESC, a.id DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="count" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE a.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <select id="listByStudent" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE a.student_id = #{studentId} AND a.deleted = 0
+        ORDER BY a.expect_start DESC, a.id DESC
+    </select>
+
+    <select id="countPendingByStudent" resultType="int">
+        SELECT COUNT(*)
+        FROM psyche_appointment a
+        WHERE a.student_id = #{studentId} AND a.deleted = 0 AND a.status IN ('requested', 'confirmed')
+    </select>
+
+    <!-- requested → confirmed（CAS，S17 提前半天确认由服务层在 message 里提示） -->
+    <update id="confirm">
+        UPDATE psyche_appointment
+        SET status = 'confirmed', confirmed_at = #{confirmedAt}, confirmed_by = #{confirmedBy}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- confirmed → done（CAS） -->
+    <update id="complete">
+        UPDATE psyche_appointment
+        SET status = 'done', finished_at = #{finishedAt}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- requested/confirmed → cancelled（CAS） -->
+    <update id="cancel">
+        UPDATE psyche_appointment
+        SET status = 'cancelled', cancel_reason = #{cancelReason}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <select id="countGroupByStatus" resultType="java.util.Map">
+        SELECT a.status AS status, COUNT(*) AS cnt
+        FROM psyche_appointment a
+        LEFT JOIN student_profile sp ON sp.user_id = a.student_id AND sp.deleted = 0
+        WHERE a.deleted = 0
+        <if test="scope != null">AND (sp.counselor_id = #{scope} OR a.counselor_id = #{scope})</if>
+        GROUP BY a.status
+    </select>
+
+</mapper>

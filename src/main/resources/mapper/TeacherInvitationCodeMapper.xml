@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.TeacherInvitationCodeMapper">
+
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.TeacherInvitationCode">
+        <id column="id" property="id"/>
+        <result column="code" property="code"/>
+        <result column="description" property="description"/>
+        <result column="status" property="status"/>
+        <result column="usage_count" property="usageCount"/>
+        <result column="max_usage" property="maxUsage"/>
+        <result column="expires_at" property="expiresAt"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="deleted" property="deleted"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, code, description, status, usage_count, max_usage, expires_at,
+        created_by, deleted, create_time, update_time
+    </sql>
+
+    <!-- 根据邀请码查询 -->
+    <select id="findByCode" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM teacher_invitation_codes
+        WHERE code = #{code} AND deleted = 0 AND status = 1
+    </select>
+
+    <!-- 根据ID查询 -->
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM teacher_invitation_codes
+        WHERE id = #{id} AND deleted = 0
+    </select>
+
+    <!-- 查询所有邀请码 -->
+    <select id="findAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM teacher_invitation_codes
+        WHERE deleted = 0
+        ORDER BY create_time DESC
+    </select>
+
+    <!-- 插入邀请码 -->
+    <insert id="insert" parameterType="com.umi.nest.entity.TeacherInvitationCode"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO teacher_invitation_codes (
+            code, description, status, usage_count, max_usage, expires_at, created_by, deleted
+        )
+        VALUES (
+            #{code}, #{description}, #{status}, #{usageCount}, #{maxUsage}, #{expiresAt}, #{createdBy}, 0
+        )
+    </insert>
+
+    <!-- 更新邀请码 -->
+    <update id="updateById" parameterType="com.umi.nest.entity.TeacherInvitationCode">
+        UPDATE teacher_invitation_codes
+        <set>
+            description = #{description},
+            max_usage = #{maxUsage},
+            expires_at = #{expiresAt},
+            update_time = NOW()
+        </set>
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <!-- 增加使用次数 -->
+    <update id="incrementUsageCount">
+        UPDATE teacher_invitation_codes
+        SET usage_count = usage_count + 1,
+            update_time = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <!-- 逻辑删除 -->
+    <update id="deleteById">
+        UPDATE teacher_invitation_codes
+        SET deleted = 1,
+            update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <!-- 切换状态 -->
+    <update id="toggleStatus">
+        UPDATE teacher_invitation_codes
+        SET status = #{status},
+            update_time = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+</mapper>

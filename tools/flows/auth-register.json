@@ -1,0 +1,15 @@
+{
+  "port": 9222,
+  "cookie": { "name": "JSESSIONID", "value": "__SID__", "url": "http://127.0.0.1:8080" },
+  "page": { "url": "http://127.0.0.1:8080/register.html?cb=520", "width": 1440, "height": 1100, "waitMs": 2500 },
+  "steps": [
+    { "name": "1-boot", "eval": "JSON.stringify({nestUI: typeof NestUI, fields: Array.prototype.map.call(document.querySelectorAll('input, select'), function (e) { return e.id }).filter(Boolean)})" },
+    { "name": "2-empty-submit", "eval": "(function(){ document.getElementById('registerForm').requestSubmit(); return 'submitted'; })()", "waitMs": 800 },
+    { "name": "3-empty-result", "eval": "JSON.stringify({hidden: document.getElementById('errorMsg').classList.contains('hidden'), text: document.getElementById('errorMsg').textContent})" },
+    { "name": "4-pw-mismatch", "eval": "(function(){ document.getElementById('username').value = 'zz-probe-' + Date.now(); document.getElementById('password').value = 'probe123456'; document.getElementById('confirmPassword').value = 'probe654321'; document.getElementById('registerForm').requestSubmit(); return 'submitted'; })()", "waitMs": 900 },
+    { "name": "5-mismatch-result", "eval": "JSON.stringify({hidden: document.getElementById('errorMsg').classList.contains('hidden'), text: document.getElementById('errorMsg').textContent})" },
+    { "name": "6-bad-invite", "eval": "(function(){ document.getElementById('confirmPassword').value = 'probe123456'; var ph = document.getElementById('phone'); if (ph) ph.value = '13900000001'; var ic = document.getElementById('invitationCode'); if (ic) ic.value = 'NOT-A-REAL-CODE'; document.getElementById('registerForm').requestSubmit(); return 'submitted'; })()", "waitMs": 1800 },
+    { "name": "7-bad-invite-result", "eval": "JSON.stringify({hidden: document.getElementById('errorMsg').classList.contains('hidden'), text: document.getElementById('errorMsg').textContent, path: location.pathname})" },
+    { "name": "8-shot", "shot": "target\\flow-auth-register.png" }
+  ]
+}

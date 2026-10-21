@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.PartyApplicationMapper">
+
+    <!-- 入党申请登记（学工 P16）。学生姓名/学号/班级由 users + student_profile JOIN 带出。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.PartyApplication">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="branch_name" property="branchName"/>
+        <result column="apply_date" property="applyDate"/>
+        <result column="talk_date" property="talkDate"/>
+        <result column="talk_by" property="talkBy"/>
+        <result column="talk_summary" property="talkSummary"/>
+        <result column="internal_remark" property="internalRemark"/>
+        <result column="status" property="status"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="user_name" property="userName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        a.id, a.user_id, a.branch_name, a.apply_date, a.talk_date, a.talk_by, a.talk_summary,
+        a.internal_remark, a.status, a.created_by, a.created_at, a.updated_at, a.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.username) AS user_name,
+        u.student_id AS student_no,
+        sp.class_name AS class_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM party_application a
+        LEFT JOIN users u ON u.id = a.user_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = a.user_id AND sp.deleted = 0
+    </sql>
+
+    <sql id="List_Filters">
+        <if test="userId != null">AND a.user_id = #{userId}</if>
+        <!-- 辅导员范围：只见 student_profile.counselor_id 名下学生（§11.2-5） -->
+        <if test="counselorId != null">AND sp.counselor_id = #{counselorId}</if>
+        <if test="status != null and status != ''">AND a.status = #{status}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.student_id LIKE CONCAT('%', #{keyword}, '%')
+                 OR a.branch_name LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.PartyApplication" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO party_application
+            (user_id, branch_name, apply_date, talk_date, talk_by, talk_summary, internal_remark,
+             status, created_by, created_at, updated_at, deleted)
+        VALUES
+            (#{userId}, #{branchName}, #{applyDate}, #{talkDate}, #{talkBy}, #{talkSummary}, #{internalRemark},
+             #{status}, #{createdBy}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE a.id = #{id} AND a.deleted = 0
+    </select>
+
+    <select id="findByUserId" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE a.user_id = #{userId} AND a.deleted = 0
+        ORDER BY a.id DESC
+        LIMIT 1
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE a.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY a.apply_date DESC, a.id DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE a.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <!-- CAS：id + deleted + status=fromStatus，三条件缺一不可 -->
+    <update id="update">
+        UPDATE party_application
+        SET branch_name = #{application.branchName},
+            apply_date = #{application.applyDate},
+            talk_date = #{application.talkDate},
+            talk_by = #{application.talkBy},
+            talk_summary = #{application.talkSummary},
+            internal_remark = #{application.internalRemark},
+            status = #{application.status},
+            updated_at = NOW()
+        WHERE id = #{application.id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <update id="withdraw">
+        UPDATE party_application
+        SET status = 'withdrawn', updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- 谈话登记：只允许 status='active' 且尚未登记谈话时间（talk_date IS NULL），防止覆盖既有谈话记录 -->
+    <update id="recordTalk">
+        UPDATE party_application
+        SET talk_date = #{talkDate},
+            talk_by = #{talkBy},
+            talk_summary = #{talkSummary},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = 'active' AND talk_date IS NULL
+    </update>
+
+    <select id="countGroupByStatus" resultType="java.util.LinkedHashMap">
+        SELECT a.status AS status, COUNT(*) AS total
+        FROM party_application a
+        WHERE a.deleted = 0
+        GROUP BY a.status
+        ORDER BY a.status
+    </select>
+
+</mapper>

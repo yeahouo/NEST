@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.RankObjectionMapper">
+
+    <!-- 异议要带学生（users u / student_profile sp）、批次名（rank_batch b）与答复人（users h）姓名 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.RankObjection">
+        <id column="id" property="id"/>
+        <result column="batch_id" property="batchId"/>
+        <result column="student_id" property="studentId"/>
+        <result column="reason" property="reason"/>
+        <result column="status" property="status"/>
+        <result column="answer" property="answer"/>
+        <result column="handled_by" property="handledBy"/>
+        <result column="handled_at" property="handledAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="batch_name" property="batchName"/>
+        <result column="handled_by_name" property="handledByName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        o.id, o.batch_id, o.student_id, o.reason, o.status, o.answer, o.handled_by, o.handled_at,
+        o.created_at, o.updated_at,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(sp.student_no, u.student_id) AS student_no,
+        COALESCE(NULLIF(sp.class_name, ''), '未填班级') AS class_name,
+        b.batch_name AS batch_name,
+        COALESCE(NULLIF(h.real_name, ''), h.username) AS handled_by_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM rank_objection o
+        LEFT JOIN users u ON u.id = o.student_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = o.student_id AND sp.deleted = 0
+        LEFT JOIN rank_batch b ON b.id = o.batch_id
+        LEFT JOIN users h ON h.id = o.handled_by
+    </sql>
+
+    <!-- 列表筛选：辅导员只看到名下学生的异议（scopeCounselorId 为空＝admin，看全部） -->
+    <sql id="List_Filters">
+        <if test="batchId != null">AND o.batch_id = #{batchId}</if>
+        <if test="status != null and status != ''">AND o.status = #{status}</if>
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.RankObjection"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO rank_objection
+            (batch_id, student_id, reason, status, answer, handled_by, handled_at, created_at, updated_at)
+        VALUES
+            (#{batchId}, #{studentId}, #{reason}, #{status}, #{answer}, #{handledBy}, #{handledAt}, NOW(), NOW())
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE o.id = #{id}
+    </select>
+
+    <select id="findPending" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE o.batch_id = #{batchId} AND o.student_id = #{studentId} AND o.status = 'pending'
+        ORDER BY o.id DESC
+        LIMIT 1
+    </select>
+
+    <select id="listMine" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE o.student_id = #{studentId}
+        ORDER BY o.id DESC
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE 1 = 1
+        <include refid="List_Filters"/>
+        ORDER BY o.status = 'pending' DESC, o.created_at ASC, o.id ASC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="count" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE 1 = 1
+        <include refid="List_Filters"/>
+    </select>
+
+    <select id="countGroupByStatus" resultType="java.util.Map">
+        SELECT o.status AS status, COUNT(*) AS cnt
+        FROM rank_objection o
+        WHERE o.batch_id = #{batchId}
+        GROUP BY o.status
+    </select>
+
+    <!-- 答复：CAS 只处理 pending，两个辅导员同时点只有一个能落库 -->
+    <update id="handle">
+        UPDATE rank_objection
+        SET status = #{toStatus},
+            answer = #{answer},
+            handled_by = #{handledBy},
+            handled_at = NOW(),
+            updated_at = NOW()
+        WHERE id = #{id} AND status = 'pending'
+    </update>
+
+</mapper>

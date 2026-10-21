@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="nestlight">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的学工档案 · 学工平台</title>
+  <!--
+    主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
+    daisyUI 的组件颜色跟的是 [data-theme] 属性（不是 .dark 类），两处都必须写，
+    与 nest-ui.js 的 paintTheme() 保持一致。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <script src="/pwa.js" defer></script>
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/nest-art3.css">
+</head>
+
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content">
+
+<header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none border-0 p-0">
+  <div class="navbar mx-auto min-h-0 w-full max-w-7xl gap-3 px-5 py-2 md:px-8">
+    <div class="navbar-start gap-3">
+      <a class="flex items-center gap-3" href="dashboard.html">
+        <span class="nx-logo">
+          <span class="material-symbols-outlined text-xl">terminal</span>
+        </span>
+        <span class="hidden text-lg font-black uppercase tracking-tight sm:inline">学工平台</span>
+      </a>
+      <span class="hidden h-5 w-px bg-base-300 lg:block"></span>
+      <span class="hidden font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65 lg:block">§ 05 · Student affairs / Profile</span>
+    </div>
+    <div class="navbar-end gap-1.5">
+      <a class="btn btn-ghost btn-sm gap-2 rounded-full" href="dashboard.html">
+        <span class="material-symbols-outlined text-lg">dashboard</span>
+        <span class="hidden md:inline">工作台</span>
+      </a>
+      <button aria-label="切换深色 / 浅色模式" class="nx-icon-btn" data-nx-theme-toggle title="切换深色 / 浅色模式" type="button">
+        <span class="material-symbols-outlined nx-theme-icon-light text-xl">dark_mode</span>
+        <span class="material-symbols-outlined nx-theme-icon-dark text-xl">light_mode</span>
+      </button>
+      <a class="nx-icon-btn" href="settings.html" title="设置">
+        <span class="material-symbols-outlined text-xl">settings</span>
+      </a>
+      <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="logout-btn" type="button">
+        <span class="material-symbols-outlined text-lg">logout</span>
+        <span class="hidden md:inline">退出登录</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="flex-1 px-5 py-8 md:px-8 md:py-12">
+  <div class="mx-auto w-full max-w-7xl">
+
+    <!-- ── 刊头：等宽小标 + 衬线大标题 + 发丝分隔线 ───────────────────── -->
+    <header class="mb-8 border-b border-base-300 pb-6">
+      <p class="nx-kicker">§ 05 · Student / Profile</p>
+      <h1 data-nx-split="1" class="mt-2 font-serif text-3xl leading-tight sm:text-4xl lg:text-5xl">我的学工档案</h1>
+      <p class="mt-4 max-w-2xl text-sm text-base-content/70">
+        学号、班级、宿舍与辅导员分派由学校维护；家庭联系人、政治面貌与家庭经济档次可以自己填写，
+        这些信息只用于学工事务（请假审批、困难认定、宿舍管理）。
+      </p>
+    </header>
+
+    <!-- 未建档提示 -->
+    <div id="profile-tip" class="hidden mb-8 rounded-box border border-base-300 bg-base-200 p-5">
+      <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Tip · 提示</p>
+      <p class="mt-2 text-sm" id="profile-tip-text"></p>
+    </div>
+
+    <div class="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+
+      <!-- ── 左：档案只读信息 ─────────────────────────────────────── -->
+      <section class="card rounded-box border border-base-300 bg-base-200 shadow-xl">
+        <div class="card-body gap-5 p-7">
+          <h2 class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Record · 档案信息</h2>
+          <dl id="profile-fields" class="grid grid-cols-2 gap-x-6 gap-y-4"></dl>
+        </div>
+      </section>
+
+      <!-- ── 右：可自助修改 ─────────────────────────────────────────── -->
+      <section>
+        <div class="card rounded-box border border-base-300 bg-base-200 shadow-xl">
+          <div class="card-body gap-5 p-7">
+            <h2 class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Self service · 我可以修改的</h2>
+
+            <div class="form-control">
+              <label class="label px-0 pb-1.5" for="profile-political">
+                <span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">政治面貌 / Political</span>
+              </label>
+              <select id="profile-political" class="select select-bordered">
+                <option value="">未填写</option>
+                <option value="群众">群众</option>
+                <option value="共青团员">共青团员</option>
+                <option value="入党积极分子">入党积极分子</option>
+                <option value="中共预备党员">中共预备党员</option>
+                <option value="中共党员">中共党员</option>
+              </select>
+            </div>
+
+            <div class="form-control">
+              <label class="label px-0 pb-1.5" for="profile-contact">
+                <span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">家庭联系人 / Family contact</span>
+              </label>
+              <input id="profile-contact" type="text" maxlength="64" class="input input-bordered" placeholder="父母或监护人的手机号">
+            </div>
+
+            <div class="form-control">
+              <label class="label px-0 pb-1.5" for="profile-income">
+                <span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">家庭经济档次 / Income</span>
+              </label>
+              <select id="profile-income" class="select select-bordered">
+                <option value="">未填写</option>
+                <option value="low">一般困难</option>
+                <option value="medium">困难</option>
+                <option value="high">特别困难</option>
+              </select>
+            </div>
+
+            <button id="profile-save" onclick="saveProfile()" class="btn btn-primary btn-block">保存</button>
+            <div id="profile-message" class="alert hidden items-start gap-2"></div>
+          </div>
+        </div>
+
+        <!-- ── 假条概览 ───────────────────────────────────────────── -->
+        <div class="mt-8">
+          <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Leave · 我的假条</h2>
+            <a class="btn btn-ghost btn-sm gap-2 rounded-full" href="leave.html">
+              <span class="material-symbols-outlined text-lg">event_available</span>
+              去请假
+            </a>
+          </div>
+          <section id="profile-leave-stats" class="grid grid-cols-2 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 md:grid-cols-4"></section>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</main>
+
+<footer class="nx-hairline-t border-base-300 px-5 py-6 md:px-8">
+  <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
+    <p class="font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65">学工平台 · Student Record</p>
+    <p class="text-xs text-base-content/60">档案信息用于学工事务办理，请如实填写。</p>
+  </div>
+</footer>
+
+<script>
+  // ─────────────────────────────── 常量与工具 ───────────────────────────────
+  const STATUS_TEXT = { active: '在读', suspended: '休学', quit: '退学', graduated: '毕业' };
+  const INCOME_TEXT = { low: '一般困难', medium: '困难', high: '特别困难' };
+
+  function escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  async function callApi(url, options) {
+    const response = await fetch(url, options);
+    return response.json();
+  }
+
+  function showMessage(text, type) {
+    const box = document.getElementById('profile-message');
+    const tone = type === 'success' ? 'alert-success' : 'alert-error';
+    box.classList.remove('hidden');
+    box.className = 'alert items-start gap-2 ' + tone;
+    box.innerHTML = '<span class="material-symbols-outlined text-lg">'
+        + (type === 'success' ? 'check_circle' : 'error') + '</span><span class="text-sm">' + escapeHtml(text) + '</span>';
+  }
+
+  function clearMessage() {
+    document.getElementById('profile-message').classList.add('hidden');
+  }
+
+  // ─────────────────────────────── 读数据 ─────────────────────────────
+  async function checkAuth() {
+    try {
+      const result = await callApi('/api/auth/me');
+      if (result.code !== 200) { window.location.href = 'login.html'; return null; }
+      return result.data;
+    } catch (error) {
+      window.location.href = 'login.html';
+      return null;
+    }
+  }
+
+  function field(label, value) {
+    return '<div><dt class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/60">' + escapeHtml(label) + '</dt>'
+        + '<dd class="mt-1 text-sm">' + escapeHtml(value === null || value === undefined || value === '' ? '—' : value) + '</dd></div>';
+  }
+
+  function roomText(profile) {
+    const building = profile.dormBuilding || '';
+    const room = profile.dormRoom || '';
+    return (building + ' ' + room).trim() || '—';
+  }
+
+  async function loadProfile() {
+    const result = await callApi('/api/student/profile');
+    const host = document.getElementById('profile-fields');
+    const tip = document.getElementById('profile-tip');
+    if (result.code !== 200) {
+      host.innerHTML = field('读取失败', result.message || '请刷新重试');
+      return;
+    }
+    const data = result.data || {};
+    const profile = data.profile || {};
+    if (data.exists === false) {
+      tip.classList.remove('hidden');
+      document.getElementById('profile-tip-text').textContent = data.tip || '档案尚未建立，先填写下面三项即可建档。';
+    } else {
+      tip.classList.add('hidden');
+    }
+    const fields = [
+      ['姓名', profile.name || ''],
+      ['学号', profile.studentNo || ''],
+      ['班级', profile.className || ''],
+      ['专业', profile.major || ''],
+      ['年级', profile.grade || ''],
+      ['辅导员', profile.counselorName || '未分派'],
+      ['宿舍', roomText(profile)],
+      ['学籍状态', STATUS_TEXT[profile.status] || profile.status || '在读'],
+      ['政治面貌', profile.politicalStatus || ''],
+      ['家庭联系人', profile.familyContact || ''],
+      ['家庭经济档次', INCOME_TEXT[profile.familyIncomeLevel] || ''],
+      ['账号 / 手机', (profile.username || '') + ' · ' + (profile.phone || '')]
+    ];
+    host.innerHTML = fields.map(function (row) { return field(row[0], row[1]); }).join('');
+
+    document.getElementById('profile-political').value = profile.politicalStatus || '';
+    document.getElementById('profile-contact').value = profile.familyContact || '';
+    document.getElementById('profile-income').value = profile.familyIncomeLevel || '';
+  }
+
+  async function loadLeaveStats() {
+    const result = await callApi('/api/leave/my/stats');
+    const host = document.getElementById('profile-leave-stats');
+    if (result.code !== 200) { host.innerHTML = ''; return; }
+    const order = [['pending', '待审批'], ['approved', '已批准'], ['rejected', '已驳回']];
+    let total = 0;
+    order.forEach(function (pair) { total += (result.data[pair[0]] || 0); });
+    const cells = order.concat([['total', '累计']]).map(function (pair) {
+      const count = pair[0] === 'total' ? total : (result.data[pair[0]] || 0);
+      return '<div class="flex flex-col gap-1 bg-base-100 p-6">'
+          + '<dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">' + pair[1] + '</dt>'
+          + '<dd class="mt-1 font-serif text-2xl">' + count + '</dd></div>';
+    });
+    host.innerHTML = cells.join('');
+  }
+
+  // ─────────────────────────────── 写数据 ─────────────────────────────
+  async function saveProfile() {
+    clearMessage();
+    const body = {
+      politicalStatus: document.getElementById('profile-political').value,
+      familyContact: document.getElementById('profile-contact').value,
+      familyIncomeLevel: document.getElementById('profile-income').value
+    };
+    const button = document.getElementById('profile-save');
+    button.disabled = true;
+    button.textContent = '保存中…';
+    try {
+      const result = await callApi('/api/student/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (result.code === 200) {
+        showMessage(result.message || '已保存', 'success');
+        loadProfile();
+      } else {
+        showMessage(result.message || '保存失败', 'error');
+      }
+    } catch (error) {
+      console.error('Profile save error:', error);
+      showMessage('网络错误，请重试', 'error');
+    } finally {
+      button.disabled = false;
+      button.textContent = '保存';
+    }
+  }
+
+  function logout() {
+    fetch('/api/auth/logout', { method: 'POST' }).finally(function () { window.location.href = 'login.html'; });
+  }
+
+  document.addEventListener('DOMContentLoaded', async function () {
+    const me = await checkAuth();
+    if (!me) { return; }
+
+    if (me.role && me.role !== 'student') {
+      window.location.href = 'counselor-students.html';
+      return;
+    }
+
+    document.getElementById('logout-btn').addEventListener('click', logout);
+    await Promise.all([loadProfile(), loadLeaveStats()]);
+  });
+</script>
+<script defer src="/js/nest-ui.js"></script>
+<script defer src="/libs/animejs/anime.umd.min.js"></script>
+<script defer src="/libs/countup/countUp.umd.js"></script>
+<script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+<script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+<script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.PsycheAnswerMapper">
+
+    <!-- 学工 P14：整卷作答留痕（一份卷一条，uk_pa_task）。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.PsycheAnswer">
+        <id column="id" property="id"/>
+        <result column="task_id" property="taskId"/>
+        <result column="student_id" property="studentId"/>
+        <result column="answer_json" property="answerJson"/>
+        <result column="answer_count" property="answerCount"/>
+        <result column="total_items" property="totalItems"/>
+        <result column="score_total" property="scoreTotal"/>
+        <result column="score_band" property="scoreBand"/>
+        <result column="duration_seconds" property="durationSeconds"/>
+        <result column="submitted_at" property="submittedAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        a.id, a.task_id, a.student_id, a.answer_json, a.answer_count, a.total_items,
+        a.score_total, a.score_band, a.duration_seconds, a.submitted_at,
+        a.created_at, a.updated_at, a.deleted
+    </sql>
+
+    <!-- uk_pa_task(task_id) 保证一份卷一条；重复提交走 ON DUPLICATE KEY UPDATE，不制造脏数据 -->
+    <insert id="insert" parameterType="com.umi.nest.entity.PsycheAnswer"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO psyche_answer
+            (task_id, student_id, answer_json, answer_count, total_items, score_total,
+             score_band, duration_seconds, submitted_at, created_at, updated_at, deleted)
+        VALUES
+            (#{taskId}, #{studentId}, #{answerJson}, #{answerCount}, #{totalItems}, #{scoreTotal},
+             #{scoreBand}, #{durationSeconds}, #{submittedAt}, NOW(), NOW(), 0)
+        ON DUPLICATE KEY UPDATE
+            student_id = #{studentId},
+            answer_json = #{answerJson},
+            answer_count = #{answerCount},
+            total_items = #{totalItems},
+            score_total = #{scoreTotal},
+            score_band = #{scoreBand},
+            duration_seconds = #{durationSeconds},
+            submitted_at = #{submittedAt},
+            updated_at = NOW()
+    </insert>
+
+    <select id="findByTaskId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM psyche_answer a
+        WHERE a.task_id = #{taskId} AND a.deleted = 0
+        LIMIT 1
+    </select>
+
+</mapper>

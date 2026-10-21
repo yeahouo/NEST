@@ -1,0 +1,27 @@
+{
+  "port": 9222,
+  "clearCache": true,
+  "page": {
+    "url": "http://127.0.0.1:8080/index.html?cb=1792471745i",
+    "width": 1440,
+    "height": 1100,
+    "waitMs": 2600
+  },
+  "steps": [
+    {
+      "name": "theme-light",
+      "eval": "localStorage.setItem('nest-theme','light'); document.documentElement.classList.remove('dark'); document.documentElement.setAttribute('data-theme','nestlight'); 'ok'",
+      "waitMs": 300
+    },
+    {
+      "name": "state",
+      "eval": "(() => {\n  const q = (s) => document.querySelector(s);\n  const g = (e) => e ? getComputedStyle(e) : null;\n  const h = q('h1') || q('h2');\n  const b = q('.nx-btn') || q('.btn');\n  const c = q('.nx-card') || q('.nx-panel') || q('.card');\n  const cs = Array.from(document.querySelectorAll('canvas'));\n  const sb = window.NestShaderBg, np = window.NestParticles;\n  return JSON.stringify({\n    page: location.pathname, title: document.title,\n    dark: document.documentElement.classList.contains('dark'),\n    bodyBg: getComputedStyle(document.body).backgroundColor,\n    bodyImg: getComputedStyle(document.body).backgroundImage.slice(0, 15),\n    /* 页面底色现在画在 html 上（body 那层被有意清成透明，否则会盖住 z-index:-10 的粒子层） */\n    htmlBg: getComputedStyle(document.documentElement).backgroundColor,\n    /* 粒子真的能画的证据：容器里的粒子算得出填充色（2026-10 真机定位的回归点——\n       缺 color/opacity 更新器时这里是 none，canvas 在跑却一个像素都不画） */\n    partFill: (np && np.container && np.container.particles && np.container.particles.get)\n      ? (function () { try { const p = np.container.particles.get(0); const f = p && typeof p.getFillColor === 'function' ? p.getFillColor() : null; return f ? 'ok' : 'none'; } catch (e) { return 'err'; } })()\n      : 'na',\n    hFont: h ? g(h).fontFamily.split(',')[0].replace(/\"/g, '') : null,\n    btnR: b ? g(b).borderTopLeftRadius : null,\n    btnH: b ? Math.round(b.getBoundingClientRect().height) : null,\n    cardShadow: c ? g(c).boxShadow.slice(0, 30) : null,\n    cardR: c ? g(c).borderTopLeftRadius : null,\n    tabR: q('.nx-tab') ? g(q('.nx-tab')).borderTopLeftRadius : null,\n    monoFont: (q('th') || q('.nx-badge')) ? g(q('th') || q('.nx-badge')).fontFamily.split(',')[0].replace(/\"/g, '') : null,\n    shadowToken: getComputedStyle(document.documentElement).getPropertyValue('--shadow-2').trim().slice(0, 20),\n    easeToken: getComputedStyle(document.documentElement).getPropertyValue('--ease-3').trim().slice(0, 24),\n    canvases: cs.length,\n    box: cs.map((c2) => c2.clientWidth + 'x' + c2.clientHeight),\n    shader: sb ? sb.state : 'absent',\n    shaderTheme: sb ? sb.theme : null,\n    shaderSpeed: sb && sb.speed ? sb.speed() : null,\n    shaderErr: sb ? sb.error : null,\n    part: np ? np.state : 'absent',\n    partPreset: np ? np.preset : null,\n    partHost: !!document.getElementById('nx-particles'),\n    noWebgl: document.documentElement.classList.contains('nx-no-webgl'),\n    scrollW: document.documentElement.scrollWidth, innerW: window.innerWidth\n  });\n})()",
+      "waitMs": 800
+    },
+    {
+      "name": "shot",
+      "shot": true,
+      "file": "target/zz-art17-light-index.png"
+    }
+  ]
+}

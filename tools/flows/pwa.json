@@ -1,0 +1,18 @@
+{
+  "port": 9222,
+  "cookie": { "name": "JSESSIONID", "value": "__SID__", "url": "http://127.0.0.1:8080" },
+  "page": { "url": "http://127.0.0.1:8080/dashboard.html?cb=560", "width": 1440, "height": 1000, "waitMs": 3500 },
+  "steps": [
+    { "name": "1-sw-registration", "eval": "(async function(){ if(!navigator.serviceWorker) return JSON.stringify({supported:false}); var reg = await navigator.serviceWorker.getRegistration(); var keys = await caches.keys(); return JSON.stringify({supported:true, hasReg: !!reg, scope: reg && reg.scope, controller: !!navigator.serviceWorker.controller, controllerUrl: navigator.serviceWorker.controller && navigator.serviceWorker.controller.scriptURL, caches: keys}); })()" },
+    { "name": "2-shell-assets", "eval": "(async function(){ var out={}; for (const u of ['/sw.js','/js/nest-ui.js','/css/nest.css','/libs/radix-colors/colors.css']) { try { var r = await fetch(u, {cache:'no-store'}); out[u] = r.status + ' ' + (r.headers.get('content-length') || (await r.text()).length); } catch(e) { out[u] = 'ERR ' + e.message; } } var links=[]; document.querySelectorAll('link[rel=manifest]').forEach(function(l){ links.push(l.href); }); out.manifestLinks = links; return JSON.stringify(out); })()" },
+    { "name": "3-manifest", "eval": "(async function(){ var l = document.querySelector('link[rel=manifest]'); if(!l) return JSON.stringify({found:false}); try { var r = await fetch(l.href, {cache:'no-store'}); var j = await r.json(); return JSON.stringify({found:true, status:r.status, name:j.name, shortName:j.short_name, display:j.display, startUrl:j.start_url, themeColor:j.theme_color, icons:(j.icons||[]).length, iconSizes:(j.icons||[]).map(function(i){return i.sizes;})}); } catch(e) { return JSON.stringify({found:true, error:e.message}); } })()" },
+    { "name": "4-go-offline", "offline": true },
+    { "name": "5-reload-offline", "eval": "(function(){ setTimeout(function(){ location.reload(); }, 120); return 'reloading-offline'; })()", "waitMs": 5000 },
+    { "name": "6-offline-state", "eval": "JSON.stringify({title: document.title, path: location.pathname, nestUI: typeof window.NestUI, uiVer: (window.NestUI||{}).version || null, dark: document.documentElement.classList.contains('dark'), sheets: document.styleSheets.length, bodyBg: getComputedStyle(document.body).backgroundColor, cardBg: (function(){ var c=document.querySelector('.nx-card'); return c ? getComputedStyle(c).backgroundColor : null; })(), bodyText: document.body.innerText.replace(/\\s+/g,' ').slice(0,110)})" },
+    { "name": "7-offline-navigation", "eval": "(function(){ setTimeout(function(){ location.href = '/settings.html'; }, 100); return 'nav-offline'; })()", "waitMs": 4500 },
+    { "name": "8-offline-second-page", "eval": "JSON.stringify({title: document.title, path: location.pathname, nestUI: typeof window.NestUI, sheets: document.styleSheets.length, bodyBg: getComputedStyle(document.body).backgroundColor, bodyText: document.body.innerText.replace(/\\s+/g,' ').slice(0,110)})" },
+    { "name": "9-back-online", "offline": false },
+    { "name": "10-online-check", "eval": "(async function(){ var r = await fetch('/api/auth/me', {cache:'no-store'}); return JSON.stringify({status:r.status, text:(await r.text()).slice(0,120)}); })()", "waitMs": 500 },
+    { "name": "11-shot", "shot": "target\\flow-pwa-offline.png" }
+  ]
+}

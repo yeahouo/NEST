@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.ClubReviewMapper">
+
+    <!-- 社团年审（学工 P17，S25a）。四项聚焦材料 + 挂靠单位意见；社团名与审核人姓名由 JOIN 带出。
+         结果三值：qualified / unqualified / deregistered；结果登记后不得重设（§7-2）。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.ClubReview">
+        <id column="id" property="id"/>
+        <result column="club_id" property="clubId"/>
+        <result column="school_year" property="schoolYear"/>
+        <result column="architecture_material" property="architectureMaterial"/>
+        <result column="backbone_material" property="backboneMaterial"/>
+        <result column="activity_material" property="activityMaterial"/>
+        <result column="fund_material" property="fundMaterial"/>
+        <result column="attach_opinion" property="attachOpinion"/>
+        <result column="result" property="result"/>
+        <result column="submit_time" property="submitTime"/>
+        <result column="review_user_id" property="reviewUserId"/>
+        <result column="review_time" property="reviewTime"/>
+        <result column="publicity_id" property="publicityId"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="club_name" property="clubName"/>
+        <result column="review_user_name" property="reviewUserName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        t.id, t.club_id, t.school_year, t.architecture_material, t.backbone_material,
+        t.activity_material, t.fund_material, t.attach_opinion, t.result, t.submit_time,
+        t.review_user_id, t.review_time, t.publicity_id, t.created_at, t.updated_at, t.deleted,
+        c.club_name AS club_name,
+        COALESCE(NULLIF(ru.real_name, ''), ru.nickname, ru.username) AS review_user_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM club_review t
+        LEFT JOIN club c ON c.id = t.club_id AND c.deleted = 0
+        LEFT JOIN users ru ON ru.id = t.review_user_id AND ru.deleted = 0
+    </sql>
+
+    <sql id="List_Filters">
+        <!-- scope（§6）：年审按 club_id 归属；scopeUserId 限定为该学生所属社团的年审 -->
+        <if test="scopeUserId != null">
+            AND EXISTS (SELECT 1 FROM club_member sm
+                        WHERE sm.club_id = t.club_id AND sm.user_id = #{scopeUserId}
+                          AND sm.deleted = 0 AND sm.quit_date IS NULL)
+        </if>
+        <if test="scopeCounselorId != null">
+            AND EXISTS (SELECT 1 FROM club_member cm
+                        JOIN student_profile csp ON csp.user_id = cm.user_id AND csp.deleted = 0
+                        WHERE cm.club_id = t.club_id AND cm.deleted = 0 AND cm.quit_date IS NULL
+                          AND csp.counselor_id = #{scopeCounselorId})
+        </if>
+        <if test="clubId != null">AND t.club_id = #{clubId}</if>
+        <if test="schoolYear != null and schoolYear != ''">AND t.school_year = #{schoolYear}</if>
+        <if test="result != null and result != ''">AND t.result = #{result}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (c.club_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR t.school_year LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.ClubReview"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO club_review
+            (club_id, school_year, architecture_material, backbone_material, activity_material,
+             fund_material, attach_opinion, result, submit_time, review_user_id, review_time,
+             publicity_id, created_at, updated_at, deleted)
+        VALUES
+            (#{clubId}, #{schoolYear}, #{architectureMaterial}, #{backboneMaterial}, #{activityMaterial},
+             #{fundMaterial}, #{attachOpinion}, #{result}, #{submitTime}, #{reviewUserId}, #{reviewTime},
+             #{publicityId}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.id = #{id} AND t.deleted = 0
+    </select>
+
+    <!-- 一个社团一个学年只有一条年审（前置校验） -->
+    <select id="selectByClubAndYear" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.club_id = #{clubId} AND t.school_year = #{schoolYear} AND t.deleted = 0
+        ORDER BY t.id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY t.school_year DESC, t.id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="selectCount" resultType="long">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <!-- 提交年审材料 CAS：只允许「结果未登记」（result IS NULL）→ 写 submit_time。
+         结果登记后不得再改材料/意见（§7-2） -->
+    <update id="submitReview">
+        UPDATE club_review
+        SET submit_time = NOW(), updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND result IS NULL
+    </update>
+
+    <!-- 挂靠单位意见写入：同样以 result IS NULL 为前置态（结果已登记后意见冻结） -->
+    <update id="writeOpinion">
+        UPDATE club_review
+        SET attach_opinion = #{attachOpinion}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND result IS NULL
+    </update>
+
+    <!-- 结果登记 CAS（§7-1、§7-2）：前置态是 result IS NULL（不是刚读到的变量值），
+         重复登记或结果已存在影响行数 0 → 400「年审结果已登记，不可重设」 -->
+    <update id="recordResult">
+        UPDATE club_review
+        SET result = #{toResult},
+            review_user_id = #{reviewUserId},
+            review_time = NOW(),
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND result IS NULL
+    </update>
+
+    <!-- 关联公示：同样以 result IS NULL 为前置态，结果已公示不得重挂 -->
+    <update id="linkPublicity">
+        UPDATE club_review
+        SET publicity_id = #{publicityId}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND result IS NULL
+    </update>
+
+    <!-- 增量修改（动态 set）：club_id 不允许改 -->
+    <update id="update">
+        UPDATE club_review
+        <set>
+            <if test="r.schoolYear != null">school_year = #{r.schoolYear},</if>
+            <if test="r.architectureMaterial != null">architecture_material = #{r.architectureMaterial},</if>
+            <if test="r.backboneMaterial != null">backbone_material = #{r.backboneMaterial},</if>
+            <if test="r.activityMaterial != null">activity_material = #{r.activityMaterial},</if>
+            <if test="r.fundMaterial != null">fund_material = #{r.fundMaterial},</if>
+            <if test="r.attachOpinion != null">attach_opinion = #{r.attachOpinion},</if>
+            <if test="r.result != null">result = #{r.result},</if>
+            <if test="r.submitTime != null">submit_time = #{r.submitTime},</if>
+            <if test="r.reviewUserId != null">review_user_id = #{r.reviewUserId},</if>
+            <if test="r.reviewTime != null">review_time = #{r.reviewTime},</if>
+            <if test="r.publicityId != null">publicity_id = #{r.publicityId},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{r.id} AND deleted = 0
+        <if test="r.result != null">AND result IS NULL</if>
+    </update>
+
+    <update id="softDelete">
+        UPDATE club_review
+        SET deleted = 1, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <select id="countByClubAndYear" resultType="long">
+        SELECT COUNT(*)
+        FROM club_review t
+        WHERE t.club_id = #{clubId} AND t.school_year = #{schoolYear} AND t.deleted = 0
+    </select>
+
+    <select id="countByResult" resultType="long">
+        SELECT COUNT(*)
+        FROM club_review t
+        WHERE t.deleted = 0
+        <if test="result != null and result != ''">AND t.result = #{result}</if>
+        <if test="result == null">AND t.result IS NULL</if>
+    </select>
+
+    <select id="countGroupByResult" resultType="java.util.LinkedHashMap">
+        SELECT COALESCE(t.result, 'unregistered') AS result, COUNT(*) AS total
+        FROM club_review t
+        WHERE t.deleted = 0
+        <if test="schoolYear != null and schoolYear != ''">AND t.school_year = #{schoolYear}</if>
+        GROUP BY COALESCE(t.result, 'unregistered')
+        ORDER BY result
+    </select>
+
+</mapper>

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+
+<html data-theme="nestlight" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>注册 · 学工平台</title>
+  <!--
+    主题必须在样式表之前定下来。放到 defer 的共享脚本里会先按浅色画一帧、
+    再翻成深色 —— 也就是俗称的「闪白」，比没有深色模式更难受。
+    所以这段必须内联，且必须排在 <link rel="stylesheet"> 前面。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <script src="/pwa.js" defer></script>
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+<link rel="stylesheet" href="/css/nest-art3.css">
+  <style>
+    /* 卡片入场。原来这里还挂着「多边形漂移 / 残影 / 模糊入场」三组关键帧，
+       本页重排后多边形与残影元素已删除（底色交给 nx-page 的暖纸渐变 + 粒子层），
+       只留卡片这一条 —— 它仍被 .modal-container-animate 使用。
+       顺带去掉了原来 15px 的 blur 动画：Chromium 的合成器会为动画中**每一个**
+       blur 半径编译一份新 shader（w3c/csswg-drafts#13997），入场那一下就白付这笔钱。 */
+    @keyframes modalScaleExpand {
+      0% { transform: scale(0.97); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .modal-container-animate {
+      animation: modalScaleExpand 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+
+</head>
+<body data-nx-particles="on" class="font-display nx-page min-h-screen bg-base-100 text-base-content selection:bg-primary/30">
+<div class="relative z-10 flex min-h-screen flex-col">
+<div class="layout-container flex h-full grow flex-col">
+<!-- Minimal Navigation -->
+<header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none px-6 py-2 md:px-20">
+<div class="navbar-start w-auto min-w-0 flex-1 items-center gap-3">
+<div class="text-primary">
+<span class="material-symbols-outlined text-3xl">terminal</span>
+</div>
+<h2 class="nx-brand">学工平台</h2>
+</div>
+</header>
+      <main class="mx-auto grid w-full max-w-6xl flex-1 items-center gap-12 px-6 py-14 lg:grid-cols-2 lg:gap-16 lg:px-10">
+
+        <!-- 左栏：编辑部式的说明版式（发丝线、衬线大标题、编号清单），窄屏排到表单下面 -->
+        <section class="order-2 lg:order-1">
+          <p class="nx-kicker">Account / Register</p>
+
+          <h1 data-nx-split="1" class="mt-2 font-serif text-4xl leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
+            Create your account.
+          </h1>
+
+          <p class="mt-5 max-w-lg text-[15px] leading-relaxed text-base-content/70">
+            Students sign up with the student ID issued by the school. Teachers also need
+            the invitation code from the department — the same account works on every page.
+          </p>
+
+          <!-- 三格数字条：下面这三个数字都来自后端真实配置（PasswordPolicy / 登录锁定），
+               不是装饰文案 —— 注册失败最常见的原因就写在这里，省得用户来回试。 -->
+          <dl class="mt-8 grid max-w-lg grid-cols-3 gap-px overflow-hidden rounded-2xl bg-base-300 text-center">
+            <div class="bg-base-100 px-3 py-4">
+              <dt class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">Min length</dt>
+              <dd class="font-serif text-2xl">8</dd>
+            </div>
+            <div class="bg-base-100 px-3 py-4">
+              <dt class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">Char classes</dt>
+              <dd class="font-serif text-2xl">3</dd>
+            </div>
+            <div class="bg-base-100 px-3 py-4">
+              <dt class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">Lock after</dt>
+              <dd class="font-serif text-2xl">5</dd>
+            </div>
+          </dl>
+
+          <ul class="nx-stagger mt-9 hidden max-w-lg lg:grid">
+            <li class="flex gap-4 border-t border-base-300 py-4">
+              <span class="font-mono text-[11px] text-base-content/65">01</span>
+              <div>
+                <p class="text-sm font-bold">Pick a username</p>
+                <p class="mt-1 text-xs leading-relaxed text-base-content/70">
+                  Letters, digits or underscore. It is permanent — your student ID usually works.
+                </p>
+              </div>
+            </li>
+            <li class="flex gap-4 border-t border-base-300 py-4">
+              <span class="font-mono text-[11px] text-base-content/65">02</span>
+              <div>
+                <p class="text-sm font-bold">Choose a password</p>
+                <p class="mt-1 text-xs leading-relaxed text-base-content/70">
+                  At least 8 characters, mixing three of: upper case, lower case, digits, symbols.
+                </p>
+              </div>
+            </li>
+            <li class="flex gap-4 border-y border-base-300 py-4">
+              <span class="font-mono text-[11px] text-base-content/65">03</span>
+              <div>
+                <p class="text-sm font-bold">Add a phone number</p>
+                <p class="mt-1 text-xs leading-relaxed text-base-content/70">
+                  Used to verify the account and to reset the password later. The country code
+                  is picked on the left of the field.
+                </p>
+              </div>
+            </li>
+          </ul>
+
+          <p class="mt-8 max-w-lg text-xs leading-relaxed text-base-content/65">
+            Registration is handled by the school's own server — no external CDN, no third-party tracking.
+          </p>
+        </section>
+
+        <!-- 右栏：注册卡（daisyUI 的 card / input / select / btn / alert / divider） -->
+        <section class="nx-rise order-1 mx-auto w-full max-w-md lg:order-2 lg:max-w-none">
+          <div class="modal-container-animate card border border-base-300 bg-base-200 shadow-xl">
+            <div class="card-body gap-6 p-7 sm:p-9">
+
+              <div class="flex items-center gap-3">
+                <span class="grid h-11 w-11 place-items-center rounded-2xl bg-primary/10 text-primary">
+                  <span class="material-symbols-outlined text-2xl">person_add</span>
+                </span>
+                <div>
+                  <h2 class="font-serif text-3xl leading-tight tracking-tight">Create account</h2>
+                  <p class="text-xs text-base-content/70">One account for leave, records, aid and the dorm pages.</p>
+                </div>
+              </div>
+
+              <form class="flex flex-col gap-5" id="registerForm" novalidate>
+                <label class="form-control w-full">
+                  <div class="label py-0 pb-2">
+                    <span class="label-text font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/70">Username</span>
+                  </div>
+                  <div class="relative">
+                    <input class="input input-bordered w-full pl-11" id="username" name="username" type="text"
+                           placeholder="johndoe" autocomplete="username" autocapitalize="none" spellcheck="false" required/>
+                    <span class="material-symbols-outlined pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-lg text-base-content/65">person</span>
+                  </div>
+                </label>
+
+                <label class="form-control w-full">
+                  <div class="label py-0 pb-2">
+                    <span class="label-text font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/70">Password</span>
+                    <span class="label-text-alt text-[10px] text-base-content/65">8+ chars, 3 of 4 classes</span>
+                  </div>
+                  <div class="relative">
+                    <input class="input input-bordered w-full pl-11" id="password" name="password" type="password"
+                           placeholder="••••••••" autocomplete="new-password" required/>
+                    <span class="material-symbols-outlined pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-lg text-base-content/65">lock</span>
+                  </div>
+                </label>
+
+                <label class="form-control w-full">
+                  <div class="label py-0 pb-2">
+                    <span class="label-text font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/70">Confirm password</span>
+                  </div>
+                  <div class="relative">
+                    <input class="input input-bordered w-full pl-11" id="confirmPassword" name="confirmPassword" type="password"
+                           placeholder="••••••••" autocomplete="new-password" required/>
+                    <span class="material-symbols-outlined pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-lg text-base-content/65">lock_reset</span>
+                  </div>
+                </label>
+
+                <div class="form-control w-full">
+                  <div class="label py-0 pb-2">
+                    <span class="label-text font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/70">Phone number</span>
+                  </div>
+                  <div class="flex gap-2">
+                    <label class="relative w-[7.5rem] shrink-0">
+                      <select class="select select-bordered w-full cursor-pointer pl-3 pr-8 text-sm" id="countryCode" name="countryCode">
+                        <option value="+1">🇺🇸 +1</option>
+                        <option value="+44">🇬🇧 +44</option>
+                        <option value="+86" selected>🇨🇳 +86</option>
+                        <option value="+91">🇮🇳 +91</option>
+                        <option value="+81">🇯🇵 +81</option>
+                        <option value="+49">🇩🇪 +49</option>
+                        <option value="+33">🇫🇷 +33</option>
+                        <option value="+61">🇦🇺 +61</option>
+                      </select>
+                      <span class="material-symbols-outlined pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-lg text-base-content/65">expand_more</span>
+                    </label>
+                    <input class="input input-bordered flex-1" id="phone" name="phone" type="tel"
+                           placeholder="123 456 7890" autocomplete="tel" required/>
+                  </div>
+                </div>
+
+                <div class="divider my-0"></div>
+
+                <label class="form-control w-full">
+                  <div class="label py-0 pb-2">
+                    <span class="label-text font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/70">Invitation code</span>
+                    <span class="label-text-alt text-[10px] text-base-content/65">Teachers only</span>
+                  </div>
+                  <div class="relative">
+                    <input class="input input-bordered w-full pl-11" id="invitationCode" name="invitationCode" type="text"
+                           placeholder="Enter code" spellcheck="false"/>
+                    <span class="material-symbols-outlined pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-lg text-base-content/65">key</span>
+                  </div>
+                </label>
+
+                <!-- 错误框：脚本只切 hidden 这一个类、并把 textContent 整体写进来，
+                     所以里面**不能**放图标或额外节点，否则第一次报错就被冲掉。 -->
+                <div class="alert alert-error hidden text-xs font-medium" id="errorMsg" role="alert"></div>
+
+                <button class="btn btn-primary btn-block" type="submit">
+                  Sign up
+                </button>
+              </form>
+
+              <div class="divider my-0"></div>
+
+              <p class="text-center text-sm text-base-content/70">
+                Already have an account?
+                <a class="link link-primary font-bold" href="login.html">Log in</a>
+              </p>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- Minimal Footer -->
+      <footer class="flex flex-col items-center justify-between gap-4 border-t border-base-300 px-6 py-8 text-center md:flex-row md:px-10">
+        <p class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">© 2026 学工平台 · All rights reserved.</p>
+      </footer>
+
+</div>
+</div>
+<script>
+let userType = 'student';
+
+// 表单提交
+document.getElementById('registerForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    const countryCode = document.getElementById('countryCode').value;
+    const phone = document.getElementById('phone').value;
+    const invitationCode = document.getElementById('invitationCode').value;
+    const errorMsg = document.getElementById('errorMsg');
+
+    errorMsg.classList.add('hidden');
+
+    // 验证密码
+    if (password !== confirmPassword) {
+        errorMsg.textContent = '两次密码输入不一致';
+        errorMsg.classList.remove('hidden');
+        return;
+    }
+
+    // 组合完整手机号
+    const fullPhone = countryCode + phone.replace(/\s/g, '');
+
+    try {
+        const response = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                username,
+                password,
+                confirmPassword,
+                phone: fullPhone,
+                userType,
+                invitationCode
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.code === 200) {
+            // 注册成功，直接跳转到登录页
+            window.location.href = 'login.html';
+        } else {
+            errorMsg.textContent = result.message || '注册失败';
+            errorMsg.classList.remove('hidden');
+        }
+    } catch (error) {
+        errorMsg.textContent = '网络错误，请稍后重试';
+        errorMsg.classList.remove('hidden');
+    }
+});
+</script>
+  <script defer src="/js/nest-ui.js"></script>
+    <script defer src="/libs/animejs/anime.umd.min.js"></script>
+    <script defer src="/libs/countup/countUp.umd.js"></script>
+    <script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+    <script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+    <script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+<script type="module" src="/js/nest-shader-bg.js"></script>
+</body></html>

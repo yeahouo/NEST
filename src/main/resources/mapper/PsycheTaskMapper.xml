@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.PsycheTaskMapper">
+
+    <!-- 学工 P14：普查名单与进度。姓名/学号取 users（student_profile 没有 name 列），
+         班级/专业/年级取 student_profile，批次名取 psyche_batch。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.PsycheTask">
+        <id column="id" property="id"/>
+        <result column="batch_id" property="batchId"/>
+        <result column="student_id" property="studentId"/>
+        <result column="status" property="status"/>
+        <result column="answer_count" property="answerCount"/>
+        <result column="total_items" property="totalItems"/>
+        <result column="score_total" property="scoreTotal"/>
+        <result column="score_band" property="scoreBand"/>
+        <result column="result_level" property="resultLevel"/>
+        <result column="result_note" property="resultNote"/>
+        <result column="result_by" property="resultBy"/>
+        <result column="interviewed" property="interviewed"/>
+        <result column="interview_note" property="interviewNote"/>
+        <result column="interviewed_by" property="interviewedBy"/>
+        <result column="interviewed_at" property="interviewedAt"/>
+        <result column="started_at" property="startedAt"/>
+        <result column="submitted_at" property="submittedAt"/>
+        <result column="duration_seconds" property="durationSeconds"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="major" property="major"/>
+        <result column="grade" property="grade"/>
+        <result column="batch_name" property="batchName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        t.id, t.batch_id, t.student_id, t.status, t.answer_count, t.total_items, t.score_total,
+        t.score_band, t.result_level, t.result_note, t.result_by, t.interviewed, t.interview_note,
+        t.interviewed_by, t.interviewed_at, t.started_at, t.submitted_at, t.duration_seconds,
+        t.created_at, t.updated_at, t.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(u.student_id, '') AS student_no,
+        COALESCE(sp.class_name, '') AS class_name,
+        COALESCE(sp.major, '') AS major,
+        COALESCE(sp.grade, '') AS grade,
+        COALESCE(b.batch_name, '') AS batch_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM psyche_task t
+        LEFT JOIN users u ON u.id = t.student_id
+        LEFT JOIN student_profile sp ON sp.user_id = t.student_id AND sp.deleted = 0
+        LEFT JOIN psyche_batch b ON b.id = t.batch_id
+    </sql>
+
+    <!-- batchId 为 null 表示不限批次（导出与全局统计用） -->
+    <sql id="List_Filters">
+        <if test="batchId != null">AND t.batch_id = #{batchId}</if>
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+        <if test="className != null and className != ''">AND sp.class_name = #{className}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.student_id LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.PsycheTask"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO psyche_task
+            (batch_id, student_id, status, answer_count, total_items, score_total, score_band,
+             result_level, result_note, result_by, interviewed, interview_note, interviewed_by,
+             interviewed_at, started_at, submitted_at, duration_seconds, created_at, updated_at, deleted)
+        VALUES
+            (#{batchId}, #{studentId}, #{status}, #{answerCount}, #{totalItems}, #{scoreTotal}, #{scoreBand},
+             #{resultLevel}, #{resultNote}, #{resultBy}, #{interviewed}, #{interviewNote}, #{interviewedBy},
+             #{interviewedAt}, #{startedAt}, #{submittedAt}, #{durationSeconds}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.id = #{id} AND t.deleted = 0
+    </select>
+
+    <select id="findByBatchAndStudent" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.batch_id = #{batchId} AND t.student_id = #{studentId} AND t.deleted = 0
+        LIMIT 1
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY t.status DESC, t.id ASC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="count" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <select id="listByStudent" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.student_id = #{studentId} AND t.deleted = 0
+        ORDER BY t.id DESC
+    </select>
+
+    <!-- pending → in_progress（学生第一次拉题时落 started_at；已在作答/已完成的不动） -->
+    <update id="startTask">
+        UPDATE psyche_task
+        SET status = 'in_progress', started_at = #{startedAt}, total_items = #{totalItems}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = 'pending'
+    </update>
+
+    <!-- pending/in_progress → completed（CAS）：同时写分数、档位、作答用时与提交时间 -->
+    <update id="submit">
+        UPDATE psyche_task
+        SET status = 'completed',
+            answer_count = #{answerCount},
+            total_items = #{totalItems},
+            score_total = #{scoreTotal},
+            score_band = #{scoreBand},
+            duration_seconds = #{durationSeconds},
+            submitted_at = #{submittedAt},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- 中心/辅导员回填结果等级（平台不自动判定学生心理状况） -->
+    <update id="updateResult">
+        UPDATE psyche_task
+        SET result_level = #{resultLevel},
+            result_note = #{resultNote},
+            result_by = #{resultBy},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <!-- S8 抽查面对面访谈 -->
+    <update id="updateInterview">
+        UPDATE psyche_task
+        SET interviewed = #{interviewed},
+            interview_note = #{interviewNote},
+            interviewed_by = #{interviewedBy},
+            interviewed_at = #{interviewedAt},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <!-- S8：必须完成所有题目，否则测试无效、按未参加处理 ⇒ 关窗时把未完成的名单置 absent -->
+    <update id="markAbsentByBatch">
+        UPDATE psyche_task
+        SET status = 'absent', updated_at = NOW()
+        WHERE batch_id = #{batchId} AND deleted = 0 AND status IN ('pending', 'in_progress')
+    </update>
+
+    <select id="countGroupByStatus" resultType="java.util.Map">
+        SELECT t.status AS status, COUNT(*) AS cnt
+        FROM psyche_task t
+        WHERE t.deleted = 0
+        <if test="batchId != null">AND t.batch_id = #{batchId}</if>
+        GROUP BY t.status
+    </select>
+
+    <select id="countGroupByClass" resultType="java.util.Map">
+        SELECT COALESCE(sp.class_name, '') AS class_name,
+               COUNT(*) AS cnt,
+               SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) AS done
+        FROM psyche_task t
+        LEFT JOIN student_profile sp ON sp.user_id = t.student_id AND sp.deleted = 0
+        WHERE t.deleted = 0
+        <if test="batchId != null">AND t.batch_id = #{batchId}</if>
+        GROUP BY COALESCE(sp.class_name, '')
+        ORDER BY class_name
+    </select>
+
+    <select id="countGroupByMajor" resultType="java.util.Map">
+        SELECT COALESCE(sp.major, '') AS major,
+               COUNT(*) AS cnt,
+               SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) AS done
+        FROM psyche_task t
+        LEFT JOIN student_profile sp ON sp.user_id = t.student_id AND sp.deleted = 0
+        WHERE t.deleted = 0
+        <if test="batchId != null">AND t.batch_id = #{batchId}</if>
+        GROUP BY COALESCE(sp.major, '')
+        ORDER BY major
+    </select>
+
+</mapper>

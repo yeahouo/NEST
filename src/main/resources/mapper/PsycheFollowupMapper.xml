@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.PsycheFollowupMapper">
+
+    <!-- 学工 P14：关注台账跟进流水（§9 的 7 张表之外的第 8 张，见 sql 文件头）。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.PsycheFollowup">
+        <id column="id" property="id"/>
+        <result column="focus_id" property="focusId"/>
+        <result column="content" property="content"/>
+        <result column="measures" property="measures"/>
+        <result column="next_plan" property="nextPlan"/>
+        <result column="operator_id" property="operatorId"/>
+        <result column="happened_at" property="happenedAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="operator_name" property="operatorName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        fl.id, fl.focus_id, fl.content, fl.measures, fl.next_plan, fl.operator_id, fl.happened_at,
+        fl.created_at, fl.updated_at, fl.deleted,
+        COALESCE(NULLIF(o.real_name, ''), o.nickname, o.username) AS operator_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM psyche_followup fl
+        LEFT JOIN users o ON o.id = fl.operator_id
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.PsycheFollowup"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO psyche_followup
+            (focus_id, content, measures, next_plan, operator_id, happened_at, created_at, updated_at, deleted)
+        VALUES
+            (#{focusId}, #{content}, #{measures}, #{nextPlan}, #{operatorId}, #{happenedAt}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="listByFocus" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE fl.focus_id = #{focusId} AND fl.deleted = 0
+        ORDER BY fl.happened_at DESC, fl.id DESC
+    </select>
+
+</mapper>

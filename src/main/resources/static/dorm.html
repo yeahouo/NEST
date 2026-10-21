@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html data-theme="nestlight" lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>学工平台 · 宿舍智能分配（功能自测台）</title>
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+<link rel="manifest" href="/manifest.webmanifest"/>
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <!--
+    主题必须在样式表之前定下来。放到 defer 的共享脚本里会先按浅色画一帧、
+    再翻成深色 —— 也就是俗称的「闪白」，比没有深色模式更难受。
+    所以这段必须内联，且必须排在 <link rel="stylesheet"> 前面。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+<style>
+  /* 站内其余页面由 /css/nest.css 里的 @view-transition 选择加入「换页淡入」。
+     这一页不加载那份样式表（它自带手写样式），少了这条选择加入，
+     从别的页面跳进来时浏览器的跨文档过渡会被中止，并在控制台报 InvalidStateError。
+     所以这里补上同一条规则——只是选择加入，不改外观。 */
+  @view-transition { navigation: auto; }
+  /* 样式够用就行：这是一个功能自测台，不是交付界面。 */
+  :root { --line:rgba(24,28,36,.10); --panel:#ffffff; --bg:#f5f3ef; --fg:#17181c; --mut:#5a5f6a; --hover:#ece8e1; --acc:#3e63dd; --acc-soft:#eef1fd; }
+  .dark { --line:rgba(255,255,255,.12); --panel:#17181c; --bg:#0d0e11; --fg:#f2f2f5; --mut:#a2a7b2; --hover:#23252b; --acc:#7d97f7; --acc-soft:#1b2030; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif; color:var(--fg); background:var(--bg); }
+  header { position:sticky; top:0; z-index:5; background:var(--panel); border-bottom:1px solid var(--line); padding:14px 20px; display:flex; align-items:baseline; gap:12px; }
+  header h1 { font-family:"Instrument Serif",Georgia,serif; font-size:20px; font-weight:400; margin:0; }
+  header .sub { color:var(--mut); font-size:12px; }
+  main { max-width:1180px; margin:0 auto; padding:18px 20px 60px; }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:16px 18px; margin-bottom:14px; }
+  section > h2 { font-size:14px; margin:0 0 10px; display:flex; align-items:center; gap:8px; }
+  section > h2 .idx { background:var(--fg); color:#fff; border-radius:50%; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; font-size:11px; }
+  label { display:inline-flex; align-items:center; gap:6px; margin:0 12px 8px 0; color:var(--mut); font-size:13px; }
+  input, select { border:1px solid var(--line); border-radius:10px; padding:6px 10px; font:inherit; color:var(--fg); background:var(--panel); }
+  input[type=number] { width:82px; }
+  button { border:1px solid var(--line); background:var(--panel); color:var(--fg); border-radius:999px; padding:6px 16px; font:inherit; cursor:pointer; transition:background .16s ease,border-color .16s ease; }
+  button:hover { background:var(--hover); }
+  button.primary { background:var(--acc); border-color:var(--acc); color:#fff; }
+  button.primary:hover { filter:brightness(1.08); }
+  button:disabled { opacity:.5; cursor:default; }
+  .row { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+  pre { background:var(--fg); color:var(--bg); border-radius:12px; padding:10px 12px; overflow:auto; max-height:420px; font-size:12px; margin:10px 0 0; }
+  table { border-collapse:collapse; width:100%; font-size:13px; }
+  th, td { border-bottom:1px solid var(--line); padding:6px 8px; text-align:left; white-space:nowrap; }
+  th { color:var(--mut); font-weight:600; font-size:12px; background:var(--hover); }
+  tr.sel td { background:var(--acc-soft); }
+  .pill { display:inline-block; padding:2px 10px; border-radius:999px; font-size:12px; border:1px solid var(--line); }
+  .ok { background:#dafbe1; border-color:#aceebb; }
+  .bad { background:#ffebe9; border-color:#ffcecb; }
+  .warn { background:#fff8c5; border-color:#f5e08a; }
+  .dark .ok { background:rgba(61,214,140,.14); border-color:rgba(61,214,140,.32); }
+  .dark .bad { background:rgba(255,99,105,.14); border-color:rgba(255,99,105,.32); }
+  .dark .warn { background:rgba(245,195,107,.16); border-color:rgba(245,195,107,.34); }
+  .mut { color:var(--mut); }
+  .kpi { display:flex; flex-wrap:wrap; gap:22px; }
+  .kpi div { font-size:12px; color:var(--mut); }
+  .kpi b { display:block; font-size:19px; color:var(--fg); font-weight:650; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .grid2 > div { min-width:0; }
+  .hint { color:var(--mut); font-size:12px; margin:0 0 10px; }
+  #status { position:fixed; right:16px; bottom:16px; background:var(--fg); color:var(--bg); padding:8px 16px; border-radius:999px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; }
+  #status.on { opacity:.94; }
+  code { background:var(--hover); padding:1px 5px; border-radius:6px; font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>宿舍智能分配</h1>
+  <span class="sub">功能自测台 · 后端 <code>/api/dorm</code> · 所有按钮直接打真实接口</span>
+</header>
+
+<main>
+
+  <section>
+    <h2><span class="idx">1</span>准备数据</h2>
+    <p class="hint">用「带隐真值的合成数据」造一批学生和房间。<b>真值 g 存进另一张表，求解器读不到</b>——所以下面的指标是在算法看不见的答案上算的。</p>
+    <div class="row">
+      <label>学生数 <input type="number" id="s-n" value="1000" step="100"></label>
+      <label>随机种子 <input type="number" id="s-seed" value="20260927"></label>
+      <label>观测噪声 <input type="number" id="s-noise" value="0.2" step="0.05" min="0" max="1"></label>
+      <label>缺失率 <input type="number" id="s-missing" value="0" step="0.05" min="0" max="1"></label>
+      <label>志愿紧张度 <input type="number" id="s-tension" value="0.5" step="0.1" min="0" max="1"></label>
+      <button class="primary" onclick="synthesize()">生成数据</button>
+      <button onclick="clearAll()">清空宿舍数据</button>
+      <button onclick="loadSummary()">刷新概览</button>
+    </div>
+    <div id="summary" style="margin-top:12px"></div>
+  </section>
+
+  <section>
+    <h2><span class="idx">2</span>一键分配</h2>
+    <p class="hint">分块 → 块内志愿簇预分组 → 贪心构造 → 局部搜索 → 阻塞对修复 → 独立校验。硬约束违规数必须恒为 0。</p>
+    <div class="row">
+      <label>批次名 <input type="text" id="a-name" value="自测台批次" style="width:180px"></label>
+      <label><input type="checkbox" id="a-expl" checked> 同时预计算四维解释</label>
+      <button class="primary" onclick="assign()">开始分配</button>
+      <button onclick="loadBatches()">刷新批次列表</button>
+    </div>
+    <div id="assignResult" style="margin-top:12px"></div>
+  </section>
+
+  <section>
+    <h2><span class="idx">3</span>批次</h2>
+    <div id="batchList"><span class="mut">还没有批次。</span></div>
+    <div id="batchDetail" style="margin-top:12px"></div>
+  </section>
+
+  <section>
+    <h2><span class="idx">4</span>四维可解释（约束层 / 相容度层 / 志愿层 / 对比层）</h2>
+    <p class="hint">要查谁的解释：填学生 id（数据库主键，就是学号 <code>S000001</code> 里的那个数字）。解释是分配时**预算好**落库的，查询只是读。</p>
+    <div class="row">
+      <label>学生 id <input type="number" id="e-sid" value="1"></label>
+      <button onclick="explain()">查他的解释</button>
+      <button onclick="roomView()">看他所在的房</button>
+    </div>
+    <div id="explainBox"></div>
+  </section>
+
+  <section>
+    <h2><span class="idx">5</span>申诉：我想和某几个人住一起</h2>
+    <p class="hint">三级判定：<b>房间级</b>（毫秒）→ <b>块级</b>（千人几秒）→ 都不行时给「在我找过的范围内不能满足」，并声明不代表全校无解。硬约束先筛，不可行就直接告诉你卡在哪条规则上。</p>
+    <div class="row">
+      <label>学生 id <input type="number" id="p-sid" value="892"></label>
+      <label>想同住（逗号分隔） <input type="text" id="p-targets" value="458,710" style="width:150px"></label>
+      <label>代价预算（留空自动） <input type="number" id="p-budget" step="0.1" style="width:90px"></label>
+      <button class="primary" onclick="appeal()">提交申诉</button>
+    </div>
+    <div id="appealBox"></div>
+  </section>
+
+  <section>
+    <h2><span class="idx">6</span>公平性审计</h2>
+    <div class="row"><button onclick="audit()">看当前批次的公平性</button></div>
+    <div id="auditBox"></div>
+  </section>
+
+</main>
+<div id="status"></div>
+
+<script>
+const API = '/api/dorm';
+let currentBatch = null;
+
+function toast(msg, ms) {
+  const el = document.getElementById('status');
+  el.textContent = msg; el.classList.add('on');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('on'), ms || 2600);
+}
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+function num(v, d) { return (v == null || isNaN(v)) ? '—' : Number(v).toFixed(d == null ? 4 : d); }
+function json(o) { return '<pre>' + esc(JSON.stringify(o, null, 2)) + '</pre>'; }
+
+async function call(method, path, body) {
+  const opt = { method, headers: {} };
+  if (body !== undefined) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+  const r = await fetch(API + path, opt);
+  let j = null;
+  try { j = await r.json(); } catch (e) { throw new Error('HTTP ' + r.status + ' 非 JSON 响应'); }
+  if (j.code !== 200) throw new Error(j.message || ('HTTP ' + r.status));
+  return j.data;
+}
+async function guard(fn, msg) {
+  try { toast(msg || '执行中…', 60000); const r = await fn(); toast('完成'); return r; }
+  catch (e) { toast('失败：' + e.message, 6000); throw e; }
+}
+
+/* 批次前置检查：没有选中批次时，任何 /batches/{id}/... 请求都会发出 /batches/null/...，
+   后端 Springs 会因为把字符串 "null" 当 long 解析而报 500（Failed to convert value of type
+   'java.lang.String' to required type 'long'）。所以先在页面上给出人能看懂的解释，不发请求。 */
+function needBatch(boxId, what) {
+  if (currentBatch) return true;
+  const box = document.getElementById(boxId);
+  if (box) box.innerHTML = '<p><span class="pill bad">还没有选中的批次</span> 先在上面的「2 分配」里跑一次分配，' +
+    '或在「3 批次」列表里点「打开」选一个批次，再' + what + '。</p>';
+  return false;
+}
+
+/* ---- 1 数据 ---- */
+async function synthesize() {
+  const body = {
+    students: +document.getElementById('s-n').value,
+    seed: +document.getElementById('s-seed').value,
+    noise: +document.getElementById('s-noise').value,
+    missing: +document.getElementById('s-missing').value,
+    tension: +document.getElementById('s-tension').value
+  };
+  const d = await guard(() => call('POST', '/data/synthesize', body), '生成数据中…');
+  showSummary(d.summary, d);
+}
+async function clearAll() {
+  await guard(() => call('POST', '/data/clear'), '清空中…');
+  document.getElementById('summary').innerHTML = '<span class="mut">已清空。</span>';
+  loadBatches();
+}
+async function loadSummary() {
+  const d = await guard(() => call('GET', '/summary'), '读取概览…');
+  showSummary(d, null);
+}
+function showSummary(s, extra) {
+  if (!s) return;
+  const g = arr => (arr || []).map(x => esc(x.k) + ' ' + x.v).join(' · ');
+  document.getElementById('summary').innerHTML =
+    '<div class="kpi">' +
+      '<div>学生<b>' + s.students + '</b></div>' +
+      '<div>房间<b>' + s.rooms + '</b></div>' +
+      '<div>总床位<b>' + s.capacityTotal + '</b></div>' +
+      '<div>志愿条目<b>' + s.preferences + '</b></div>' +
+      '<div>已观测特征<b>' + s.features + '</b></div>' +
+      '<div>历史批次<b>' + s.batches + '</b></div>' +
+    '</div>' +
+    '<p class="mut" style="margin:10px 0 0">性别：' + g(s.byGender) + '<br>专业大类：' + g(s.byCluster) +
+    '<br>年级：' + g(s.byGrade) + '<br>房间池：' + (s.roomsByPool || []).map(x => esc(x.k) + ' ' + x.v + '间/' + x.beds + '床').join(' · ') +
+    '<br>特殊需求：' + g(s.specialNeeds) + '</p>' +
+    (extra && extra.note ? '<p class="mut">' + esc(extra.note) + '（隐藏真值 ' + extra.hiddenTruthStored + ' 条）</p>' : '');
+}
+
+/* ---- 2 分配 ---- */
+async function assign() {
+  const d = await guard(() => call('POST', '/assign', {
+    name: document.getElementById('a-name').value || null,
+    withExplanations: document.getElementById('a-expl').checked
+  }), '求解中…');
+  const m = d.metrics;
+  const ok = m.hardViolations === 0 && m.unassigned === 0;
+  document.getElementById('assignResult').innerHTML =
+    '<p><span class="pill ' + (ok ? 'ok' : 'bad') + '">' + (ok ? '可行解 · 硬约束 0 违规' : '不可行') + '</span> ' +
+    '批次 <b>#' + d.batchId + '</b> · 求解器 <code>' + esc(m.solver) + '</code> · 指标基准 <b>' + esc(m.basis) + '</b> · 预计算解释 ' + d.explanationsStored + ' 条' +
+    (d.explainSkippedReason ? ' <span class="mut">（' + esc(d.explainSkippedReason) + '）</span>' : '') + '</p>' +
+    metricKpi(m) +
+    '<p class="mut" style="margin-top:8px">诊断</p>' + json(d.diagnostics);
+  currentBatch = d.batchId;
+  document.getElementById('e-sid') && (document.getElementById('e-sid').value = 1);
+  loadBatches();
+}
+function metricKpi(m) {
+  return '<div class="kpi">' +
+    '<div>均值相容度<b>' + num(m.meanCompat) + '</b></div>' +
+    '<div>最差那对<b>' + num(m.worstCompat) + '</b></div>' +
+    '<div>房内方差<b>' + num(m.meanRoomVariance) + '</b></div>' +
+    '<div>志愿满足率<b>' + num(m.preferenceSatisfaction) + '</b></div>' +
+    '<div>阻塞对<b>' + m.blockingPairs + '</b></div>' +
+    '<div>硬约束违规<b>' + m.hardViolations + '</b></div>' +
+    '<div>未分配<b>' + m.unassigned + '</b></div>' +
+    '<div>专业公平性极差<b>' + num(m.fairnessSpreadMajor) + '</b></div>' +
+    '<div>年级公平性极差<b>' + num(m.fairnessSpreadGrade) + '</b></div>' +
+    '<div>耗时(ms)<b>' + m.runtimeMs + '</b></div>' +
+  '</div>';
+}
+
+/* ---- 3 批次 ---- */
+async function loadBatches() {
+  const list = await call('GET', '/batches?limit=20');
+  const box = document.getElementById('batchList');
+  if (!list || !list.length) { box.innerHTML = '<span class="mut">还没有批次。</span>'; return; }
+  let h = '<table><thead><tr><th>#</th><th>名称</th><th>求解器</th><th>状态</th><th>学生</th><th>违规</th><th>未分配</th><th>均值相容</th><th>阻塞对</th><th>耗时ms</th><th></th></tr></thead><tbody>';
+  for (const b of list) {
+    h += '<tr class="' + (b.id === currentBatch ? 'sel' : '') + '">' +
+      '<td>' + b.id + '</td><td>' + esc(b.name) + '</td><td><span class="mut">' + esc(b.solver) + '</span></td>' +
+      '<td>' + esc(b.status) + '</td><td>' + b.student_count + '</td>' +
+      '<td>' + (b.hard_violations === 0 ? '<span class="pill ok">0</span>' : '<span class="pill bad">' + b.hard_violations + '</span>') + '</td>' +
+      '<td>' + b.unassigned_count + '</td><td>' + num(b.mean_compat) + '</td><td>' + b.blocking_pairs + '</td><td>' + b.runtime_ms + '</td>' +
+      '<td><button onclick="openBatch(' + b.id + ')">打开</button></td></tr>';
+  }
+  box.innerHTML = h + '</tbody></table>';
+}
+async function openBatch(id) {
+  currentBatch = id;
+  const d = await guard(() => call('GET', '/batches/' + id), '读取批次…');
+  const b = d.batch || d;
+  document.getElementById('batchDetail').innerHTML =
+    '<p>批次 <b>#' + (b.id || id) + '</b> ' + esc(b.name || '') + '</p>' +
+    (b.metrics ? metricKpi(b.metrics) : '') + json(d);
+  loadBatches();
+}
+
+/* ---- 4 解释 ---- */
+async function explain() {
+  if (!needBatch('explainBox', '看某个学生的解释')) return;
+  const sid = +document.getElementById('e-sid').value;
+  const d = await guard(() => call('GET', '/batches/' + currentBatch + '/explain/' + sid), '取解释…');
+  const e = d.explanation;
+  let h = '<p style="margin-top:12px"><span class="pill ' + (d.source === 'PRECOMPUTED' ? 'ok' : 'warn') + '">' + esc(d.source) + '</span> ' +
+    '<b>' + esc(e.studentName) + '</b> → ' + esc(e.roomLabel) + '（' + esc(e.buildingId) + '） · 房内均值 ' + num(e.roomMeanCompat) + ' · 房内最差 ' + num(e.roomWorstCompat) + '</p>';
+  h += '<p class="hint" style="margin:8px 0 0">' + esc(e.narrative) + '</p>';
+
+  h += '<div class="grid2" style="margin-top:12px">';
+  h += '<div><h3 style="font-size:13px;margin:0 0 6px">相容度层（按影响排序）</h3><table><thead><tr><th>维度</th><th>室友</th><th>差距</th><th>贡献</th></tr></thead><tbody>';
+  for (const x of (e.dimensions || []).slice(0, 12)) {
+    h += '<tr><td>' + esc(x.dimension) + '</td><td>' + esc(x.otherName) + '</td><td>' + num(x.gap, 3) + '</td><td>' + num(x.contribution, 3) + '</td></tr>';
+  }
+  h += '</tbody></table></div>';
+
+  h += '<div><h3 style="font-size:13px;margin:0 0 6px">志愿层</h3><table><thead><tr><th>类型</th><th>对象</th><th>结果</th><th>原因</th></tr></thead><tbody>';
+  for (const x of (e.preferences || [])) {
+    h += '<tr><td>' + esc(x.kind) + '</td><td>' + esc(x.otherName) + '</td><td>' +
+      (x.satisfied ? '<span class="pill ok">满足</span>' : '<span class="pill bad">未满足</span>') + '</td><td style="white-space:normal">' + esc(x.reason) + '</td></tr>';
+  }
+  h += '</tbody></table></div></div>';
+
+  h += '<div class="grid2" style="margin-top:12px">';
+  h += '<div><h3 style="font-size:13px;margin:0 0 6px">约束层</h3><table><thead><tr><th>规则</th><th>是否生效</th><th>说明</th></tr></thead><tbody>';
+  for (const x of (e.constraints || [])) {
+    h += '<tr><td>' + esc(x.rule) + '</td><td>' + (x.binding ? '<span class="pill warn">约束中</span>' : '<span class="mut">未触发</span>') + '</td><td style="white-space:normal">' + esc(x.detail) + '</td></tr>';
+  }
+  h += '</tbody></table></div>';
+  h += '<div><h3 style="font-size:13px;margin:0 0 6px">对比层（如果换个分法会怎样）</h3><table><thead><tr><th>方案</th><th>分数变化</th><th>说明</th></tr></thead><tbody>';
+  for (const x of (e.comparatives || [])) {
+    h += '<tr><td>' + esc(x.option) + '</td><td>' + num(x.delta, 3) + '</td><td style="white-space:normal">' + esc(x.comment) + '</td></tr>';
+  }
+  h += '</tbody></table></div></div>';
+  document.getElementById('explainBox').innerHTML = h;
+}
+async function roomView() {
+  if (!needBatch('explainBox', '看房间')) return;
+  const sid = +document.getElementById('e-sid').value;
+  const e = await call('GET', '/batches/' + currentBatch + '/explain/' + sid);
+  const d = await guard(() => call('GET', '/batches/' + currentBatch + '/room/' + e.explanation.roomId), '读房间…');
+  document.getElementById('explainBox').innerHTML = '<p class="mut">房间 ' + esc(e.explanation.roomLabel) + '</p>' + json(d);
+}
+
+/* ---- 5 申诉 ---- */
+async function appeal() {
+  if (!needBatch('appealBox', '试算申诉')) return;
+  const sid = +document.getElementById('p-sid').value;
+  const raw = document.getElementById('p-targets').value.trim();
+  const targets = raw ? raw.split(/[,，\s]+/).filter(Boolean).map(Number) : [];
+  const b = document.getElementById('p-budget').value;
+  const body = { studentId: sid, wantRoomWith: targets };
+  if (b !== '') body.costBudget = +b;
+  const d = await guard(() => call('POST', '/batches/' + currentBatch + '/appeal', body), '试算中…');
+  const r = d.result;
+  const cls = r.status === 'SATISFIED' ? 'ok' : (r.status === 'UNSATISFIABLE' ? 'bad' : 'warn');
+  let h = '<p style="margin-top:12px"><span class="pill ' + cls + '">' + esc(r.status) + '</span> ' +
+    '申诉 #' + d.appealId + ' · 范围：' + esc(r.scope) + ' · 耗时 ' + r.elapsedMs + ' ms · 代价变化 ' + num(r.totalCostDelta, 4) + '（预算 ' + num(r.costBudget, 4) + '）</p>' +
+    '<p>' + esc(r.message) + '</p>';
+  if (r.suggestions && r.suggestions.length) {
+    h += '<table><thead><tr><th>学生</th><th>原房间</th><th>→ 新房间</th><th>对调对象</th><th>分数变化</th><th>说明</th></tr></thead><tbody>';
+    for (const s of r.suggestions) {
+      h += '<tr><td>' + esc(s.studentName) + '(' + s.studentId + ')</td><td>' + esc(s.fromLabel) + '</td><td>' + esc(s.toLabel) +
+        '</td><td>' + esc(s.otherName) + (s.otherId >= 0 ? '(' + s.otherId + ')' : '') + '</td><td>' + num(s.delta, 4) + '</td><td style="white-space:normal">' + esc(s.note) + '</td></tr>';
+    }
+    h += '</tbody></table><p style="margin-top:10px"><button class="primary" onclick="applyAppeal(' + d.appealId + ')">采纳这条申诉（只改这两人的房间，不重跑全局分配）</button></p>';
+  }
+  document.getElementById('appealBox').innerHTML = h;
+}
+async function applyAppeal(id) {
+  const d = await guard(() => call('POST', '/appeals/' + id + '/apply', { handledBy: 'admin' }), '落库中…');
+  document.getElementById('appealBox').innerHTML += '<p><span class="pill ok">' + esc(d.status) + '</span> 改动 ' + d.moves + ' 条 —— ' + esc(d.note) + '</p>';
+}
+
+/* ---- 6 审计 ---- */
+async function audit() {
+  if (!needBatch('auditBox', '读审计')) return;
+  const d = await guard(() => call('GET', '/batches/' + currentBatch + '/audit'), '读审计…');
+  let h = '<table><thead><tr><th>指标</th><th>分组</th><th>组内人数</th><th>平均满意度</th></tr></thead><tbody>';
+  for (const x of (d || [])) {
+    h += '<tr><td>' + esc(x.metric) + '</td><td>' + esc(x.group_key) + '</td><td>' + x.group_size + '</td><td>' + num(x.value) + '</td></tr>';
+  }
+  document.getElementById('auditBox').innerHTML = h + '</tbody></table>';
+}
+
+/* 初始化 */
+loadSummary().catch(() => {});
+loadBatches().catch(() => {});
+</script>
+  <script defer src="/js/nest-ui.js"></script>
+    <script defer src="/libs/animejs/anime.umd.min.js"></script>
+    <script defer src="/libs/countup/countUp.umd.js"></script>
+    <script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+    <script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+    <script defer src="/js/nest-motion.js"></script>
+</body>
+</html>

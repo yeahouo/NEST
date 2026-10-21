@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.WorkstudyPayrollMapper">
+
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.WorkstudyPayroll">
+        <id column="id" property="id"/>
+        <result column="student_id" property="studentId"/>
+        <result column="post_id" property="postId"/>
+        <result column="application_id" property="applicationId"/>
+        <result column="work_month" property="workMonth"/>
+        <result column="total_hours" property="totalHours"/>
+        <result column="hourly_wage" property="hourlyWage"/>
+        <result column="amount" property="amount"/>
+        <result column="assessment" property="assessment"/>
+        <result column="status" property="status"/>
+        <result column="payer_id" property="payerId"/>
+        <result column="paid_at" property="paidAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="post_name" property="postName"/>
+        <result column="unit" property="unit"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        d.id, d.student_id, d.post_id, d.application_id, d.work_month, d.total_hours,
+        d.hourly_wage, d.amount, d.assessment, d.status, d.payer_id, d.paid_at,
+        d.created_at, d.updated_at, d.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(sp.student_no, u.student_id) AS student_no,
+        COALESCE(sp.class_name, u.class_name) AS class_name,
+        p.name AS post_name,
+        p.unit AS unit
+    </sql>
+
+    <sql id="Joined_From">
+        FROM workstudy_payroll d
+        LEFT JOIN users u ON u.id = d.student_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = d.student_id AND sp.deleted = 0
+        LEFT JOIN workstudy_post p ON p.id = d.post_id
+    </sql>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE d.id = #{id} AND d.deleted = 0
+    </select>
+
+    <insert id="upsert" parameterType="com.umi.nest.entity.WorkstudyPayroll"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO workstudy_payroll
+            (student_id, post_id, application_id, work_month, total_hours, hourly_wage,
+             amount, assessment, status, payer_id, paid_at, created_at, updated_at, deleted)
+        VALUES
+            (#{studentId}, #{postId}, #{applicationId}, #{workMonth}, #{totalHours}, #{hourlyWage},
+             #{amount}, #{assessment}, #{status}, #{payerId}, #{paidAt}, NOW(), NOW(), 0)
+        ON DUPLICATE KEY UPDATE
+            application_id = VALUES(application_id),
+            total_hours = VALUES(total_hours),
+            hourly_wage = VALUES(hourly_wage),
+            amount = VALUES(amount),
+            updated_at = NOW()
+    </insert>
+
+    <select id="countByMonth" resultType="int">
+        SELECT COUNT(*)
+        FROM workstudy_payroll d
+        WHERE d.deleted = 0 AND d.work_month = #{workMonth}
+        <if test="status != null and status != ''">AND d.status = #{status}</if>
+    </select>
+
+    <select id="listByMonth" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE d.deleted = 0 AND d.work_month = #{workMonth}
+        <if test="status != null and status != ''">AND d.status = #{status}</if>
+        ORDER BY d.status ASC, d.student_id ASC, d.id ASC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countList" resultType="int">
+        SELECT COUNT(*)
+        FROM workstudy_payroll d
+        WHERE d.deleted = 0
+        <if test="workMonth != null and workMonth != ''">AND d.work_month = #{workMonth}</if>
+        <if test="status != null and status != ''">AND d.status = #{status}</if>
+    </select>
+
+    <update id="updatePay">
+        UPDATE workstudy_payroll
+        SET status = 'paid', payer_id = #{payerId}, paid_at = #{paidAt}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0
+        <if test="fromStatus != null and fromStatus != ''">AND status = #{fromStatus}</if>
+    </update>
+
+    <select id="sumAmount" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(d.amount), 0)
+        FROM workstudy_payroll d
+        WHERE d.deleted = 0
+        <if test="workMonth != null and workMonth != ''">AND d.work_month = #{workMonth}</if>
+        <if test="status != null and status != ''">AND d.status = #{status}</if>
+    </select>
+
+</mapper>

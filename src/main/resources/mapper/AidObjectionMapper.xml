@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.AidObjectionMapper">
+
+    <!-- 显式 resultMap（项目约定：不依赖 map-underscore-to-camel-case 的隐式驼峰映射） -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.AidObjection">
+        <id column="id" property="id"/>
+        <result column="application_id" property="applicationId"/>
+        <result column="student_id" property="studentId"/>
+        <result column="objector_id" property="objectorId"/>
+        <result column="objector_name" property="objectorName"/>
+        <result column="content" property="content"/>
+        <result column="evidence" property="evidence"/>
+        <result column="status" property="status"/>
+        <result column="answer" property="answer"/>
+        <result column="answered_by" property="answeredBy"/>
+        <result column="deadline" property="deadline"/>
+        <result column="answered_at" property="answeredAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <!-- 列表展示用的非表字段（JOIN 认定申请得来） -->
+        <result column="cert_year" property="certYear"/>
+        <result column="poverty_level" property="povertyLevel"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        o.id, o.application_id, o.student_id, o.objector_id, o.objector_name, o.content, o.evidence,
+        o.status, o.answer, o.answered_by, o.deadline, o.answered_at, o.created_at, o.updated_at, o.deleted,
+        a.cert_year AS cert_year,
+        a.poverty_level AS poverty_level
+    </sql>
+
+    <sql id="Joined_From">
+        FROM aid_objection o
+        LEFT JOIN aid_application a ON a.id = o.application_id AND a.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = o.student_id AND sp.deleted = 0
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.AidObjection"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO aid_objection
+            (application_id, student_id, objector_id, objector_name, content, evidence,
+             status, deadline, created_at, updated_at, deleted)
+        VALUES
+            (#{applicationId}, #{studentId}, #{objectorId}, #{objectorName}, #{content}, #{evidence},
+             #{status}, #{deadline}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE o.id = #{id} AND o.deleted = 0
+    </select>
+
+    <select id="listMine" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE o.student_id = #{studentId} AND o.deleted = 0
+        ORDER BY o.created_at DESC, o.id DESC
+    </select>
+
+    <select id="listByApplication" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE o.application_id = #{applicationId} AND o.deleted = 0
+        ORDER BY o.created_at ASC, o.id ASC
+    </select>
+
+    <select id="listByStatus" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE o.deleted = 0
+        <if test="status != null and status != ''">AND o.status = #{status}</if>
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+        ORDER BY FIELD(o.status, 'pending') DESC, o.created_at DESC, o.id DESC
+    </select>
+
+    <select id="countPendingByApplication" resultType="int">
+        SELECT COUNT(*)
+        FROM aid_objection
+        WHERE deleted = 0 AND application_id = #{applicationId} AND status = 'pending'
+    </select>
+
+    <update id="answer">
+        UPDATE aid_objection
+        SET answer = #{answer}, status = #{status}, answered_by = #{answeredBy},
+            answered_at = NOW(), updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = 'pending'
+    </update>
+
+</mapper>

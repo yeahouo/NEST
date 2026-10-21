@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.VolunteerAppealMapper">
+
+    <!-- 志愿服务申诉（学工 P17，S21 第三十七条）。学生姓名/学号由 JOIN 带出；
+         within_window 在提交时由服务层按 5 个工作日算好落库，deadline 由服务层现算。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.VolunteerAppeal">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="record_id" property="recordId"/>
+        <result column="blacklist_id" property="blacklistId"/>
+        <result column="reason" property="reason"/>
+        <result column="submit_time" property="submitTime"/>
+        <result column="accept_org" property="acceptOrg"/>
+        <result column="within_window" property="withinWindow"/>
+        <result column="status" property="status"/>
+        <result column="ruling" property="ruling"/>
+        <result column="ruler_id" property="rulerId"/>
+        <result column="ruling_time" property="rulingTime"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="deadline" property="deadline"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        t.id, t.user_id, t.record_id, t.blacklist_id, t.reason, t.submit_time, t.accept_org,
+        t.within_window, t.status, t.ruling, t.ruler_id, t.ruling_time,
+        t.created_at, t.updated_at, t.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(sp.student_no, u.student_id) AS student_no,
+        DATE_ADD(t.submit_time, INTERVAL 9 DAY) AS deadline
+    </sql>
+
+    <sql id="Joined_From">
+        FROM volunteer_appeal t
+        LEFT JOIN users u ON u.id = t.user_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = t.user_id AND sp.deleted = 0
+    </sql>
+
+    <sql id="List_Filters">
+        <!-- scope（§6）：学生按 t.user_id；辅导员按 student_profile.counselor_id 名下学生 -->
+        <if test="scopeUserId != null">AND t.user_id = #{scopeUserId}</if>
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+        <if test="recordId != null">AND t.record_id = #{recordId}</if>
+        <if test="blacklistId != null">AND t.blacklist_id = #{blacklistId}</if>
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.student_no LIKE CONCAT('%', #{keyword}, '%')
+                 OR t.reason LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.VolunteerAppeal"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO volunteer_appeal
+            (user_id, record_id, blacklist_id, reason, submit_time, accept_org, within_window,
+             status, ruling, ruler_id, ruling_time, created_at, updated_at, deleted)
+        VALUES
+            (#{userId}, #{recordId}, #{blacklistId}, #{reason}, #{submitTime}, #{acceptOrg}, #{withinWindow},
+             #{status}, #{ruling}, #{rulerId}, #{rulingTime}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.id = #{id} AND t.deleted = 0
+    </select>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY t.submit_time DESC, t.id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="selectCount" resultType="long">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <!-- 判定 CAS：pending/accepted → accepted/rejected/closed（§7-1）；终态不可重判（§7-2） -->
+    <update id="ruleAppeal">
+        UPDATE volunteer_appeal
+        SET status = #{toStatus},
+            ruling = #{ruling},
+            ruler_id = #{rulerId},
+            ruling_time = NOW(),
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- 增量修改（动态 set）：CAS 前置态由服务层显式给 -->
+    <update id="update">
+        UPDATE volunteer_appeal
+        <set>
+            <if test="a.recordId != null">record_id = #{a.recordId},</if>
+            <if test="a.blacklistId != null">blacklist_id = #{a.blacklistId},</if>
+            <if test="a.reason != null">reason = #{a.reason},</if>
+            <if test="a.submitTime != null">submit_time = #{a.submitTime},</if>
+            <if test="a.acceptOrg != null">accept_org = #{a.acceptOrg},</if>
+            <if test="a.withinWindow != null">within_window = #{a.withinWindow},</if>
+            <if test="a.status != null">status = #{a.status},</if>
+            <if test="a.ruling != null">ruling = #{a.ruling},</if>
+            <if test="a.rulerId != null">ruler_id = #{a.rulerId},</if>
+            <if test="a.rulingTime != null">ruling_time = #{a.rulingTime},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{a.id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <update id="softDelete">
+        UPDATE volunteer_appeal
+        SET deleted = 1, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <select id="countByStatus" resultType="long">
+        SELECT COUNT(*)
+        FROM volunteer_appeal t
+        WHERE t.deleted = 0
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+    </select>
+
+    <!-- 防重复提交：同一学生对同一记录/黑名单的待受理申诉数 -->
+    <select id="countPendingByUserAndTarget" resultType="long">
+        SELECT COUNT(*)
+        FROM volunteer_appeal t
+        WHERE t.user_id = #{userId}
+          AND t.status = 'pending'
+          AND t.deleted = 0
+        <if test="recordId != null">AND t.record_id = #{recordId}</if>
+        <if test="blacklistId != null">AND t.blacklist_id = #{blacklistId}</if>
+    </select>
+
+    <select id="countGroupByStatus" resultType="java.util.LinkedHashMap">
+        SELECT t.status AS status, COUNT(*) AS total
+        FROM volunteer_appeal t
+        WHERE t.deleted = 0
+        GROUP BY t.status
+        ORDER BY t.status
+    </select>
+
+</mapper>

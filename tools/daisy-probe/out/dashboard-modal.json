@@ -1,0 +1,37 @@
+{
+  "port": 9222,
+  "page": {
+    "url": "http://127.0.0.1:8080/dashboard.html?cb=daisy1",
+    "width": 1440,
+    "height": 1100,
+    "waitMs": 4000
+  },
+  "steps": [
+    {
+      "name": "light",
+      "eval": "localStorage.setItem('nest-theme','light');document.documentElement.classList.remove('dark');document.documentElement.setAttribute('data-theme','nestlight');'light'"
+    },
+    {
+      "name": "modal",
+      "eval": "(() => {\n  const q = (s) => document.querySelector(s);\n  const cs = (el) => getComputedStyle(el);\n  const modal = q('#join-class-modal');\n  q('#join-class-btn').click();\n  const p = [];\n  p.push('open=' + cs(modal).display);\n  p.push('box=' + cs(q('#join-class-modal .card')).borderRadius);\n  p.push('input=' + cs(q('#class-code')).borderRadius);\n  p.push('autofocus=' + (document.activeElement === q('#class-code')));\n  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));\n  p.push('closed=' + cs(modal).display);\n  /* same two-space convention as the other readouts: values may contain single spaces */\n  return p.join('  ');\n})()"
+    },
+    {
+      "name": "state",
+      "eval": "(() => { document.querySelector('#join-class-btn').click(); return 'opened'; })()"
+    },
+    {
+      "name": "reveal",
+      "eval": "document.querySelectorAll('[data-nx-reveal]').forEach(function(e){e.classList.add('is-in')});'revealed'"
+    },
+    {
+      "name": "shot",
+      "shot": "png",
+      "file": "target/zz-daisy-dash-modal.png"
+    }
+  ],
+  "cookie": {
+    "name": "JSESSIONID",
+    "value": "855D3C2C3A4ECC5990FD39B8788B212E",
+    "url": "http://127.0.0.1:8080"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "port": 9222,
+  "cookie": { "name": "JSESSIONID", "value": "__SID__", "url": "http://127.0.0.1:8080" },
+  "page": { "url": "http://127.0.0.1:8080/forgot-password.html?cb=530", "width": 1440, "height": 1000, "waitMs": 2500 },
+  "steps": [
+    { "name": "1-boot", "eval": "JSON.stringify({nestUI: typeof NestUI, countryCodes: document.getElementById('countryCode').options.length, errHidden: document.getElementById('errorMsg').classList.contains('hidden'), successHidden: document.getElementById('successMsg').classList.contains('hidden')})" },
+    { "name": "2-empty-get", "eval": "(function(){ document.getElementById('getCodeBtn').click(); return 'clicked'; })()", "waitMs": 800 },
+    { "name": "3-empty-result", "eval": "JSON.stringify({errHidden: document.getElementById('errorMsg').classList.contains('hidden'), err: document.getElementById('errorMsg').textContent})" },
+    { "name": "4-unregistered", "eval": "(function(){ document.getElementById('phone').value = '13900000009'; document.getElementById('getCodeBtn').click(); return 'clicked'; })()", "waitMs": 1800 },
+    { "name": "5-unregistered-result", "eval": "JSON.stringify({errHidden: document.getElementById('errorMsg').classList.contains('hidden'), err: document.getElementById('errorMsg').textContent, successHidden: document.getElementById('successMsg').classList.contains('hidden')})" },
+    { "name": "6-registered-send", "eval": "(function(){ document.getElementById('phone').value = '__PHONE__'; document.getElementById('getCodeBtn').click(); return 'clicked'; })()", "waitMs": 2200 },
+    { "name": "7-send-result", "eval": "JSON.stringify({errHidden: document.getElementById('errorMsg').classList.contains('hidden'), err: document.getElementById('errorMsg').textContent, successHidden: document.getElementById('successMsg').classList.contains('hidden'), success: document.getElementById('successMsg').textContent, buttonText: document.getElementById('getCodeBtn').textContent, disabled: document.getElementById('getCodeBtn').disabled, countdown: (document.getElementById('countdown') || {}).textContent || null})" },
+    { "name": "8-wrong-code", "eval": "(function(){ document.getElementById('verificationCode').value = '000000'; document.getElementById('resetBtn').click(); return 'clicked'; })()", "waitMs": 2200 },
+    { "name": "9-wrong-code-result", "eval": "JSON.stringify({errHidden: document.getElementById('errorMsg').classList.contains('hidden'), err: document.getElementById('errorMsg').textContent, path: location.pathname, resetPhoneInSession: sessionStorage.getItem('resetPhone')})" },
+    { "name": "10-resend-ratelimit", "eval": "(function(){ document.getElementById('getCodeBtn').click(); return 'clicked'; })()", "waitMs": 1500 },
+    { "name": "11-ratelimit-result", "eval": "JSON.stringify({err: document.getElementById('errorMsg').textContent, success: document.getElementById('successMsg').textContent, buttonText: document.getElementById('getCodeBtn').textContent})" },
+    { "name": "12-shot", "shot": "target\\flow-auth-forgot.png" }
+  ]
+}

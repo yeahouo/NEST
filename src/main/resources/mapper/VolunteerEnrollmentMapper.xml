@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.VolunteerEnrollmentMapper">
+
+    <!-- 志愿服务报名（学工 P17，S21）。学生姓名/学号/班级与项目名由 JOIN 带出。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.VolunteerEnrollment">
+        <id column="id" property="id"/>
+        <result column="project_id" property="projectId"/>
+        <result column="user_id" property="userId"/>
+        <result column="apply_time" property="applyTime"/>
+        <result column="status" property="status"/>
+        <result column="remark" property="remark"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="project_name" property="projectName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        t.id, t.project_id, t.user_id, t.apply_time, t.status, t.remark,
+        t.created_at, t.updated_at, t.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(sp.student_no, u.student_id) AS student_no,
+        COALESCE(sp.class_name, u.class_name) AS class_name,
+        p.project_name AS project_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM volunteer_enrollment t
+        LEFT JOIN users u ON u.id = t.user_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = t.user_id AND sp.deleted = 0
+        LEFT JOIN volunteer_project p ON p.id = t.project_id AND p.deleted = 0
+    </sql>
+
+    <sql id="List_Filters">
+        <!-- scope（§6）：学生按 t.user_id；辅导员按 student_profile.counselor_id 名下学生 -->
+        <if test="scopeUserId != null">AND t.user_id = #{scopeUserId}</if>
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+        <if test="projectId != null">AND t.project_id = #{projectId}</if>
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.student_no LIKE CONCAT('%', #{keyword}, '%')
+                 OR p.project_name LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.VolunteerEnrollment"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO volunteer_enrollment
+            (project_id, user_id, apply_time, status, remark, created_at, updated_at, deleted)
+        VALUES
+            (#{projectId}, #{userId}, #{applyTime}, #{status}, #{remark}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.id = #{id} AND t.deleted = 0
+    </select>
+
+    <!-- 报名资格前置校验：一个学生一个项目只有一条有效报名（UNIQUE uk_project_user） -->
+    <select id="selectByProjectAndUser" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.project_id = #{projectId} AND t.user_id = #{userId} AND t.deleted = 0
+        ORDER BY t.id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY t.apply_time DESC, t.id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="selectCount" resultType="long">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <!-- 取消报名 CAS：pending/confirmed → cancelled（§7-1）。cancelled/attended/absent 影响行数 0 → 400 -->
+    <update id="cancelEnrollment">
+        UPDATE volunteer_enrollment
+        <set>
+            status = 'cancelled',
+            <if test="remark != null">remark = #{remark},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- 出勤登记 CAS：confirmed → attended/absent；cancelled 不得登记（§7-4） -->
+    <update id="markAttendance">
+        UPDATE volunteer_enrollment
+        SET status = #{toStatus}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- 增量修改（动态 set）：CAS 前置态由服务层显式给 -->
+    <update id="update">
+        UPDATE volunteer_enrollment
+        <set>
+            <if test="e.projectId != null">project_id = #{e.projectId},</if>
+            <if test="e.applyTime != null">apply_time = #{e.applyTime},</if>
+            <if test="e.status != null">status = #{e.status},</if>
+            <if test="e.remark != null">remark = #{e.remark},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{e.id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <update id="softDelete">
+        UPDATE volunteer_enrollment
+        SET deleted = 1, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <select id="countByProjectAndStatus" resultType="long">
+        SELECT COUNT(*)
+        FROM volunteer_enrollment t
+        WHERE t.deleted = 0
+        <if test="projectId != null">AND t.project_id = #{projectId}</if>
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+    </select>
+
+    <select id="countGroupByStatus" resultType="java.util.LinkedHashMap">
+        SELECT t.status AS status, COUNT(*) AS total
+        FROM volunteer_enrollment t
+        WHERE t.deleted = 0
+        <if test="projectId != null">AND t.project_id = #{projectId}</if>
+        GROUP BY t.status
+        ORDER BY t.status
+    </select>
+
+</mapper>

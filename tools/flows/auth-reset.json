@@ -1,0 +1,18 @@
+{
+  "port": 9222,
+  "cookie": { "name": "JSESSIONID", "value": "__SID__", "url": "http://127.0.0.1:8080" },
+  "page": { "url": "http://127.0.0.1:8080/reset-password.html?cb=540", "width": 1440, "height": 1000, "waitMs": 2500 },
+  "steps": [
+    { "name": "1-direct-open-guard", "eval": "JSON.stringify({path: location.pathname, sessionPhone: sessionStorage.getItem('resetPhone'), err: (document.getElementById('errorMsg')||{}).textContent})" },
+    { "name": "2-arm-session", "eval": "(function(){ sessionStorage.setItem('resetPhone','+861348697916'); sessionStorage.setItem('resetCode','000000'); location.href='/reset-password.html?cb=541'; return 'navigating'; })()", "waitMs": 2600 },
+    { "name": "3-after-arm", "eval": "JSON.stringify({path: location.pathname, hasForm: !!document.getElementById('resetPasswordForm'), hasNew: !!document.getElementById('newPassword'), hasConfirm: !!document.getElementById('confirmPassword')})" },
+    { "name": "4-empty-submit", "eval": "(function(){ document.getElementById('resetPasswordForm').requestSubmit(); return 'submitted'; })()", "waitMs": 900 },
+    { "name": "5-empty-result", "eval": "JSON.stringify({errHidden: document.getElementById('errorMsg').classList.contains('hidden'), err: document.getElementById('errorMsg').textContent})" },
+    { "name": "6-mismatch-submit", "eval": "(function(){ document.getElementById('newPassword').value='probe123456'; document.getElementById('confirmPassword').value='probe654321'; document.getElementById('resetPasswordForm').requestSubmit(); return 'submitted'; })()", "waitMs": 1200 },
+    { "name": "7-mismatch-result", "eval": "JSON.stringify({errHidden: document.getElementById('errorMsg').classList.contains('hidden'), err: document.getElementById('errorMsg').textContent})" },
+    { "name": "8-badcode-submit", "eval": "(function(){ document.getElementById('confirmPassword').value='probe123456'; document.getElementById('resetPasswordForm').requestSubmit(); return 'submitted'; })()", "waitMs": 2400 },
+    { "name": "9-badcode-result", "eval": "JSON.stringify({errHidden: document.getElementById('errorMsg').classList.contains('hidden'), err: document.getElementById('errorMsg').textContent, path: location.pathname, toast: Array.from(document.querySelectorAll('.nx-toast-text')).map(function(e){return e.textContent;})})" },
+    { "name": "10-cleanup", "eval": "(function(){ sessionStorage.removeItem('resetPhone'); sessionStorage.removeItem('resetCode'); return 'cleaned'; })()" },
+    { "name": "11-shot", "shot": "target\\flow-auth-reset-guard.png" }
+  ]
+}

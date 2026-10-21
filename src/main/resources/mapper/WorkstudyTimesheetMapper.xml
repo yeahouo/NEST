@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.WorkstudyTimesheetMapper">
+
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.WorkstudyTimesheet">
+        <id column="id" property="id"/>
+        <result column="application_id" property="applicationId"/>
+        <result column="post_id" property="postId"/>
+        <result column="student_id" property="studentId"/>
+        <result column="work_month" property="workMonth"/>
+        <result column="work_date" property="workDate"/>
+        <result column="hours" property="hours"/>
+        <result column="content" property="content"/>
+        <result column="over_limit" property="overLimit"/>
+        <result column="status" property="status"/>
+        <result column="recorder_id" property="recorderId"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="post_name" property="postName"/>
+        <result column="unit" property="unit"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        d.id, d.application_id, d.post_id, d.student_id, d.work_month, d.work_date, d.hours,
+        d.content, d.over_limit, d.status, d.recorder_id, d.created_at, d.updated_at, d.deleted,
+        p.name AS post_name,
+        p.unit AS unit,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(sp.student_no, u.student_id) AS student_no,
+        COALESCE(sp.class_name, u.class_name) AS class_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM workstudy_timesheet d
+        LEFT JOIN workstudy_post p ON p.id = d.post_id
+        LEFT JOIN users u ON u.id = d.student_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = d.student_id AND sp.deleted = 0
+    </sql>
+
+    <sql id="ManageFilters">
+        AND d.deleted = 0
+        <if test="workMonth != null and workMonth != ''">AND d.work_month = #{workMonth}</if>
+        <if test="postId != null">AND d.post_id = #{postId}</if>
+        <if test="studentId != null">AND d.student_id = #{studentId}</if>
+        <if test="unitUserId != null">AND p.unit_user_id = #{unitUserId}</if>
+        <if test="status != null and status != ''">AND d.status = #{status}</if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.WorkstudyTimesheet"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO workstudy_timesheet
+            (application_id, post_id, student_id, work_month, work_date, hours, content,
+             over_limit, status, recorder_id, created_at, updated_at, deleted)
+        VALUES
+            (#{applicationId}, #{postId}, #{studentId}, #{workMonth}, #{workDate}, #{hours},
+             #{content}, #{overLimit}, #{status}, #{recorderId}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE d.id = #{id} AND d.deleted = 0
+    </select>
+
+    <select id="listMine" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE d.deleted = 0 AND d.student_id = #{studentId}
+        <if test="workMonth != null and workMonth != ''">AND d.work_month = #{workMonth}</if>
+        ORDER BY d.work_date DESC, d.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countMine" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE d.deleted = 0 AND d.student_id = #{studentId}
+        <if test="workMonth != null and workMonth != ''">AND d.work_month = #{workMonth}</if>
+    </select>
+
+    <select id="listManage" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE 1 = 1
+        <include refid="ManageFilters"/>
+        ORDER BY d.work_month DESC, d.work_date DESC, d.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countManage" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE 1 = 1
+        <include refid="ManageFilters"/>
+    </select>
+
+    <update id="updateStatus">
+        UPDATE workstudy_timesheet
+        SET status = #{toStatus}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0
+        <if test="fromStatus != null and fromStatus != ''">AND status = #{fromStatus}</if>
+    </update>
+
+    <select id="sumHours" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(d.hours), 0)
+        FROM workstudy_timesheet d
+        WHERE d.deleted = 0 AND d.student_id = #{studentId}
+        <if test="workMonth != null and workMonth != ''">AND d.work_month = #{workMonth}</if>
+        <if test="status != null and status != ''">AND d.status = #{status}</if>
+    </select>
+
+    <select id="sumHoursByDateRange" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(d.hours), 0)
+        FROM workstudy_timesheet d
+        WHERE d.deleted = 0 AND d.student_id = #{studentId}
+        <if test="postId != null">AND d.post_id = #{postId}</if>
+        AND d.work_date BETWEEN #{startDate} AND #{endDate}
+    </select>
+
+    <select id="sumGroupByStatus" resultType="java.util.Map">
+        SELECT d.status AS status, COALESCE(SUM(d.hours), 0) AS hours
+        FROM workstudy_timesheet d
+        LEFT JOIN workstudy_post p ON p.id = d.post_id
+        WHERE d.deleted = 0
+        <if test="workMonth != null and workMonth != ''">AND d.work_month = #{workMonth}</if>
+        <if test="unitUserId != null">AND p.unit_user_id = #{unitUserId}</if>
+        GROUP BY d.status
+    </select>
+
+    <select id="listConfirmedGroups" resultType="java.util.Map">
+        SELECT d.student_id AS student_id,
+               d.post_id AS post_id,
+               MAX(d.application_id) AS application_id,
+               COALESCE(SUM(d.hours), 0) AS hours
+        FROM workstudy_timesheet d
+        WHERE d.deleted = 0 AND d.status = 'confirmed' AND d.work_month = #{workMonth}
+        GROUP BY d.student_id, d.post_id
+    </select>
+
+</mapper>

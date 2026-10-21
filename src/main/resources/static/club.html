@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="nestlight">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学生社团 · 学工平台</title>
+  <!--
+    主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
+    daisyUI 的组件颜色跟的是 [data-theme] 属性（不是 .dark 类），两处都必须写，
+    与 nest-ui.js 的 paintTheme() 保持一致。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <script src="/pwa.js" defer></script>
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/nest-art3.css">
+</head>
+
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content">
+
+<header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none border-0 p-0">
+  <div class="navbar mx-auto min-h-0 w-full max-w-7xl gap-3 px-5 py-2 md:px-8">
+    <div class="navbar-start gap-3">
+      <a class="flex items-center gap-3" href="dashboard.html">
+        <span class="nx-logo">
+          <span class="material-symbols-outlined text-xl">terminal</span>
+        </span>
+        <span class="hidden text-lg font-black uppercase tracking-tight sm:inline">学工平台</span>
+      </a>
+      <span class="hidden h-5 w-px bg-base-300 lg:block"></span>
+      <span class="hidden font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65 lg:block">§ 26 · Student / Club</span>
+    </div>
+    <div class="navbar-end gap-1.5">
+      <a class="btn btn-ghost btn-sm gap-2 rounded-full" href="dashboard.html">
+        <span class="material-symbols-outlined text-lg">dashboard</span>
+        <span class="hidden md:inline">工作台</span>
+      </a>
+      <button aria-label="切换深色 / 浅色模式" class="nx-icon-btn" data-nx-theme-toggle title="切换深色 / 浅色模式" type="button">
+        <span class="material-symbols-outlined nx-theme-icon-light text-xl">dark_mode</span>
+        <span class="material-symbols-outlined nx-theme-icon-dark text-xl">light_mode</span>
+      </button>
+      <a class="nx-icon-btn" href="settings.html" title="设置">
+        <span class="material-symbols-outlined text-xl">settings</span>
+      </a>
+      <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="logout-btn" type="button">
+        <span class="material-symbols-outlined text-lg">logout</span>
+        <span class="hidden md:inline">退出登录</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="flex-1 px-5 py-8 md:px-8 md:py-12">
+  <div class="mx-auto w-full max-w-7xl">
+
+    <!-- ── 刊头 ─────────────────────────────────────────────────────── -->
+    <header class="mb-8 border-b border-base-300 pb-6">
+      <p class="nx-kicker">§ 26 · Student / Club</p>
+      <h1 data-nx-split="1" class="mt-2 font-serif text-3xl leading-tight sm:text-4xl lg:text-5xl">学生社团 · 我的社团</h1>
+      <p class="mt-4 max-w-2xl text-sm text-base-content/70">
+        本页面向学生本人：查看我加入的社团与我在社团中的角色、我所在社团的年审结果与星级评定结果（<b>只读</b>），
+        以及公示中的社团年审 / 星级评定结果名单。
+        本页<b>不提供</b>年审材料提交、星级申报或评审操作 —— 那些属于社团管理端。
+      </p>
+      <p class="mt-3 text-xs leading-relaxed text-base-content/65">
+        年审结果与星级由<b>校团委社团管理部 / 学生社团指导中心</b>评定，依据《厦门大学嘉庚学院学生社团建设管理办法》，
+        本平台只登记与公示结果，<b>不做任何自动判定，也不给出判定建议</b>。
+      </p>
+    </header>
+
+    <div id="club-message" class="alert hidden mb-6 items-start gap-2"></div>
+
+    <!-- ── 状态发丝格：静态 HTML，JS 只改 textContent ─────────────── -->
+    <section class="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 md:grid-cols-4">
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">我加入的社团</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-clubs">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">我担任负责人</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-leader">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">年审结果记录</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-reviews">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">星级评定记录</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-ratings">—</dd>
+      </div>
+    </section>
+
+    <!-- ── 页签 ─────────────────────────────────────────────────────── -->
+    <section class="mb-8 flex flex-wrap items-center gap-2 rounded-box border border-base-300 bg-base-100 p-1.5" id="club-tabs">
+      <button class="tab-btn nx-tab is-active" id="tab-mine" type="button">我的社团</button>
+      <button class="tab-btn nx-tab" id="tab-review" type="button">年审与星级结果</button>
+      <button class="tab-btn nx-tab" id="tab-publicity" type="button">公示区</button>
+      <button class="tab-btn nx-tab" id="tab-readonly" type="button">只读说明与口径</button>
+    </section>
+
+    <!-- ══ 面板 1：我的社团 ═════════════════════════════════════════ -->
+    <section id="panel-mine">
+      <div class="card mb-6 rounded-box border border-base-300 bg-base-200 shadow-xl" data-nx-reveal>
+        <div class="p-6 md:p-7">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Mine · 我加入的社团</p>
+              <h2 class="mt-2 font-serif text-2xl">我加入的社团与我的角色</h2>
+            </div>
+            <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="mine-refresh" type="button">
+              <span class="material-symbols-outlined text-lg">refresh</span>
+              <span>刷新</span>
+            </button>
+          </div>
+          <p class="mt-3 text-xs leading-relaxed text-base-content/70">
+            数据来自 <span class="font-mono">GET /api/club/list/mine</span>，只返回你本人所在的学生社团。
+            「挂靠单位」与年审表口径一致（S25a 表头 组织名称 | 类别 | 挂靠单位 | 年审结果）。
+          </p>
+          <div class="mt-5 overflow-x-auto">
+            <table class="w-full border-collapse text-sm">
+              <thead>
+                <tr>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">社团名称</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">社团类别</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">挂靠单位</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">我的角色</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">成立日期</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">负责人</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">指导老师</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">成员数</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</th>
+                </tr>
+              </thead>
+              <tbody id="mine-rows"></tbody>
+            </table>
+          </div>
+          <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="mine-empty">你当前没有加入任何学生社团。</p>
+          <p class="mt-4 text-xs leading-relaxed text-base-content/60">
+            「我的角色」取自社团成员名册（<span class="font-mono">club_member.role</span>：负责人 / 成员）；接口未返回角色时不臆测，显示为「—」。
+            指导老师字段为社团自行填报内容，学校公示口径中未规定该字段的构成。
+            社团类别共六类：创新创业类、思想政治类、文化体育类、学术科技类、志愿公益类、自律互助类。
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 面板 2：年审与星级结果 ═══════════════════════════════════ -->
+    <section class="hidden" id="panel-review">
+      <div class="card mb-6 rounded-box border border-base-300 bg-base-200 shadow-xl" data-nx-reveal>
+        <div class="p-6 md:p-7">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Review · 年审结果（只读）</p>
+              <h2 class="mt-2 font-serif text-2xl">我所在社团的年审结果</h2>
+            </div>
+            <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="review-refresh" type="button">
+              <span class="material-symbols-outlined text-lg">refresh</span>
+              <span>刷新</span>
+            </button>
+          </div>
+          <p class="mt-3 text-xs leading-relaxed text-base-content/70">
+            数据来自 <span class="font-mono">GET /api/club/reviews</span>（只读）。年审结果取值为 <b>合格 / 不合格 / 注销</b>，
+            与 S25a 年审公示表「年审结果」一列口径一致。
+          </p>
+          <div class="mt-5 overflow-x-auto">
+            <table class="w-full border-collapse text-sm">
+              <thead>
+                <tr>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">社团名称</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学年</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">年审结果</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">挂靠单位意见</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">提交时间</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">审核时间</th>
+                </tr>
+              </thead>
+              <tbody id="review-rows"></tbody>
+            </table>
+          </div>
+          <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="review-empty">你所在的社团暂无年审结果记录。</p>
+          <p class="mt-4 text-xs leading-relaxed text-base-content/60">
+            年审依据《厦门大学嘉庚学院学生社团建设管理办法》，审查聚焦四项：组织架构合理性、骨干成员胜任力、学期活动运行质量、经费使用合规性。
+            「合格 / 不合格 / 注销」的判定标准原文未作规定，<b>本平台只登记结论与材料，不给判定建议</b>；
+            「未参加年审的后果」亦无来源，本平台不作提示。
+          </p>
+        </div>
+      </div>
+
+      <div class="card mb-6 rounded-box border border-base-300 bg-base-200 shadow-xl" data-nx-reveal>
+        <div class="p-6 md:p-7">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Rating · 星级评定结果（只读）</p>
+              <h2 class="mt-2 font-serif text-2xl">我所在社团的星级评定结果</h2>
+            </div>
+            <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="rating-refresh" type="button">
+              <span class="material-symbols-outlined text-lg">refresh</span>
+              <span>刷新</span>
+            </button>
+          </div>
+          <p class="mt-3 text-xs leading-relaxed text-base-content/70">
+            数据来自 <span class="font-mono">GET /api/club/ratings</span>（只读）。星级取值为 <b>三星级 / 四星级 / 五星级</b>，
+            「业务指导单位」与星级评定公示表口径一致（S25b 表头 社团名称 | 评定星级 | 业务指导单位 | 社团类别）。
+          </p>
+          <div class="mt-5 overflow-x-auto">
+            <table class="w-full border-collapse text-sm">
+              <thead>
+                <tr>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">社团名称</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学年</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">评定星级</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">业务指导单位</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">依据说明</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">登记时间</th>
+                </tr>
+              </thead>
+              <tbody id="rating-rows"></tbody>
+            </table>
+          </div>
+          <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="rating-empty">你所在的社团暂无星级评定记录。</p>
+          <p class="mt-4 text-xs leading-relaxed text-base-content/60">
+            星级评定聚焦三项：校园文化传承、活动策划执行、社会实践参与。完整档位与升降细则无公开来源，
+            因此本页只呈现本次实有的<b>三星级 / 四星级 / 五星级</b>三档，不推算、不预告。
+            请注意与志愿者星级区分：<b>志愿者</b>星级（一~五星级志愿者，S21 第三十条）与<b>学生社团</b>星级（三星~五星级社团，S25b）是两套不同制度。
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 面板 3：公示区 ═══════════════════════════════════════════ -->
+    <section class="hidden" id="panel-publicity">
+      <div class="card mb-6 rounded-box border border-base-300 bg-base-200 shadow-xl" data-nx-reveal>
+        <div class="p-6 md:p-7">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Publicity · 公示区</p>
+              <h2 class="mt-2 font-serif text-2xl">社团年审 / 星级评定公示</h2>
+            </div>
+            <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="publicity-refresh" type="button">
+              <span class="material-symbols-outlined text-lg">refresh</span>
+              <span>刷新</span>
+            </button>
+          </div>
+          <p class="mt-3 text-xs leading-relaxed text-base-content/70">
+            数据来自 <span class="font-mono">GET /api/club/publicity</span>，本页<b>只展示公示中（open）</b>的公示，公示期为 <b>5 天</b>。
+            公示明细含：社团名 / 结果或星级 / 业务指导单位（年审公示为挂靠单位）/ 社团类别。
+          </p>
+          <p class="mt-2 text-xs leading-relaxed text-base-content/70">
+            对公示内容有异议的，请发邮件至 <b class="font-mono">twh@xujc.com</b>（共青团厦门大学嘉庚学院委员会社团管理部 / 厦门大学嘉庚学院学生社团指导中心）。
+          </p>
+          <div class="mt-5 grid gap-4" id="publicity-list"></div>
+          <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="publicity-empty">当前没有公示中的社团年审 / 星级评定结果。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 面板 4：只读说明与口径 ═══════════════════════════════════ -->
+    <section class="hidden" id="panel-readonly">
+      <div class="card mb-6 rounded-box border border-base-300 bg-base-200 shadow-xl" data-nx-reveal>
+        <div class="p-6 md:p-7">
+          <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Read only · 只读说明</p>
+          <h2 class="mt-2 font-serif text-2xl">哪些事学生端不做</h2>
+          <ul class="mt-4 grid gap-2 text-xs leading-relaxed text-base-content/75">
+            <li class="flex gap-2"><span class="material-symbols-outlined text-sm">lock</span><span>学生端<b>不能提交年审材料</b>，也不能提交星级评定申报 —— 这两件事属于社团管理端，由社团负责人与业务指导单位在管理端办理。</span></li>
+            <li class="flex gap-2"><span class="material-symbols-outlined text-sm">lock</span><span>学生端<b>不能修改年审结论或星级</b>，只能查看校团委社团管理部 / 学生社团指导中心已评定的结果。</span></li>
+            <li class="flex gap-2"><span class="material-symbols-outlined text-sm">lock</span><span>年审结果与星级<b>由校团委社团管理部 / 学生社团指导中心评定</b>，本平台不做任何自动资格判定，也不给出判定建议。</span></li>
+            <li class="flex gap-2"><span class="material-symbols-outlined text-sm">lock</span><span>「合格 / 不合格 / 注销」的判定标准、「未参加年审的后果」、社团星级的完整档位与升降细则，原文均未规定或无来源，本平台<b>不作推测与提示</b>。</span></li>
+            <li class="flex gap-2"><span class="material-symbols-outlined text-sm">lock</span><span>本页不导出名册或联系方式；公示区只按学校既有公示口径呈现社团名称与结果 / 星级。</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card mb-6 rounded-box border border-base-300 bg-base-200 shadow-xl" data-nx-reveal>
+        <div class="p-6 md:p-7">
+          <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Glossary · 口径对照</p>
+          <h2 class="mt-2 font-serif text-2xl">字段与制度对照</h2>
+          <div class="mt-5 overflow-x-auto">
+            <table class="w-full border-collapse text-sm">
+              <thead>
+                <tr>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">用语</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">含义</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">出处 / 取值</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="border-t border-base-300">
+                  <td class="py-3 pr-4 text-xs">挂靠单位</td>
+                  <td class="py-3 pr-4 text-xs">社团隶属的校内单位，出现在年审公示表</td>
+                  <td class="py-3 pr-4 font-mono text-xs">club.attachUnit · S25a</td>
+                </tr>
+                <tr class="border-t border-base-300">
+                  <td class="py-3 pr-4 text-xs">业务指导单位</td>
+                  <td class="py-3 pr-4 text-xs">对社团业务进行指导的单位，出现在星级评定公示表</td>
+                  <td class="py-3 pr-4 font-mono text-xs">club_rating.businessUnit · S25b</td>
+                </tr>
+                <tr class="border-t border-base-300">
+                  <td class="py-3 pr-4 text-xs">年审结果</td>
+                  <td class="py-3 pr-4 text-xs">社团年度审查结论</td>
+                  <td class="py-3 pr-4 font-mono text-xs">合格 / 不合格 / 注销 · S25a</td>
+                </tr>
+                <tr class="border-t border-base-300">
+                  <td class="py-3 pr-4 text-xs">评定星级</td>
+                  <td class="py-3 pr-4 text-xs">社团星级评定结论（与志愿者星级是两套制度）</td>
+                  <td class="py-3 pr-4 font-mono text-xs">三星级 / 四星级 / 五星级 · S25b</td>
+                </tr>
+                <tr class="border-t border-base-300">
+                  <td class="py-3 pr-4 text-xs">公示期</td>
+                  <td class="py-3 pr-4 text-xs">公示的展示时长</td>
+                  <td class="py-3 pr-4 font-mono text-xs">5 天 · S25b</td>
+                </tr>
+                <tr class="border-t border-base-300">
+                  <td class="py-3 pr-4 text-xs">异议渠道</td>
+                  <td class="py-3 pr-4 text-xs">对公示内容提出异议的邮箱</td>
+                  <td class="py-3 pr-4 font-mono text-xs">twh@xujc.com · S25a / S25b</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="mt-4 text-xs leading-relaxed text-base-content/60">
+            评定与公示主体：共青团厦门大学嘉庚学院委员会社团管理部 / 厦门大学嘉庚学院学生社团指导中心。
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer class="nx-hairline-t border-base-300 px-5 py-6 md:px-8">
+  <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
+    <p class="font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65">学工平台 · Club</p>
+    <p class="text-xs text-base-content/60">年审结果与星级由校团委社团管理部 / 学生社团指导中心评定，本平台只登记与公示。</p>
+  </div>
+</footer>
+
+<script>
+(async function () {
+  'use strict';
+
+  // ── 通用工具（与 community.html / party.html 保持同一套写法） ────
+  function escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  async function callApi(url, options) {
+    const config = options || {};
+    config.credentials = 'same-origin';
+    const response = await fetch(url, config);
+    let result = null;
+    try { result = await response.json(); } catch (error) { result = { code: response.status, message: '服务没有返回可解析的内容' }; }
+    if (result && result.code === 401) { window.location.href = 'login.html'; return { code: 401, message: '登录状态已失效', data: null }; }
+    return result;
+  }
+
+  function showMessage(message, type) {
+    const box = document.getElementById('club-message');
+    const toneCls = type === 'success' ? 'alert-success' : 'alert-error';
+    const icon = type === 'success' ? 'check_circle' : 'error';
+    box.classList.remove('hidden');
+    box.className = 'alert mb-6 items-start gap-2 ' + toneCls;
+    box.innerHTML = '<span class="material-symbols-outlined text-lg">' + icon + '</span><span class="text-sm">' + escapeHtml(message) + '</span>';
+  }
+
+  function clearMessage() {
+    document.getElementById('club-message').classList.add('hidden');
+  }
+
+  function text(value) {
+    if (value === null || value === undefined || value === '') { return '—'; }
+    return String(value);
+  }
+
+  function formatTime(value) {
+    if (!value) { return '—'; }
+    return String(value).replace('T', ' ').slice(0, 16);
+  }
+
+  function formatDay(value) {
+    if (!value) { return '—'; }
+    return String(value).replace('T', ' ').slice(0, 10);
+  }
+
+  function setStat(id, value) {
+    document.getElementById(id).textContent = (value === null || value === undefined) ? '—' : String(value);
+  }
+
+  function statusOf(value, table) {
+    const key = String(value === null || value === undefined ? '' : value);
+    return table[key] || { label: key || '—', cls: 'badge-ghost' };
+  }
+
+  function badge(table, value) {
+    const toneCls = statusOf(value, table);
+    return '<span class="badge badge-sm ' + toneCls.cls + '">' + escapeHtml(toneCls.label) + '</span>';
+  }
+
+  function listRows(data) {
+    return Array.isArray(data) ? data : [];
+  }
+
+  function parseJsonArray(value) {
+    if (Array.isArray(value)) { return value; }
+    if (typeof value === 'string' && value.replace(/\s/g, '').length) {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (err) { return []; }
+    }
+    return [];
+  }
+
+  // ── 口径映射（与 plan §3 枚举一致，前端只做展示） ────────────────
+  const CLUB_STATUS = {
+    active: { label: '正常', cls: 'badge-success' },
+    deregistered: { label: '已注销', cls: 'badge-ghost' }
+  };
+  const CLUB_MEMBER_ROLE = { leader: '负责人', member: '成员' };
+  const CLUB_CATEGORY = {
+    innovation: '创新创业类', ideology: '思想政治类', sports: '文化体育类',
+    academic: '学术科技类', volunteer: '志愿公益类', self_discipline: '自律互助类'
+  };
+  const CLUB_REVIEW_RESULT = {
+    qualified: { label: '合格', cls: 'badge-success' },
+    unqualified: { label: '不合格', cls: 'badge-error' },
+    deregistered: { label: '注销', cls: 'badge-ghost' }
+  };
+  const CLUB_STAR_LEVEL = {
+    star3: { label: '三星级', cls: 'badge-ghost' },
+    star4: { label: '四星级', cls: 'badge-primary' },
+    star5: { label: '五星级', cls: 'badge-success' }
+  };
+  const PUBLICITY_STATUS = {
+    open: { label: '公示中', cls: 'badge-primary' },
+    closed: { label: '已结束', cls: 'badge-ghost' }
+  };
+
+  // ── 页签映射 ────────────────────────────────────────────────────
+  const TAB_PANELS = {
+    mine: 'panel-mine',
+    review: 'panel-review',
+    publicity: 'panel-publicity',
+    readonly: 'panel-readonly'
+  };
+  const TAB_BUTTONS = {
+    mine: 'tab-mine',
+    review: 'tab-review',
+    publicity: 'tab-publicity',
+    readonly: 'tab-readonly'
+  };
+
+  let clubRows = [];
+
+  function categoryText(row) {
+    if (row.categoryText) { return String(row.categoryText); }
+    const key = String(row.category === null || row.category === undefined ? '' : row.category);
+    return CLUB_CATEGORY[key] || (key || '—');
+  }
+
+  function roleText(row) {
+    const raw = row.role !== undefined && row.role !== null ? row.role
+        : (row.myRole !== undefined && row.myRole !== null ? row.myRole : row.memberRole);
+    if (raw === undefined || raw === null || raw === '') { return '—'; }
+    const key = String(raw);
+    return CLUB_MEMBER_ROLE[key] || key;
+  }
+
+  // ── 面板 1：我的社团 ────────────────────────────────────────────
+  function renderMine(rows) {
+    const host = document.getElementById('mine-rows');
+    const empty = document.getElementById('mine-empty');
+    if (!rows.length) {
+      host.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    host.innerHTML = rows.map(function (row) {
+      const count = Number(row.memberCount);
+      return '<tr class="border-t border-base-300">'
+          + '<td class="py-3 pr-4">' + escapeHtml(text(row.clubName)) + '</td>'
+          + '<td class="py-3 pr-4 text-xs">' + escapeHtml(categoryText(row)) + '</td>'
+          + '<td class="py-3 pr-4 text-xs">' + escapeHtml(text(row.attachUnit)) + '</td>'
+          + '<td class="py-3 pr-4 text-xs">' + escapeHtml(roleText(row)) + '</td>'
+          + '<td class="py-3 pr-4 font-mono text-xs">' + escapeHtml(formatDay(row.foundDate)) + '</td>'
+          + '<td class="py-3 pr-4 text-xs">' + escapeHtml(text(row.leaderName)) + '</td>'
+          + '<td class="py-3 pr-4 text-xs">' + escapeHtml(text(row.advisorName)) + '</td>'
+          + '<td class="py-3 pr-4 font-mono text-xs">' + escapeHtml(isFinite(count) ? String(Math.round(count)) : '—') + '</td>'
+          + '<td class="py-3 pr-4">' + badge(CLUB_STATUS, row.status) + '</td>'
+          + '</tr>';
+    }).join('');
+  }
+
+  async function loadMine() {
+    const result = await callApi('/api/club/list/mine');
+    if (!result || result.code !== 200) {
+      showMessage((result && result.message) || '我的社团加载失败，请稍后再试。', 'error');
+      renderMine([]);
+      setStat('stat-clubs', '—');
+      setStat('stat-leader', '—');
+      return;
+    }
+    clubRows = listRows(result.data);
+    renderMine(clubRows);
+    setStat('stat-clubs', clubRows.length);
+    const leaders = clubRows.filter(function (row) { return roleText(row) === '负责人'; });
+    setStat('stat-leader', leaders.length);
+  }
+
+  // ── 面板 2：年审结果（只读） ────────────────────────────────────
+  function reviewResultText(row) {
+    if (row.resultText) { return String(row.resultText); }
+    const key = String(row.result === null || row.result === undefined ? '' : row.result);
+    const hit = CLUB_REVIEW_RESULT[key];
+    return hit ? hit.label : (key || '—');
+  }
+
+  function renderReviews(rows) {
+    const host = document.getElementById('review-rows');
+    const empty = document.getElementById('review-empty');
+    if (!rows.length) {
+      host.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    host.innerHTML = rows.map(function (row) {
+      return '<tr class="border-t border-base-300">'
+          + '<td class="py-3 pr-4">' + escapeHtml(text(row.clubName)) + '</td>'
+          + '<td class="py-3 pr-4 font-mono text-xs">' + escapeHtml(text(row.schoolYear)) + '</td>'
+          + '<td class="py-3 pr-4">' + badge(CLUB_REVIEW_RESULT, row.result) + '</td>'
+          + '<td class="py-3 pr-4 text-xs">' + escapeHtml(text(row.attachOpinion)) + '</td>'
+          + '<td class="py-3 pr-4 font-mono text-xs">' + escapeHtml(formatTime(row.submitTime)) + '</td>'
+          + '<td class="py-3 pr-4 font-mono text-xs">' + escapeHtml(formatTime(row.reviewTime)) + '</td>'
+          + '</tr>';
+    }).join('');
+  }
+
+  async function loadReviews() {
+    const result = await callApi('/api/club/reviews');
+    if (!result || result.code !== 200) {
+      showMessage((result && result.message) || '年审结果加载失败，请稍后再试。', 'error');
+      renderReviews([]);
+      setStat('stat-reviews', '—');
+      return;
+    }
+    const rows = listRows(result.data);
+    renderReviews(rows);
+    setStat('stat-reviews', rows.length);
+  }
+
+  // ── 面板 2：星级评定结果（只读） ────────────────────────────────
+  function renderRatings(rows) {
+    const host = document.getElementById('rating-rows');
+    const empty = document.getElementById('rating-empty');
+    if (!rows.length) {
+      host.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    host.innerHTML = rows.map(function (row) {
+      return '<tr class="border-t border-base-300">'
+          + '<td class="py-3 pr-4">' + escapeHtml(text(row.clubName)) + '</td>'
+          + '<td class="py-3 pr-4 font-mono text-xs">' + escapeHtml(text(row.schoolYear)) + '</td>'
+          + '<td class="py-3 pr-4">' + badge(CLUB_STAR_LEVEL, row.starLevel) + '</td>'
+          + '<td class="py-3 pr-4 text-xs">' + escapeHtml(text(row.businessUnit)) + '</td>'
+          + '<td class="py-3 pr-4 text-xs">' + escapeHtml(text(row.basisNote)) + '</td>'
+          + '<td class="py-3 pr-4 font-mono text-xs">' + escapeHtml(formatTime(row.registerTime)) + '</td>'
+          + '</tr>';
+    }).join('');
+  }
+
+  async function loadRatings() {
+    const result = await callApi('/api/club/ratings');
+    if (!result || result.code !== 200) {
+      showMessage((result && result.message) || '星级评定结果加载失败，请稍后再试。', 'error');
+      renderRatings([]);
+      setStat('stat-ratings', '—');
+      return;
+    }
+    const rows = listRows(result.data);
+    renderRatings(rows);
+    setStat('stat-ratings', rows.length);
+  }
+
+  // ── 面板 3：公示区 ──────────────────────────────────────────────
+  function publicityItems(row) {
+    return parseJsonArray(row.items);
+  }
+
+  function itemClubName(item) {
+    return text(item.clubName || item.name || item.organizationName);
+  }
+
+  function itemResult(item) {
+    if (item.resultText) { return String(item.resultText); }
+    if (item.starLevelText) { return String(item.starLevelText); }
+    if (item.result) {
+      const key = String(item.result);
+      const hit = CLUB_REVIEW_RESULT[key];
+      return hit ? hit.label : key;
+    }
+    if (item.starLevel) {
+      const key = String(item.starLevel);
+      const hit = CLUB_STAR_LEVEL[key];
+      return hit ? hit.label : key;
+    }
+    return '—';
+  }
+
+  function itemUnit(item) {
+    return text(item.unit || item.businessUnit || item.attachUnit || item.unitName);
+  }
+
+  function itemCategory(item) {
+    if (item.categoryText) { return String(item.categoryText); }
+    const key = String(item.category === null || item.category === undefined ? '' : item.category);
+    return CLUB_CATEGORY[key] || (key || '—');
+  }
+
+  function itemResultBadge(item) {
+    if (item.resultText || item.result) { return badge(CLUB_REVIEW_RESULT, item.result); }
+    if (item.starLevelText || item.starLevel) { return badge(CLUB_STAR_LEVEL, item.starLevel); }
+    return '<span class="badge badge-sm badge-ghost">—</span>';
+  }
+
+  function renderPublicity(rows) {
+    const host = document.getElementById('publicity-list');
+    const empty = document.getElementById('publicity-empty');
+    const open = rows.filter(function (row) { return row.status === 'open'; });
+    if (!open.length) {
+      host.innerHTML = '';
+      empty.textContent = rows.length
+          ? ('当前没有公示中的社团年审 / 星级评定结果（接口返回 ' + rows.length + ' 条，均已结束公示）。')
+          : '当前没有公示中的社团年审 / 星级评定结果。';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    host.innerHTML = open.map(function (row) {
+      const items = publicityItems(row);
+      const period = formatDay(row.startDate) + ' 至 ' + formatDay(row.endDate);
+      const email = row.contactEmail ? String(row.contactEmail) : 'twh@xujc.com';
+      let detail = '<p class="text-xs text-base-content/60">该公示未附社团级明细。</p>';
+      if (items.length) {
+        detail = '<div class="overflow-x-auto"><table class="w-full border-collapse text-sm">'
+            + '<thead><tr>'
+            + '<th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">社团名</th>'
+            + '<th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">结果 / 星级</th>'
+            + '<th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">单位</th>'
+            + '<th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">社团类别</th>'
+            + '</tr></thead><tbody>'
+            + items.map(function (item) {
+              return '<tr class="border-t border-base-300">'
+                  + '<td class="py-3 pr-4">' + escapeHtml(itemClubName(item)) + '</td>'
+                  + '<td class="py-3 pr-4">' + itemResultBadge(item) + '</td>'
+                  + '<td class="py-3 pr-4 text-xs">' + escapeHtml(itemUnit(item)) + '</td>'
+                  + '<td class="py-3 pr-4 text-xs">' + escapeHtml(itemCategory(item)) + '</td>'
+                  + '</tr>';
+            }).join('')
+            + '</tbody></table></div>';
+      }
+      const content = row.content
+          ? '<p class="mt-3 text-xs leading-relaxed text-base-content/70">' + escapeHtml(String(row.content)) + '</p>'
+          : '';
+      return '<div class="rounded-box border border-base-300 bg-base-100 p-5">'
+          + '<div class="flex flex-wrap items-center justify-between gap-3">'
+          + '<div>'
+          + '<p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">'
+          + escapeHtml(text(row.publicityTypeText || row.publicityType)) + '</p>'
+          + '<h3 class="mt-1 font-serif text-xl">' + escapeHtml(text(row.title)) + '</h3>'
+          + '</div>'
+          + badge(PUBLICITY_STATUS, row.status)
+          + '</div>'
+          + '<div class="mt-3 flex flex-wrap items-center gap-3 text-xs text-base-content/70">'
+          + '<span class="font-mono">' + escapeHtml(period) + '</span>'
+          + '<span>公示期 5 天</span>'
+          + '<span>异议邮箱 <b class="font-mono">' + escapeHtml(email) + '</b></span>'
+          + '</div>'
+          + content
+          + '<div class="mt-4">' + detail + '</div>'
+          + '</div>';
+    }).join('');
+  }
+
+  async function loadPublicity() {
+    const result = await callApi('/api/club/publicity');
+    if (!result || result.code !== 200) {
+      showMessage((result && result.message) || '社团公示加载失败，请稍后再试。', 'error');
+      renderPublicity([]);
+      return;
+    }
+    renderPublicity(listRows(result.data));
+  }
+
+  // ── 页签 ────────────────────────────────────────────────────────
+  async function switchTab(name) {
+    Object.keys(TAB_PANELS).forEach(function (key) {
+      const panel = document.getElementById(TAB_PANELS[key]);
+      const button = document.getElementById(TAB_BUTTONS[key]);
+      const active = key === name;
+      panel.classList.toggle('hidden', !active);
+      button.classList.toggle('is-active', active);
+    });
+    if (name === 'mine') { await loadMine(); }
+    else if (name === 'review') { await loadReviews(); await loadRatings(); }
+    else if (name === 'publicity') { await loadPublicity(); }
+  }
+
+  // ── 登录态 ──────────────────────────────────────────────────────
+  async function checkAuth() {
+    try {
+      const result = await callApi('/api/auth/me');
+      if (!result || result.code !== 200) { window.location.href = 'login.html'; return null; }
+      const role = result.data && result.data.role;
+      if (role !== 'student') { window.location.href = 'club-review.html'; return null; }
+      return result.data;
+    } catch (error) {
+      window.location.href = 'login.html';
+      return null;
+    }
+  }
+
+  function logout() {
+    callApi('/api/auth/logout', { method: 'POST' }).then(function () {
+      window.location.href = 'login.html';
+    }).catch(function () {
+      window.location.href = 'login.html';
+    });
+  }
+
+  // ── 绑定 ────────────────────────────────────────────────────────
+  document.getElementById('logout-btn').addEventListener('click', logout);
+  document.getElementById('tab-mine').addEventListener('click', function () { switchTab('mine'); });
+  document.getElementById('tab-review').addEventListener('click', function () { switchTab('review'); });
+  document.getElementById('tab-publicity').addEventListener('click', function () { switchTab('publicity'); });
+  document.getElementById('tab-readonly').addEventListener('click', function () { switchTab('readonly'); });
+  document.getElementById('mine-refresh').addEventListener('click', loadMine);
+  document.getElementById('review-refresh').addEventListener('click', loadReviews);
+  document.getElementById('rating-refresh').addEventListener('click', loadRatings);
+  document.getElementById('publicity-refresh').addEventListener('click', loadPublicity);
+
+  clearMessage();
+  const me = await checkAuth();
+  if (me) {
+    await switchTab('mine');
+  }
+})();
+</script>
+
+<script defer src="/js/nest-ui.js"></script>
+<script defer src="/libs/animejs/anime.umd.min.js"></script>
+<script defer src="/libs/countup/countUp.umd.js"></script>
+<script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+<script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+<script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+</body>
+</html>

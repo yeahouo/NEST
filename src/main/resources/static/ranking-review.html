@@ -1,0 +1,2102 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="nestlight">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>综测排名管理 · 学工平台</title>
+  <!--
+    主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
+    daisyUI 的组件颜色跟的是 [data-theme] 属性（不是 .dark 类），两处都必须写，
+    与 nest-ui.js 的 paintTheme() 保持一致。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/nest-art3.css">
+</head>
+
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content">
+
+<header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none border-0 p-0">
+  <div class="navbar mx-auto min-h-0 w-full max-w-7xl gap-3 px-5 py-2 md:px-8">
+    <div class="navbar-start gap-3">
+      <a class="flex items-center gap-3" href="teacher-dashboard.html">
+        <span class="nx-logo">
+          <span class="material-symbols-outlined text-xl">terminal</span>
+        </span>
+        <span class="hidden text-lg font-black uppercase tracking-tight sm:inline">学工平台</span>
+      </a>
+      <span class="hidden h-5 w-px bg-base-300 lg:block"></span>
+      <span class="hidden font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65 lg:block">§ 17 · Staff / Ranking</span>
+    </div>
+    <div class="navbar-end gap-1.5">
+      <a class="btn btn-ghost btn-sm gap-2 rounded-full" href="teacher-dashboard.html">
+        <span class="material-symbols-outlined text-lg">dashboard</span>
+        <span class="hidden md:inline">工作台</span>
+      </a>
+      <button aria-label="切换深色 / 浅色模式" class="nx-icon-btn" data-nx-theme-toggle title="切换深色 / 浅色模式" type="button">
+        <span class="material-symbols-outlined nx-theme-icon-light text-xl">dark_mode</span>
+        <span class="material-symbols-outlined nx-theme-icon-dark text-xl">light_mode</span>
+      </button>
+      <a class="nx-icon-btn" href="settings.html" title="设置">
+        <span class="material-symbols-outlined text-xl">settings</span>
+      </a>
+      <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="logout-btn" type="button">
+        <span class="material-symbols-outlined text-lg">logout</span>
+        <span class="hidden md:inline">退出登录</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="flex-1 px-5 py-8 md:px-8 md:py-12">
+  <div class="mx-auto w-full max-w-7xl">
+
+    <header class="mb-8 border-b border-base-300 pb-6">
+      <p class="nx-kicker">§ 17 · Staff / Ranking</p>
+      <h1 data-nx-split="1" class="mt-2 font-serif text-3xl leading-tight sm:text-4xl lg:text-5xl">综测排名管理</h1>
+      <p class="mt-4 max-w-2xl text-sm text-base-content/70">
+        综合测评以专业为单位计算：M = A + B，B = C × μ，μ = (H−L)/n 且限制在 0.5–0.7。
+        这里负责批次、学习成绩、加分审核、排名表、等级公示与异议处理，并可导出带 BOM 的 CSV。
+      </p>
+    </header>
+
+    <div id="manage-message" class="alert hidden mb-6 items-start gap-2"></div>
+
+    <section class="mb-8 rounded-box border border-base-300 bg-base-100 p-5 md:p-6">
+      <div class="flex flex-wrap items-end gap-3">
+        <label class="form-control w-64">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">批次</span>
+          <select class="select select-bordered select-sm" id="batch-select">
+            <option value="">选择批次</option>
+          </select>
+        </label>
+        <label class="form-control w-48">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学期</span>
+          <select class="select select-bordered select-sm" id="term-select">
+            <option value="">选择学期</option>
+          </select>
+        </label>
+        <button class="btn btn-primary btn-sm rounded-full" id="global-refresh" type="button">刷新全部</button>
+        <button class="btn btn-ghost btn-sm rounded-full gap-2" id="export-button" type="button">
+          <span class="material-symbols-outlined text-lg">download</span>
+          <span>导出 CSV</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 sm:grid-cols-3 lg:grid-cols-6" id="stat-row">
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">已排名人数</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-ranked">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">缺成绩数据人数</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-missing">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">一等</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-tier1">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">二等</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-tier2">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">三等</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-tier3">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">待审加分</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-bonus">—</dd>
+      </div>
+    </section>
+
+    <section class="mb-8 flex flex-wrap items-center gap-2 rounded-box border border-base-300 bg-base-100 p-1.5" id="rank-tabs">
+      <button class="tab-btn nx-tab is-active" id="tab-batch" type="button">批次管理</button>
+      <button class="tab-btn nx-tab" id="tab-academic" type="button">学习成绩 A</button>
+      <button class="tab-btn nx-tab" id="tab-bonus" type="button">加分审核</button>
+      <button class="tab-btn nx-tab" id="tab-rank" type="button">排名表</button>
+      <button class="tab-btn nx-tab" id="tab-public" type="button">等级与公示</button>
+      <button class="tab-btn nx-tab" id="tab-objection" type="button">异议处理</button>
+    </section>
+
+    <section id="panel-batch">
+      <div class="card mb-10 rounded-box border border-base-300 bg-base-200 shadow-xl">
+        <div class="p-6 md:p-7">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Batch · 批次管理</p>
+              <h2 class="mt-2 font-serif text-2xl">测评批次</h2>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="badge badge-ghost badge-sm font-mono" id="batch-count">—</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="batch-refresh" type="button">刷新</button>
+              <button class="btn btn-primary btn-sm rounded-full gap-2" id="batch-create" type="button">
+                <span class="material-symbols-outlined text-lg">add</span>
+                <span>新建批次</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="mt-5 grid gap-4" data-nx-autoanimate="1" id="batch-list"></div>
+          <p class="mt-4 hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="batch-empty">还没有综测批次，先新建一个批次。</p>
+
+          <div class="mt-8 rounded-box border border-base-300 bg-base-100 p-5">
+            <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Stats · 统计明细</p>
+            <dl class="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 md:grid-cols-4">
+              <div>
+                <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">批次</dt>
+                <dd class="mt-0.5 text-sm" id="stats-batch-name">—</dd>
+              </div>
+              <div>
+                <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">应测学生数</dt>
+                <dd class="mt-0.5 text-sm" id="stats-total-students">—</dd>
+              </div>
+              <div>
+                <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">具备奖学金资格</dt>
+                <dd class="mt-0.5 text-sm" id="stats-qualified">—</dd>
+              </div>
+              <div>
+                <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">计算时间</dt>
+                <dd class="mt-0.5 text-sm" id="stats-computed-at">—</dd>
+              </div>
+              <div>
+                <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">待处理异议</dt>
+                <dd class="mt-0.5 text-sm" id="stats-objection-pending">—</dd>
+              </div>
+              <div>
+                <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">已受理异议</dt>
+                <dd class="mt-0.5 text-sm" id="stats-objection-accepted">—</dd>
+              </div>
+              <div>
+                <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">已驳回异议</dt>
+                <dd class="mt-0.5 text-sm" id="stats-objection-rejected">—</dd>
+              </div>
+              <div>
+                <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">待审加分</dt>
+                <dd class="mt-0.5 text-sm" id="stats-bonus-pending">—</dd>
+              </div>
+            </dl>
+
+            <div class="mt-6 overflow-x-auto">
+              <table class="w-full border-collapse text-sm">
+                <thead>
+                  <tr class="border-b border-base-300">
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">专业</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">年级</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">已排名</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">一等</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">二等</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">三等</th>
+                  </tr>
+                </thead>
+                <tbody id="stats-major-list"></tbody>
+              </table>
+            </div>
+            <p class="mt-3 hidden text-sm text-base-content/60" id="stats-major-empty">这一批次还没有专业维度的统计。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="hidden" id="panel-academic">
+      <div class="card mb-10 rounded-box border border-base-300 bg-base-200 shadow-xl">
+        <div class="p-6 md:p-7">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Academic · 学习成绩</p>
+              <h2 class="mt-2 font-serif text-2xl">学习成绩 A 登记与导入</h2>
+            </div>
+            <span class="badge badge-ghost badge-sm font-mono" id="academic-term-hint">—</span>
+          </div>
+
+          <div id="academic-message" class="alert hidden mt-4 items-start gap-2"></div>
+
+          <div class="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学号</span>
+              <input class="input input-bordered input-sm" id="academic-student-id" placeholder="如：20230101" type="text"/>
+            </label>
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学习成绩 A（学分加权）</span>
+              <input class="input input-bordered input-sm" id="academic-score-a" placeholder="如：86.35" type="text"/>
+            </label>
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">必修加权</span>
+              <input class="input input-bordered input-sm" id="academic-required-avg" placeholder="如：87.10" type="text"/>
+            </label>
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">选修加权（已按 80 二次调整）</span>
+              <input class="input input-bordered input-sm" id="academic-elective-avg" placeholder="如：82.40" type="text"/>
+            </label>
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">总学分</span>
+              <input class="input input-bordered input-sm" id="academic-credits" placeholder="如：24" type="text"/>
+            </label>
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">课程门数</span>
+              <input class="input input-bordered input-sm" id="academic-course-count" placeholder="如：9" type="text"/>
+            </label>
+          </div>
+
+          <label class="form-control mt-4">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">备注（可写清数据来源与调整原因）</span>
+            <input class="input input-bordered" id="academic-note" placeholder="如：教务系统导出，2025-07-01" type="text"/>
+          </label>
+
+          <div class="mt-4 flex flex-wrap items-center justify-end gap-2">
+            <button class="btn btn-ghost btn-sm rounded-full" id="academic-reset" type="button">清空表单</button>
+            <button class="btn btn-primary btn-sm rounded-full" id="academic-save" type="button">保存学习成绩</button>
+          </div>
+
+          <div class="mt-8 rounded-box border border-base-300 bg-base-100 p-5">
+            <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">CSV 批量导入</p>
+            <p class="mt-2 text-xs text-base-content/60">每行一条，列序固定为：学号,学习成绩A,必修加权,选修加权,总学分,课程门数（首行可以是表头，会被自动跳过）。</p>
+            <label class="form-control mt-4">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">粘贴 CSV 内容</span>
+              <textarea class="textarea textarea-bordered" id="import-csv" rows="6" placeholder="20230101,86.35,87.10,82.40,24,9"></textarea>
+            </label>
+            <div id="import-message" class="alert hidden mt-4 items-start gap-2"></div>
+            <div class="mt-4 flex flex-wrap items-center justify-end gap-2">
+              <button class="btn btn-primary btn-sm rounded-full" id="import-submit" type="button">开始导入</button>
+            </div>
+
+            <div class="mt-5 hidden rounded-box border border-base-300 p-4" id="import-result">
+              <dl class="grid grid-cols-3 gap-x-6 gap-y-3">
+                <div>
+                  <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">新增</dt>
+                  <dd class="mt-0.5 font-serif text-xl" id="import-inserted">—</dd>
+                </div>
+                <div>
+                  <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">更新</dt>
+                  <dd class="mt-0.5 font-serif text-xl" id="import-updated">—</dd>
+                </div>
+                <div>
+                  <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">失败</dt>
+                  <dd class="mt-0.5 font-serif text-xl" id="import-failed-count">—</dd>
+                </div>
+              </dl>
+              <div class="mt-4 grid gap-2" id="import-failed-list"></div>
+              <p class="mt-3 hidden text-sm text-base-content/60" id="import-failed-empty">没有失败的行。</p>
+            </div>
+          </div>
+
+          <div class="mt-8 rounded-box border border-base-300 bg-base-100 p-5">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Missing · 待补数据</p>
+              <div class="flex items-center gap-2">
+                <span class="badge badge-ghost badge-sm font-mono" id="missing-count">—</span>
+                <button class="btn btn-ghost btn-sm rounded-full" id="missing-refresh" type="button">刷新</button>
+              </div>
+            </div>
+            <div class="mt-5 overflow-x-auto">
+              <table class="w-full border-collapse text-sm">
+                <thead>
+                  <tr class="border-b border-base-300">
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学号</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">姓名</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">专业</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">班级</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">年级</th>
+                  </tr>
+                </thead>
+                <tbody id="missing-list"></tbody>
+              </table>
+            </div>
+            <p class="mt-3 hidden text-sm text-base-content/60" id="missing-empty">这一批次没有缺学习成绩的学生。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="hidden" id="panel-bonus">
+      <div class="card mb-10 rounded-box border border-base-300 bg-base-200 shadow-xl">
+        <div class="p-6 md:p-7">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Bonus · 加分审核</p>
+              <h2 class="mt-2 font-serif text-2xl">综合素质加分审核</h2>
+            </div>
+            <span class="badge badge-ghost badge-sm font-mono" id="bonus-count">—</span>
+          </div>
+
+          <p class="mt-3 text-xs text-base-content/60">C = 通过的奖励加分 − 惩处扣分，按类别分别设上限，C 总分不超过 8 分；驳回必须填写不少于 4 字的意见。</p>
+
+          <div class="mt-5 flex flex-wrap items-end gap-3">
+            <label class="form-control w-48">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学期</span>
+              <select class="select select-bordered select-sm" id="bonus-term">
+                <option value="">全部学期</option>
+              </select>
+            </label>
+            <label class="form-control w-44">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</span>
+              <select class="select select-bordered select-sm" id="bonus-status">
+                <option value="">全部状态</option>
+                <option value="draft">草稿</option>
+                <option value="submitted">已提交</option>
+                <option value="counselor_approved">已通过</option>
+                <option value="rejected">已驳回</option>
+              </select>
+            </label>
+            <label class="form-control w-56">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关键词</span>
+              <input class="input input-bordered input-sm" id="bonus-keyword" placeholder="学号 / 姓名 / 项目" type="text"/>
+            </label>
+            <button class="btn btn-primary btn-sm rounded-full" id="bonus-search" type="button">查询</button>
+          </div>
+
+          <div class="mt-5 grid gap-4" data-nx-autoanimate="1" id="bonus-list"></div>
+          <p class="mt-4 hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="bonus-empty">没有符合条件的加分申报。</p>
+
+          <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <p class="font-mono text-xs text-base-content/65" id="bonus-total-text"></p>
+            <div class="flex items-center gap-2">
+              <button class="btn btn-ghost btn-sm rounded-full" id="bonus-prev" type="button">上一页</button>
+              <span class="font-mono text-xs" id="bonus-page">1 / 1</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="bonus-next" type="button">下一页</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="hidden" id="panel-rank">
+      <div class="card mb-10 rounded-box border border-base-300 bg-base-200 shadow-xl">
+        <div class="p-6 md:p-7">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Rank · 排名表</p>
+              <h2 class="mt-2 font-serif text-2xl">专业排名明细</h2>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="badge badge-ghost badge-sm font-mono" id="rank-count">—</span>
+              <button class="btn btn-primary btn-sm rounded-full gap-2" id="rank-export" type="button">
+                <span class="material-symbols-outlined text-lg">download</span>
+                <span>导出 CSV</span>
+              </button>
+            </div>
+          </div>
+
+          <p class="mt-3 text-xs text-base-content/60">每一行都列出 A / C / μ / B / M 与两种名次，便于向学生解释分数怎么来的。</p>
+
+          <div class="mt-5 flex flex-wrap items-end gap-3">
+            <label class="form-control w-48">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">专业</span>
+              <input class="input input-bordered input-sm" id="rank-major" placeholder="如：计算机科学与技术" type="text"/>
+            </label>
+            <label class="form-control w-48">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">班级</span>
+              <input class="input input-bordered input-sm" id="rank-class" placeholder="如：计算机2301" type="text"/>
+            </label>
+            <label class="form-control w-56">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关键词</span>
+              <input class="input input-bordered input-sm" id="rank-keyword" placeholder="学号 / 姓名" type="text"/>
+            </label>
+            <button class="btn btn-primary btn-sm rounded-full" id="rank-search" type="button">查询</button>
+          </div>
+
+          <div class="mt-5 overflow-x-auto">
+            <table class="w-full border-collapse text-sm">
+              <thead>
+                <tr class="border-b border-base-300">
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学号</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">姓名</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">专业</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">班级</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">A</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">C</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">μ</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">B</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">M</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">专业排名</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">专业年级排名</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">等级</th>
+                </tr>
+              </thead>
+              <tbody id="rank-list"></tbody>
+            </table>
+          </div>
+          <p class="mt-4 hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="rank-empty">这一批次还没有排名结果，先点「一键计算」。</p>
+
+          <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <p class="font-mono text-xs text-base-content/65" id="rank-total-text"></p>
+            <div class="flex items-center gap-2">
+              <button class="btn btn-ghost btn-sm rounded-full" id="rank-prev" type="button">上一页</button>
+              <span class="font-mono text-xs" id="rank-page">1 / 1</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="rank-next" type="button">下一页</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="hidden" id="panel-public">
+      <div class="card mb-10 rounded-box border border-base-300 bg-base-200 shadow-xl">
+        <div class="p-6 md:p-7">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Publicity · 等级与公示</p>
+              <h2 class="mt-2 font-serif text-2xl">等级名单与公示管理</h2>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="badge badge-ghost badge-sm font-mono" id="pub-status">—</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="pub-refresh" type="button">刷新</button>
+            </div>
+          </div>
+
+          <div class="mt-5 flex flex-wrap items-center gap-2">
+            <button class="btn btn-primary btn-sm rounded-full" id="pub-compute" type="button">一键计算</button>
+            <button class="btn btn-primary btn-sm rounded-full" id="pub-publicize" type="button">发布公示</button>
+            <button class="btn btn-ghost btn-sm rounded-full" id="pub-finish" type="button">结束批次</button>
+          </div>
+
+          <p class="mt-3 text-xs text-base-content/60" id="pub-window">—</p>
+
+          <dl class="mt-5 grid grid-cols-2 gap-x-6 gap-y-3 md:grid-cols-3">
+            <div>
+              <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">公示天数</dt>
+              <dd class="mt-0.5 text-sm" id="pub-days">—</dd>
+            </div>
+            <div>
+              <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">公告标题</dt>
+              <dd class="mt-0.5 text-sm" id="pub-notice-title">—</dd>
+            </div>
+            <div>
+              <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">公告链接</dt>
+              <dd class="mt-0.5 text-sm" id="pub-notice-url">—</dd>
+            </div>
+          </dl>
+
+          <div class="mt-8 rounded-box border border-base-300 bg-base-100 p-5">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Tier list · 等级名单</p>
+              <span class="badge badge-ghost badge-sm font-mono" id="tier-count">—</span>
+            </div>
+            <div class="mt-5 overflow-x-auto">
+              <table class="w-full border-collapse text-sm">
+                <thead>
+                  <tr class="border-b border-base-300">
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学号</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">姓名</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">专业</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">班级</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">M</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">等级</th>
+                  </tr>
+                </thead>
+                <tbody id="tier-list"></tbody>
+              </table>
+            </div>
+            <p class="mt-3 hidden text-sm text-base-content/60" id="tier-empty">这一批次还没有授予等级的学生。</p>
+          </div>
+
+          <div class="mt-8 rounded-box border border-base-300 bg-base-100 p-5">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Preview · 脱敏预览</p>
+              <span class="badge badge-ghost badge-sm font-mono" id="pub-preview-count">—</span>
+            </div>
+            <p class="mt-2 text-xs text-base-content/60">预览与公示接口一致：只显示姓名、学号后四位、专业、班级与等级，不显示分数与名次。</p>
+            <div class="mt-5 overflow-x-auto">
+              <table class="w-full border-collapse text-sm">
+                <thead>
+                  <tr class="border-b border-base-300">
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">姓名</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学号后四位</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">专业</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">班级</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">等级</th>
+                  </tr>
+                </thead>
+                <tbody id="pub-preview-list"></tbody>
+              </table>
+            </div>
+            <p class="mt-3 hidden text-sm text-base-content/60" id="pub-preview-empty">本批次还没有可公示的名单。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="hidden" id="panel-objection">
+      <div class="card mb-10 rounded-box border border-base-300 bg-base-200 shadow-xl">
+        <div class="p-6 md:p-7">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Objection · 异议处理</p>
+              <h2 class="mt-2 font-serif text-2xl">异议受理与答复</h2>
+            </div>
+            <span class="badge badge-ghost badge-sm font-mono" id="objection-count">—</span>
+          </div>
+
+          <p class="mt-3 text-xs text-base-content/60">异议只在公示期内可以提出；受理或驳回都必须填写不少于 4 字的答复。</p>
+
+          <div class="mt-5 flex flex-wrap items-end gap-3">
+            <label class="form-control w-44">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</span>
+              <select class="select select-bordered select-sm" id="objection-status">
+                <option value="">全部状态</option>
+                <option value="pending">待处理</option>
+                <option value="accepted">已受理</option>
+                <option value="rejected">已驳回</option>
+              </select>
+            </label>
+            <button class="btn btn-primary btn-sm rounded-full" id="objection-search" type="button">查询</button>
+          </div>
+
+          <div class="mt-5 grid gap-4" data-nx-autoanimate="1" id="objection-list"></div>
+          <p class="mt-4 hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="objection-empty">没有符合条件的异议记录。</p>
+
+          <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <p class="font-mono text-xs text-base-content/65" id="objection-total-text"></p>
+            <div class="flex items-center gap-2">
+              <button class="btn btn-ghost btn-sm rounded-full" id="objection-prev" type="button">上一页</button>
+              <span class="font-mono text-xs" id="objection-page">1 / 1</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="objection-next" type="button">下一页</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="batch-dialog">
+  <div class="card nx-dialog w-full max-w-2xl p-6">
+    <h2 class="font-serif text-2xl" id="batch-dialog-title">新建批次</h2>
+    <p class="mt-2 text-xs text-base-content/65" id="batch-target">—</p>
+    <input id="batch-id" type="hidden"/>
+
+    <div class="mt-5 grid gap-4 sm:grid-cols-2">
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">批次名</span>
+        <input class="input input-bordered input-sm" id="batch-name" placeholder="如：2024-2025 学年第二学期综测" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学期</span>
+        <input class="input input-bordered input-sm" id="batch-term" placeholder="如：2024-2025-2" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">μ 下限</span>
+        <input class="input input-bordered input-sm" id="batch-mu-min" placeholder="0.5" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">μ 上限</span>
+        <input class="input input-bordered input-sm" id="batch-mu-max" placeholder="0.7" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">奖学金资格比例（%）</span>
+        <input class="input input-bordered input-sm" id="batch-qualify-pct" placeholder="30" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">公示天数</span>
+        <input class="input input-bordered input-sm" id="batch-publicity-days" placeholder="5" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">一等比例（%）</span>
+        <input class="input input-bordered input-sm" id="batch-tier1-pct" placeholder="5" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">二等比例（%）</span>
+        <input class="input input-bordered input-sm" id="batch-tier2-pct" placeholder="10" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">三等比例（%）</span>
+        <input class="input input-bordered input-sm" id="batch-tier3-pct" placeholder="15" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">公告标题</span>
+        <input class="input input-bordered input-sm" id="batch-notice-title" placeholder="如：2024-2025-2 综测排名公示" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">公告链接</span>
+        <input class="input input-bordered input-sm" id="batch-notice-url" placeholder="可留空" type="text"/>
+      </label>
+    </div>
+
+    <label class="mt-4 flex items-center gap-2">
+      <input class="checkbox" id="batch-graduation" type="checkbox"/>
+      <span class="text-sm">毕业学年第二学期（只按 A 排名，B 计 0）</span>
+    </label>
+
+    <p class="mt-3 text-xs text-base-content/60">μ 上下限默认 0.5 / 0.7；资格比例默认 30%；一等/二等/三等默认 5% / 10% / 15%；公示天数默认 5，按工作日折算。</p>
+
+    <div id="batch-message" class="alert hidden mt-4 items-start gap-2"></div>
+
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="batch-cancel" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="batch-save" type="button">保存批次</button>
+    </div>
+  </div>
+</div>
+
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="bonus-dialog">
+  <div class="card nx-dialog w-full max-w-2xl p-6">
+    <h2 class="font-serif text-2xl" id="bonus-dialog-title">加分审核</h2>
+    <p class="mt-2 text-xs text-base-content/65" id="bonus-dialog-target">—</p>
+    <input id="bonus-dialog-id" type="hidden"/>
+
+    <dl class="mt-5 grid grid-cols-2 gap-x-6 gap-y-3 md:grid-cols-3">
+      <div>
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生</dt>
+        <dd class="mt-0.5 text-sm" id="bonus-dialog-student">—</dd>
+      </div>
+      <div>
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">类别</dt>
+        <dd class="mt-0.5 text-sm" id="bonus-dialog-category">—</dd>
+      </div>
+      <div>
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">分值</dt>
+        <dd class="mt-0.5 text-sm" id="bonus-dialog-points">—</dd>
+      </div>
+      <div>
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学期</dt>
+        <dd class="mt-0.5 text-sm" id="bonus-dialog-term">—</dd>
+      </div>
+      <div>
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</dt>
+        <dd class="mt-0.5 text-sm" id="bonus-dialog-status">—</dd>
+      </div>
+      <div>
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">提交时间</dt>
+        <dd class="mt-0.5 text-sm" id="bonus-dialog-submitted">—</dd>
+      </div>
+    </dl>
+
+    <div class="mt-5 rounded-box border border-base-300 p-4">
+      <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">佐证说明</p>
+      <p class="mt-2 text-sm whitespace-pre-wrap" id="bonus-dialog-evidence">—</p>
+    </div>
+
+    <div class="mt-5 flex flex-wrap items-center gap-4">
+      <label class="flex items-center gap-2">
+        <input class="radio" name="bonus-verdict" type="radio" value="pass"/>
+        <span class="text-sm">通过</span>
+      </label>
+      <label class="flex items-center gap-2">
+        <input class="radio" name="bonus-verdict" type="radio" value="reject"/>
+        <span class="text-sm">驳回</span>
+      </label>
+    </div>
+
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">审核意见（驳回时必填，不少于 4 字）</span>
+      <textarea class="textarea textarea-bordered" id="bonus-comment" rows="3"></textarea>
+    </label>
+    <p class="mt-2 hidden text-xs text-base-content/60" id="bonus-comment-hint">—</p>
+
+    <div id="bonus-message" class="alert hidden mt-4 items-start gap-2"></div>
+
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="bonus-cancel" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="bonus-save" type="button">提交审核</button>
+    </div>
+  </div>
+</div>
+
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="objection-dialog">
+  <div class="card nx-dialog w-full max-w-2xl p-6">
+    <h2 class="font-serif text-2xl">异议处理</h2>
+    <p class="mt-2 text-xs text-base-content/65" id="objection-dialog-target">—</p>
+    <input id="objection-dialog-id" type="hidden"/>
+
+    <dl class="mt-5 grid grid-cols-2 gap-x-6 gap-y-3 md:grid-cols-3">
+      <div>
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生</dt>
+        <dd class="mt-0.5 text-sm" id="objection-dialog-student">—</dd>
+      </div>
+      <div>
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">提交时间</dt>
+        <dd class="mt-0.5 text-sm" id="objection-dialog-created">—</dd>
+      </div>
+      <div>
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</dt>
+        <dd class="mt-0.5 text-sm" id="objection-dialog-status">—</dd>
+      </div>
+    </dl>
+
+    <div class="mt-5 rounded-box border border-base-300 p-4">
+      <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">异议理由</p>
+      <p class="mt-2 text-sm whitespace-pre-wrap" id="objection-dialog-reason">—</p>
+    </div>
+
+    <div class="mt-5 flex flex-wrap items-center gap-4">
+      <label class="flex items-center gap-2">
+        <input class="radio" name="objection-verdict" type="radio" value="accepted"/>
+        <span class="text-sm">受理</span>
+      </label>
+      <label class="flex items-center gap-2">
+        <input class="radio" name="objection-verdict" type="radio" value="rejected"/>
+        <span class="text-sm">驳回</span>
+      </label>
+    </div>
+
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">答复（不少于 4 字）</span>
+      <textarea class="textarea textarea-bordered" id="objection-answer" rows="3"></textarea>
+    </label>
+
+    <div id="objection-message" class="alert hidden mt-4 items-start gap-2"></div>
+
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="objection-cancel" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="objection-save" type="button">提交处理</button>
+    </div>
+  </div>
+</div>
+
+<footer class="nx-hairline-t border-base-300 px-5 py-6 md:px-8">
+  <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
+    <p class="font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65">学工平台 · Ranking review</p>
+    <p class="text-xs text-base-content/60">综测排名公示与导出 · M = A + B，B = C × μ，μ 限制在 0.5–0.7。</p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  var BATCH_STATUS_TEXT = { draft: '草稿', computed: '已计算', publicity: '公示中', finished: '已结束' };
+
+  var BONUS_STATUS_TEXT = {
+    draft: '草稿',
+    submitted: '已提交',
+    counselor_approved: '辅导员已通过',
+    rejected: '已驳回'
+  };
+
+  var OBJECTION_STATUS_TEXT = { pending: '待处理', accepted: '已受理', rejected: '已驳回' };
+
+  var AWARD_TIER_TEXT = { 1: '一等', 2: '二等', 3: '三等' };
+
+  var CATEGORY_TEXT = {
+    academic_competition: '学术科技竞赛',
+    nonacademic_competition: '非学术科技竞赛',
+    research: '科研成果',
+    quality: '综合素质',
+    media: '宣传文化作品',
+    service: '社会工作',
+    penalty: '惩处扣分'
+  };
+
+  var TABS = [
+    { name: 'batch', tabId: 'tab-batch', panelId: 'panel-batch' },
+    { name: 'academic', tabId: 'tab-academic', panelId: 'panel-academic' },
+    { name: 'bonus', tabId: 'tab-bonus', panelId: 'panel-bonus' },
+    { name: 'rank', tabId: 'tab-rank', panelId: 'panel-rank' },
+    { name: 'public', tabId: 'tab-public', panelId: 'panel-public' },
+    { name: 'objection', tabId: 'tab-objection', panelId: 'panel-objection' }
+  ];
+
+  var LIST_PAGE_SIZE = '8';
+
+  var state = {
+    tab: 'batch',
+    batchId: '',
+    term: '',
+    batchCache: {},
+    bonusPage: 1,
+    rankPage: 1,
+    objectionPage: 1,
+    bonusCache: [],
+    objectionCache: []
+  };
+
+  function escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  async function callApi(url, options) {
+    var config = options || {};
+    config.credentials = 'same-origin';
+    var response;
+    try {
+      response = await fetch(url, config);
+    } catch (err) {
+      return { code: 0, message: '无法连接服务，请稍后再试' };
+    }
+    var result;
+    try {
+      result = await response.json();
+    } catch (err) {
+      return { code: response.status, message: '服务没有返回可解析的内容' };
+    }
+    if (result && result.code === 401) {
+      window.location.href = 'login.html';
+      return { code: 401, message: '登录状态已失效' };
+    }
+    return result || { code: response.status, message: '服务返回了空的响应' };
+  }
+
+  function showMessage(message, type) {
+    var box = document.getElementById('manage-message');
+    if (!box) { return; }
+    box.className = 'alert mb-6 items-start gap-2 ' + (type === 'success' ? 'alert-success' : 'alert-error');
+    box.innerHTML = '<span class="material-symbols-outlined text-lg">' + (type === 'success' ? 'check_circle' : 'error') +
+      '</span><span class="text-sm">' + escapeHtml(message) + '</span>';
+  }
+
+  function clearMessage() {
+    var box = document.getElementById('manage-message');
+    if (!box) { return; }
+    box.className = 'alert hidden mb-6 items-start gap-2';
+    box.innerHTML = '';
+  }
+
+  function showBoxMessage(hostId, message, type) {
+    var box = document.getElementById(hostId);
+    if (!box) { return; }
+    box.className = 'alert mt-4 items-start gap-2 ' + (type === 'success' ? 'alert-success' : 'alert-error');
+    box.innerHTML = '<span class="material-symbols-outlined text-lg">' + (type === 'success' ? 'check_circle' : 'error') +
+      '</span><span class="text-sm">' + escapeHtml(message) + '</span>';
+  }
+
+  function hideBoxMessage(hostId) {
+    var box = document.getElementById(hostId);
+    if (!box) { return; }
+    box.className = 'alert hidden mt-4 items-start gap-2';
+    box.innerHTML = '';
+  }
+
+  function text(value) {
+    return value === null || value === undefined || value === '' ? '—' : String(value);
+  }
+
+  function setText(id, value) {
+    var el = document.getElementById(id);
+    if (el) { el.textContent = text(value); }
+  }
+
+  function toNumber(value) {
+    return /^[0-9]+$/.test(String(value)) ? Number(value) : value;
+  }
+
+  function numText(value, digits) {
+    if (value === null || value === undefined || value === '') { return '—'; }
+    var n = Number(value);
+    if (isNaN(n)) { return String(value); }
+    return n.toFixed(digits === undefined ? 2 : digits);
+  }
+
+  function formatTime(value) {
+    if (value === null || value === undefined || value === '') { return '—'; }
+    return String(value).replace('T', ' ').slice(0, 16);
+  }
+
+  function formatDate(value) {
+    if (value === null || value === undefined || value === '') { return '—'; }
+    return String(value).replace('T', ' ').slice(0, 10);
+  }
+
+  function radioValue(name) {
+    var checked = document.querySelector('input[name="' + name + '"]:checked');
+    return checked ? checked.value : '';
+  }
+
+  function checkRadio(name, value) {
+    var list = document.querySelectorAll('input[name="' + name + '"]');
+    for (var i = 0; i < list.length; i += 1) {
+      list[i].checked = String(list[i].value) === String(value);
+    }
+  }
+
+  function statusCls(status) {
+    if (status === 'counselor_approved' || status === 'accepted') { return 'badge-success'; }
+    if (status === 'submitted' || status === 'pending') { return 'badge-info'; }
+    if (status === 'rejected') { return 'badge-error'; }
+    return 'badge-ghost';
+  }
+
+  function batchStatusCls(status) {
+    if (status === 'publicity') { return 'badge-warning'; }
+    if (status === 'computed') { return 'badge-info'; }
+    if (status === 'finished') { return 'badge-success'; }
+    return 'badge-ghost';
+  }
+
+  function openDialog(id) {
+    var el = document.getElementById(id);
+    if (!el) { return; }
+    el.classList.remove('hidden');
+    el.classList.add('flex');
+  }
+
+  function closeDialog(id) {
+    var el = document.getElementById(id);
+    if (!el) { return; }
+    el.classList.add('hidden');
+    el.classList.remove('flex');
+  }
+
+  function closeOpenDialogs() {
+    var list = document.querySelectorAll('.nx-scrim');
+    for (var i = 0; i < list.length; i += 1) {
+      list[i].classList.add('hidden');
+      list[i].classList.remove('flex');
+    }
+  }
+
+  async function checkAuth() {
+    var result = await callApi('/api/auth/me');
+    if (result.code !== 200 || !result.data) { return null; }
+    var role = result.data.role || result.data.userRole || '';
+    if (role === 'student') {
+      window.location.href = 'ranking.html';
+      return null;
+    }
+    return result.data;
+  }
+
+  function batchOf(id) {
+    return state.batchCache[String(id)] || null;
+  }
+
+  function currentBatch() {
+    return batchOf(state.batchId);
+  }
+
+  function switchTab(name) {
+    state.tab = name;
+    TABS.forEach(function (item) {
+      var panel = document.getElementById(item.panelId);
+      var button = document.getElementById(item.tabId);
+      var active = item.name === name;
+      if (panel) { panel.classList.toggle('hidden', !active); }
+      if (button) { button.classList.toggle('is-active', active); }
+    });
+    if (name === 'batch') { refreshStats(); }
+    if (name === 'academic') { loadMissing(); }
+    if (name === 'bonus') { loadBonusList(); }
+    if (name === 'rank') { loadRankList(); }
+    if (name === 'public') { loadTierList(); loadPublicityPreview(); renderPublicityInfo(); }
+    if (name === 'objection') { loadObjections(); }
+  }
+
+  function fillSelect(id, options, placeholder, keepValue) {
+    var select = document.getElementById(id);
+    if (!select) { return; }
+    var current = keepValue ? select.value : '';
+    var html = '<option value="">' + escapeHtml(placeholder) + '</option>';
+    options.forEach(function (option) {
+      html += '<option value="' + escapeHtml(option.value) + '">' + escapeHtml(option.label) + '</option>';
+    });
+    select.innerHTML = html;
+    if (current) { select.value = current; }
+  }
+
+  function fillBatchOptions() {
+    var options = [];
+    Object.keys(state.batchCache).forEach(function (key) {
+      var batch = state.batchCache[key];
+      options.push({
+        value: batch.id,
+        label: text(batch.batchName) + ' · ' + (BATCH_STATUS_TEXT[batch.status] || text(batch.status))
+      });
+    });
+    fillSelect('batch-select', options, '选择批次', true);
+
+    var terms = [];
+    Object.keys(state.batchCache).forEach(function (key) {
+      var term = state.batchCache[key].academicTerm;
+      if (term && terms.indexOf(String(term)) < 0) { terms.push(String(term)); }
+    });
+    terms.sort();
+    terms.reverse();
+    var termOptions = terms.map(function (term) { return { value: term, label: term }; });
+    fillSelect('term-select', termOptions, '选择学期', true);
+    fillSelect('bonus-term', termOptions, '全部学期', true);
+  }
+
+  function renderBatchRow(batch) {
+    var status = batch.status || 'draft';
+    var tierText = text(batch.tier1Pct) + '% / ' + text(batch.tier2Pct) + '% / ' + text(batch.tier3Pct) + '%';
+    return '<article class="card rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">' +
+      '<div class="flex flex-wrap items-start justify-between gap-3">' +
+      '<div class="min-w-0">' +
+      '<p class="text-sm font-semibold">' + escapeHtml(text(batch.batchName)) + '</p>' +
+      '<p class="mt-0.5 text-xs text-base-content/65">' + escapeHtml(text(batch.academicTerm)) + ' · ' + escapeHtml(formatTime(batch.computedAt)) + '</p>' +
+      '</div>' +
+      '<span class="badge badge-sm whitespace-nowrap ' + batchStatusCls(status) + '">' + escapeHtml(BATCH_STATUS_TEXT[status] || status) + '</span>' +
+      '</div>' +
+      '<dl class="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 md:grid-cols-3">' +
+      '<div><dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">μ 区间</dt><dd class="mt-0.5 text-sm">' + escapeHtml(text(batch.muMin) + ' – ' + text(batch.muMax)) + '</dd></div>' +
+      '<div><dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">资格比例</dt><dd class="mt-0.5 text-sm">' + escapeHtml(text(batch.qualifyPct) + '%') + '</dd></div>' +
+      '<div><dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">等级比例</dt><dd class="mt-0.5 text-sm">' + escapeHtml(tierText) + '</dd></div>' +
+      '<div><dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">公示天数</dt><dd class="mt-0.5 text-sm">' + escapeHtml(text(batch.publicityDays) + ' 个工作日') + '</dd></div>' +
+      '<div><dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">公示期</dt><dd class="mt-0.5 text-sm">' + escapeHtml(formatDate(batch.publicityStart) + ' 至 ' + formatDate(batch.publicityEnd)) + '</dd></div>' +
+      '<div><dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">已排名人数</dt><dd class="mt-0.5 text-sm">' + escapeHtml(text(batch.rowCount)) + '</dd></div>' +
+      '<div><dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">毕业学年第二学期</dt><dd class="mt-0.5 text-sm">' + escapeHtml(batch.graduationLast ? '是（B 计 0，只按 A 排名）' : '否') + '</dd></div>' +
+      '<div><dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">公告标题</dt><dd class="mt-0.5 text-sm">' + escapeHtml(text(batch.noticeTitle)) + '</dd></div>' +
+      '<div><dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">公告链接</dt><dd class="mt-0.5 text-sm">' + escapeHtml(text(batch.noticeUrl)) + '</dd></div>' +
+      '</dl>' +
+      '<div class="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-base-300 pt-4">' +
+      '<button class="btn btn-ghost btn-xs rounded-full" data-batch-edit="' + escapeHtml(batch.id) + '" type="button">编辑</button>' +
+      '<button class="btn btn-primary btn-xs rounded-full" data-batch-compute="' + escapeHtml(batch.id) + '" type="button">一键计算</button>' +
+      '<button class="btn btn-primary btn-xs rounded-full" data-batch-publicize="' + escapeHtml(batch.id) + '" type="button">发布公示</button>' +
+      '<button class="btn btn-ghost btn-xs rounded-full" data-batch-finish="' + escapeHtml(batch.id) + '" type="button">结束批次</button>' +
+      '<button class="btn btn-ghost btn-xs rounded-full" data-batch-export="' + escapeHtml(batch.id) + '" type="button">导出 CSV</button>' +
+      '</div>' +
+      '</article>';
+  }
+
+  function bindBatchActions() {
+    var host = document.getElementById('batch-list');
+    if (!host) { return; }
+    host.querySelectorAll('[data-batch-edit]').forEach(function (button) {
+      button.addEventListener('click', function () { openBatch(this.getAttribute('data-batch-edit')); });
+    });
+    host.querySelectorAll('[data-batch-compute]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        runBatchAction(this.getAttribute('data-batch-compute'), 'compute', '一键计算完成，排名已重算。', '一键计算',
+          '确定要重新计算这个批次的排名吗？已有排名结果会被覆盖。');
+      });
+    });
+    host.querySelectorAll('[data-batch-publicize]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        runBatchAction(this.getAttribute('data-batch-publicize'), 'publicize', '公示已发布。', '发布公示',
+          '确定要发布公示吗？公示期内学生可以查看名单并提出异议。');
+      });
+    });
+    host.querySelectorAll('[data-batch-finish]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        runBatchAction(this.getAttribute('data-batch-finish'), 'finish', '批次已结束。', '结束批次',
+          '确定要结束这个批次吗？结束后不能再提交异议。');
+      });
+    });
+    host.querySelectorAll('[data-batch-export]').forEach(function (button) {
+      button.addEventListener('click', function () { exportCsv(this.getAttribute('data-batch-export')); });
+    });
+  }
+
+  async function loadBatches() {
+    var result = await callApi('/api/rank/batches');
+    var host = document.getElementById('batch-list');
+    var empty = document.getElementById('batch-empty');
+    var count = document.getElementById('batch-count');
+    if (result.code !== 200) {
+      state.batchCache = {};
+      if (host) { host.innerHTML = ''; }
+      if (empty) {
+        empty.textContent = '暂时读不到测评批次：该接口可能尚未开放，或服务暂不可用。请稍后刷新。';
+        empty.classList.remove('hidden');
+      }
+      if (count) { count.textContent = '—'; }
+      refreshStats();
+      return;
+    }
+    var data = result.data;
+    var list = Array.isArray(data) ? data : ((data && data.items) || []);
+    state.batchCache = {};
+    list.forEach(function (batch) {
+      if (batch && batch.id !== undefined) { state.batchCache[String(batch.id)] = batch; }
+    });
+    if (host) { host.innerHTML = list.map(renderBatchRow).join(''); }
+    if (empty) {
+      empty.classList.toggle('hidden', list.length > 0);
+      if (!list.length) { empty.textContent = '还没有综测批次，先新建一个批次。'; }
+    }
+    if (count) { count.textContent = list.length ? (list.length + ' 个') : '—'; }
+    bindBatchActions();
+
+    fillBatchOptions();
+    var batchSelect = document.getElementById('batch-select');
+    if (!state.batchId && list.length) { state.batchId = String(list[0].id); }
+    if (batchSelect && state.batchId) { batchSelect.value = state.batchId; }
+    if (!state.term && list.length) { state.term = String(list[0].academicTerm || ''); }
+    var termSelect = document.getElementById('term-select');
+    if (termSelect && state.term) { termSelect.value = state.term; }
+    var bonusTerm = document.getElementById('bonus-term');
+    if (bonusTerm && state.term) { bonusTerm.value = state.term; }
+    setText('academic-term-hint', state.term ? ('当前学期：' + state.term) : '请选择学期');
+    renderPublicityInfo();
+  }
+
+  function openBatch(id) {
+    var batch = id ? batchOf(id) : null;
+    var title = document.getElementById('batch-dialog-title');
+    if (title) { title.textContent = batch ? '编辑批次' : '新建批次'; }
+    setText('batch-target', batch ? (text(batch.batchName) + ' · ' + text(batch.academicTerm)) : '新建后可以一键计算、发布公示与结束批次。');
+    setText('batch-id', batch ? batch.id : '');
+    var idInput = document.getElementById('batch-id');
+    if (idInput) { idInput.value = batch ? String(batch.id) : ''; }
+
+    function put(fieldId, value) {
+      var el = document.getElementById(fieldId);
+      if (el) { el.value = value === null || value === undefined ? '' : String(value); }
+    }
+    put('batch-name', batch ? batch.batchName : '');
+    put('batch-term', batch ? batch.academicTerm : (state.term || ''));
+    put('batch-mu-min', batch ? batch.muMin : 0.5);
+    put('batch-mu-max', batch ? batch.muMax : 0.7);
+    put('batch-qualify-pct', batch ? batch.qualifyPct : 30);
+    put('batch-tier1-pct', batch ? batch.tier1Pct : 5);
+    put('batch-tier2-pct', batch ? batch.tier2Pct : 10);
+    put('batch-tier3-pct', batch ? batch.tier3Pct : 15);
+    put('batch-publicity-days', batch ? batch.publicityDays : 5);
+    put('batch-notice-title', batch ? batch.noticeTitle : '');
+    put('batch-notice-url', batch ? batch.noticeUrl : '');
+    var graduation = document.getElementById('batch-graduation');
+    if (graduation) { graduation.checked = !!(batch && batch.graduationLast); }
+    hideBoxMessage('batch-message');
+    openDialog('batch-dialog');
+  }
+
+  async function submitBatch() {
+    var id = document.getElementById('batch-id');
+    var name = document.getElementById('batch-name');
+    var term = document.getElementById('batch-term');
+    var graduation = document.getElementById('batch-graduation');
+    var muMin = document.getElementById('batch-mu-min');
+    var muMax = document.getElementById('batch-mu-max');
+    var qualify = document.getElementById('batch-qualify-pct');
+    var tier1 = document.getElementById('batch-tier1-pct');
+    var tier2 = document.getElementById('batch-tier2-pct');
+    var tier3 = document.getElementById('batch-tier3-pct');
+    var days = document.getElementById('batch-publicity-days');
+    var noticeTitle = document.getElementById('batch-notice-title');
+    var noticeUrl = document.getElementById('batch-notice-url');
+
+    var batchId = id ? id.value : '';
+    var nameValue = name ? name.value.trim() : '';
+    var termValue = term ? term.value.trim() : '';
+    if (!nameValue) { showBoxMessage('batch-message', '请填写批次名。', 'error'); return; }
+    if (!termValue) { showBoxMessage('batch-message', '请填写学期，例如 2024-2025-2。', 'error'); return; }
+    if (!/^[0-9]+(\.[0-9]+)?$/.test(muMin.value.trim())) { showBoxMessage('batch-message', 'μ 下限请填写数字，例如 0.5。', 'error'); return; }
+    if (!/^[0-9]+(\.[0-9]+)?$/.test(muMax.value.trim())) { showBoxMessage('batch-message', 'μ 上限请填写数字，例如 0.7。', 'error'); return; }
+    if (Number(muMin.value) > Number(muMax.value)) { showBoxMessage('batch-message', 'μ 下限不能大于上限。', 'error'); return; }
+    ['batch-qualify-pct', 'batch-tier1-pct', 'batch-tier2-pct', 'batch-tier3-pct', 'batch-publicity-days'].forEach(function (fieldId) {
+      var el = document.getElementById(fieldId);
+      if (el && !/^[0-9]+$/.test(el.value.trim())) { el.value = ''; }
+    });
+    if (!/^[0-9]+$/.test(qualify.value.trim())) { showBoxMessage('batch-message', '资格比例请填写整数百分比。', 'error'); return; }
+    if (!/^[0-9]+$/.test(days.value.trim())) { showBoxMessage('batch-message', '公示天数请填写正整数。', 'error'); return; }
+
+    var payload = {
+      batchName: nameValue,
+      academicTerm: termValue,
+      graduationLast: !!(graduation && graduation.checked),
+      muMin: Number(muMin.value),
+      muMax: Number(muMax.value),
+      qualifyPct: Number(qualify.value),
+      tier1Pct: toNumber(tier1.value.trim()),
+      tier2Pct: toNumber(tier2.value.trim()),
+      tier3Pct: toNumber(tier3.value.trim()),
+      publicityDays: Number(days.value),
+      noticeTitle: noticeTitle ? noticeTitle.value.trim() : '',
+      noticeUrl: noticeUrl ? noticeUrl.value.trim() : ''
+    };
+    if (batchId) { payload.id = toNumber(batchId); }
+
+    var save = document.getElementById('batch-save');
+    if (save) { save.disabled = true; }
+    var result = await callApi('/api/rank/batches', {
+      method: batchId ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (save) { save.disabled = false; }
+    if (result.code !== 200) {
+      showBoxMessage('batch-message', result.message || '保存失败：请检查必填项与数字格式。', 'error');
+      return;
+    }
+    closeDialog('batch-dialog');
+    showMessage(result.message || (batchId ? '批次已更新。' : '批次已创建。'), 'success');
+    await loadBatches();
+    await refreshStats();
+  }
+
+  async function runBatchAction(batchId, action, okMessage, label, confirmText) {
+    if (!batchId) { return; }
+    if (!window.confirm(confirmText || ('确定要' + label + '吗？'))) { return; }
+    var result = await callApi('/api/rank/batches/' + encodeURIComponent(batchId) + '/' + action, { method: 'POST' });
+    if (result.code !== 200) {
+      showMessage(result.message || (label + '失败：批次状态可能已被其他人变更（并发校验未通过），请刷新后重试。'), 'error');
+      await loadBatches();
+      return;
+    }
+    showMessage(result.message || okMessage, 'success');
+    await loadBatches();
+    await refreshStats();
+    if (state.tab === 'public') { loadTierList(); loadPublicityPreview(); renderPublicityInfo(); }
+    if (state.tab === 'rank') { loadRankList(); }
+  }
+
+  async function refreshStats() {
+    if (!state.batchId) {
+      ['stat-ranked', 'stat-missing', 'stat-tier1', 'stat-tier2', 'stat-tier3', 'stat-bonus'].forEach(function (id) { setText(id, '—'); });
+      setText('stats-batch-name', '—');
+      setText('stats-total-students', '—');
+      setText('stats-qualified', '—');
+      setText('stats-computed-at', '—');
+      setText('stats-objection-pending', '—');
+      setText('stats-objection-accepted', '—');
+      setText('stats-objection-rejected', '—');
+      setText('stats-bonus-pending', '—');
+      renderMajorStats([]);
+      return;
+    }
+    var result = await callApi('/api/rank/stats?batchId=' + encodeURIComponent(state.batchId));
+    if (result.code !== 200) {
+      ['stat-ranked', 'stat-missing', 'stat-tier1', 'stat-tier2', 'stat-tier3', 'stat-bonus'].forEach(function (id) { setText(id, '—'); });
+      renderMajorStats([]);
+      return;
+    }
+    var data = result.data || {};
+    setText('stat-ranked', data.rankedStudents);
+    setText('stat-missing', data.missingAcademic);
+    setText('stat-tier1', data.tier1);
+    setText('stat-tier2', data.tier2);
+    setText('stat-tier3', data.tier3);
+    setText('stat-bonus', data.bonusPending);
+    var batch = data.batch || currentBatch();
+    setText('stats-batch-name', batch ? (text(batch.batchName) + ' · ' + text(batch.academicTerm)) : '—');
+    setText('stats-total-students', data.totalStudents);
+    setText('stats-qualified', data.qualified);
+    setText('stats-computed-at', batch ? formatTime(batch.computedAt) : '—');
+    var objections = data.objections || {};
+    setText('stats-objection-pending', objections.pending);
+    setText('stats-objection-accepted', objections.accepted);
+    setText('stats-objection-rejected', objections.rejected);
+    setText('stats-bonus-pending', data.bonusPending);
+    renderMajorStats(Array.isArray(data.byMajor) ? data.byMajor : []);
+  }
+
+  function renderMajorStats(list) {
+    var host = document.getElementById('stats-major-list');
+    var empty = document.getElementById('stats-major-empty');
+    if (host) {
+      host.innerHTML = list.map(function (item) {
+        return '<tr class="border-b border-base-200">' +
+          '<td class="py-2 pr-4">' + escapeHtml(text(item.major)) + '</td>' +
+          '<td class="py-2 pr-4">' + escapeHtml(text(item.grade)) + '</td>' +
+          '<td class="py-2 pr-4 font-mono">' + escapeHtml(text(item.ranked)) + '</td>' +
+          '<td class="py-2 pr-4 font-mono">' + escapeHtml(text(item.tier1)) + '</td>' +
+          '<td class="py-2 pr-4 font-mono">' + escapeHtml(text(item.tier2)) + '</td>' +
+          '<td class="py-2 pr-4 font-mono">' + escapeHtml(text(item.tier3)) + '</td>' +
+          '</tr>';
+      }).join('');
+    }
+    if (empty) { empty.classList.toggle('hidden', list.length > 0); }
+  }
+
+  async function submitAcademic() {
+    var studentId = document.getElementById('academic-student-id');
+    var scoreA = document.getElementById('academic-score-a');
+    var required = document.getElementById('academic-required-avg');
+    var elective = document.getElementById('academic-elective-avg');
+    var credits = document.getElementById('academic-credits');
+    var courses = document.getElementById('academic-course-count');
+    var note = document.getElementById('academic-note');
+
+    if (!state.term) { showBoxMessage('academic-message', '请先在上方选择学期。', 'error'); return; }
+    if (!studentId.value.trim()) { showBoxMessage('academic-message', '请填写学号。', 'error'); return; }
+    if (!/^[0-9]+(\.[0-9]+)?$/.test(scoreA.value.trim())) { showBoxMessage('academic-message', '学习成绩 A 请填写数字，例如 86.35。', 'error'); return; }
+
+    var payload = {
+      studentId: toNumber(studentId.value.trim()),
+      academicTerm: state.term,
+      scoreA: Number(scoreA.value.trim()),
+      requiredAvg: required.value.trim() === '' ? null : Number(required.value.trim()),
+      electiveAvg: elective.value.trim() === '' ? null : Number(elective.value.trim()),
+      totalCredits: credits.value.trim() === '' ? null : Number(credits.value.trim()),
+      courseCount: courses.value.trim() === '' ? null : toNumber(courses.value.trim()),
+      note: note ? note.value.trim() : ''
+    };
+
+    var save = document.getElementById('academic-save');
+    if (save) { save.disabled = true; }
+    var result = await callApi('/api/rank/academic', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (save) { save.disabled = false; }
+    if (result.code !== 200) {
+      showBoxMessage('academic-message', result.message || '保存失败：请检查学号与分数。', 'error');
+      return;
+    }
+    hideBoxMessage('academic-message');
+    showMessage(result.message || '学习成绩已保存，可以重新一键计算。', 'success');
+    await loadMissing();
+  }
+
+  async function submitImport() {
+    var csv = document.getElementById('import-csv');
+    var value = csv ? csv.value.trim() : '';
+    if (!state.term) { showBoxMessage('import-message', '请先在上方选择学期。', 'error'); return; }
+    if (!value) { showBoxMessage('import-message', '请先粘贴 CSV 内容。', 'error'); return; }
+
+    var submit = document.getElementById('import-submit');
+    if (submit) { submit.disabled = true; }
+    var result = await callApi('/api/rank/academic/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ academicTerm: state.term, csv: value })
+    });
+    if (submit) { submit.disabled = false; }
+    if (result.code !== 200) {
+      showBoxMessage('import-message', result.message || '导入失败：请检查 CSV 内容。', 'error');
+      return;
+    }
+    var data = result.data || {};
+    var failed = Array.isArray(data.failed) ? data.failed : [];
+    hideBoxMessage('import-message');
+    var box = document.getElementById('import-result');
+    if (box) { box.classList.remove('hidden'); }
+    setText('import-inserted', data.inserted);
+    setText('import-updated', data.updated);
+    setText('import-failed-count', failed.length);
+    var host = document.getElementById('import-failed-list');
+    if (host) {
+      host.innerHTML = failed.map(function (item) {
+        return '<p class="text-sm text-base-content/70"><span class="font-mono">第 ' + escapeHtml(text(item.line)) + ' 行</span> · ' + escapeHtml(text(item.message)) + '</p>';
+      }).join('');
+    }
+    var empty = document.getElementById('import-failed-empty');
+    if (empty) { empty.classList.toggle('hidden', failed.length > 0); }
+    showMessage(result.message || ('导入完成：新增 ' + text(data.inserted) + ' 条，更新 ' + text(data.updated) + ' 条，失败 ' + failed.length + ' 行。'), 'success');
+    await loadMissing();
+    if (state.tab === 'rank') { loadRankList(); }
+  }
+
+  async function loadMissing() {
+    var host = document.getElementById('missing-list');
+    var empty = document.getElementById('missing-empty');
+    var count = document.getElementById('missing-count');
+    if (!state.batchId) {
+      if (host) { host.innerHTML = ''; }
+      if (empty) { empty.classList.remove('hidden'); empty.textContent = '请先选择批次。'; }
+      if (count) { count.textContent = '—'; }
+      return;
+    }
+    var result = await callApi('/api/rank/academic/missing?batchId=' + encodeURIComponent(state.batchId));
+    if (result.code !== 200) {
+      if (host) { host.innerHTML = ''; }
+      if (empty) { empty.textContent = '暂时读不到待补数据：该接口可能尚未开放，或服务暂不可用。请稍后刷新。'; empty.classList.remove('hidden'); }
+      if (count) { count.textContent = '—'; }
+      return;
+    }
+    var data = result.data;
+    var list = Array.isArray(data) ? data : ((data && data.list) || []);
+    if (host) {
+      host.innerHTML = list.map(function (item) {
+        return '<tr class="border-b border-base-200">' +
+          '<td class="py-2 pr-4 font-mono">' + escapeHtml(text(item.studentNo)) + '</td>' +
+          '<td class="py-2 pr-4">' + escapeHtml(text(item.studentName)) + '</td>' +
+          '<td class="py-2 pr-4">' + escapeHtml(text(item.major)) + '</td>' +
+          '<td class="py-2 pr-4">' + escapeHtml(text(item.className)) + '</td>' +
+          '<td class="py-2 pr-4">' + escapeHtml(text(item.grade)) + '</td>' +
+          '</tr>';
+      }).join('');
+    }
+    if (empty) {
+      empty.classList.toggle('hidden', list.length > 0);
+      if (!list.length) { empty.textContent = '这一批次没有缺学习成绩的学生。'; }
+    }
+    if (count) { count.textContent = list.length ? (list.length + ' 人') : '—'; }
+  }
+
+  function bonusRowHtml(item) {
+    var status = item.status || 'draft';
+    var statusText = item.statusText || BONUS_STATUS_TEXT[status] || status;
+    var categoryText = item.categoryText || CATEGORY_TEXT[item.category] || item.category || '—';
+    var points = Number(item.points);
+    var pointsText = isNaN(points) ? text(item.points) : (points > 0 ? '+' + points : String(points));
+    var actions = '';
+    if (status === 'submitted') {
+      actions = '<button class="btn btn-primary btn-xs rounded-full" data-bonus-review="' + escapeHtml(item.id) + '" type="button">审核</button>';
+    } else {
+      actions = '<button class="btn btn-ghost btn-xs rounded-full" data-bonus-review="' + escapeHtml(item.id) + '" type="button">查看</button>';
+    }
+    return '<article class="card rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">' +
+      '<div class="flex flex-wrap items-start justify-between gap-3">' +
+      '<div class="min-w-0">' +
+      '<p class="text-sm font-semibold">' + escapeHtml(text(item.itemName)) + '</p>' +
+      '<p class="mt-0.5 text-xs text-base-content/65">' + escapeHtml(text(item.studentName) + ' · ' + text(item.studentNo) + ' · ' + text(item.className)) + '</p>' +
+      '<p class="mt-0.5 text-xs text-base-content/65">' + escapeHtml(categoryText) + ' · ' + escapeHtml(pointsText) + ' 分 · ' + escapeHtml(text(item.academicTerm)) + ' · ' + escapeHtml(formatDate(item.createdAt)) + '</p>' +
+      '</div>' +
+      '<span class="badge badge-sm whitespace-nowrap ' + statusCls(status) + '">' + escapeHtml(statusText) + '</span>' +
+      '</div>' +
+      (item.evidence ? '<p class="mt-3 text-sm whitespace-pre-wrap">' + escapeHtml(item.evidence) + '</p>' : '') +
+      (item.rejectReason ? '<div class="alert alert-error mt-4 items-start gap-2"><span class="material-symbols-outlined text-lg">error</span><span class="min-w-0"><span class="block text-sm font-semibold">驳回理由</span><span class="mt-0.5 block text-sm whitespace-pre-wrap">' + escapeHtml(item.rejectReason) + '</span></span></div>' : '') +
+      '<div class="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-base-300 pt-4">' + actions + '</div>' +
+      '</article>';
+  }
+
+  async function loadBonusList() {
+    var host = document.getElementById('bonus-list');
+    var empty = document.getElementById('bonus-empty');
+    var count = document.getElementById('bonus-count');
+    var termEl = document.getElementById('bonus-term');
+    var statusEl = document.getElementById('bonus-status');
+    var keywordEl = document.getElementById('bonus-keyword');
+    var params = new URLSearchParams();
+    if (termEl && termEl.value) { params.set('academicTerm', termEl.value); }
+    if (statusEl && statusEl.value) { params.set('status', statusEl.value); }
+    if (keywordEl && keywordEl.value.trim()) { params.set('keyword', keywordEl.value.trim()); }
+    params.set('page', String(state.bonusPage));
+    params.set('size', LIST_PAGE_SIZE);
+
+    var result = await callApi('/api/rank/bonus/list?' + params.toString());
+    if (result.code !== 200) {
+      state.bonusCache = [];
+      if (host) { host.innerHTML = ''; }
+      if (empty) { empty.textContent = '暂时读不到加分申报：该接口可能尚未开放，或服务暂不可用。请稍后刷新。'; empty.classList.remove('hidden'); }
+      if (count) { count.textContent = '—'; }
+      renderBonusPager(0, 0, 1);
+      return;
+    }
+    var data = result.data || {};
+    var list = (data.list || data.items) || (Array.isArray(data) ? data : []);
+    state.bonusCache = list;
+    if (host) { host.innerHTML = list.map(bonusRowHtml).join(''); }
+    if (empty) {
+      empty.classList.toggle('hidden', list.length > 0);
+      if (!list.length) { empty.textContent = '没有符合条件的加分申报。'; }
+    }
+    if (count) { count.textContent = list.length ? (list.length + ' 条') : '—'; }
+    var total = data.total === undefined ? list.length : data.total;
+    var pages = Math.max(1, Math.ceil(total / Number(LIST_PAGE_SIZE)));
+    renderBonusPager(list.length, total, pages);
+    bindBonusActions();
+  }
+
+  function renderBonusPager(sizeShown, total, pages) {
+    setText('bonus-total-text', '本页 ' + sizeShown + ' 条 / 共 ' + total + ' 条');
+    setText('bonus-page', state.bonusPage + ' / ' + pages);
+    var prev = document.getElementById('bonus-prev');
+    var next = document.getElementById('bonus-next');
+    if (prev) { prev.disabled = state.bonusPage <= 1; }
+    if (next) { next.disabled = state.bonusPage >= pages; }
+  }
+
+  function bindBonusActions() {
+    var host = document.getElementById('bonus-list');
+    if (!host) { return; }
+    host.querySelectorAll('[data-bonus-review]').forEach(function (button) {
+      button.addEventListener('click', function () { openBonusDialog(this.getAttribute('data-bonus-review')); });
+    });
+  }
+
+  function bonusOf(id) {
+    var found = null;
+    (state.bonusCache || []).forEach(function (item) {
+      if (String(item.id) === String(id)) { found = item; }
+    });
+    return found;
+  }
+
+  function openBonusDialog(id) {
+    var item = bonusOf(id);
+    if (!item) { return; }
+    setText('bonus-dialog-target', text(item.itemName));
+    var idInput = document.getElementById('bonus-dialog-id');
+    if (idInput) { idInput.value = String(item.id); }
+    setText('bonus-dialog-student', text(item.studentName) + ' · ' + text(item.studentNo) + ' · ' + text(item.className));
+    setText('bonus-dialog-category', item.categoryText || CATEGORY_TEXT[item.category] || item.category);
+    setText('bonus-dialog-points', item.points);
+    setText('bonus-dialog-term', item.academicTerm);
+    setText('bonus-dialog-status', item.statusText || BONUS_STATUS_TEXT[item.status] || item.status);
+    setText('bonus-dialog-submitted', formatTime(item.createdAt));
+    setText('bonus-dialog-evidence', text(item.evidence));
+    checkRadio('bonus-verdict', item.status === 'submitted' ? 'pass' : '');
+    var comment = document.getElementById('bonus-comment');
+    if (comment) { comment.value = item.rejectReason || ''; }
+    updateBonusCommentHint();
+    hideBoxMessage('bonus-message');
+    openDialog('bonus-dialog');
+  }
+
+  function updateBonusCommentHint() {
+    var comment = document.getElementById('bonus-comment');
+    var hint = document.getElementById('bonus-comment-hint');
+    if (!comment || !hint) { return; }
+    var value = comment.value.trim();
+    if (!value) { hint.classList.add('hidden'); return; }
+    hint.classList.remove('hidden');
+    hint.textContent = value.length < 4 ? '意见太短，请写清依据（不少于 4 字）。' : '已填写 ' + value.length + ' 字。';
+  }
+
+  async function submitBonusReview() {
+    var idInput = document.getElementById('bonus-dialog-id');
+    var id = idInput ? idInput.value : '';
+    var verdict = radioValue('bonus-verdict');
+    var comment = document.getElementById('bonus-comment');
+    var value = comment ? comment.value.trim() : '';
+    if (!id) { showBoxMessage('bonus-message', '没有选中申报记录，请刷新后重试。', 'error'); return; }
+    if (!verdict) { showBoxMessage('bonus-message', '请选择通过或驳回。', 'error'); return; }
+    if (verdict === 'reject' && value.length < 4) { showBoxMessage('bonus-message', '驳回必须填写不少于 4 字的审核意见。', 'error'); return; }
+
+    var save = document.getElementById('bonus-save');
+    if (save) { save.disabled = true; }
+    var result = await callApi('/api/rank/bonus/' + encodeURIComponent(id) + '/review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ verdict: verdict, comment: value })
+    });
+    if (save) { save.disabled = false; }
+    if (result.code !== 200) {
+      showBoxMessage('bonus-message', result.message || '提交失败：该申报可能已被其他人审核，请刷新后重试。', 'error');
+      return;
+    }
+    closeDialog('bonus-dialog');
+    showMessage(result.message || (verdict === 'pass' ? '已通过该条加分申报。' : '已驳回该条加分申报。'), 'success');
+    await loadBonusList();
+    await refreshStats();
+  }
+
+  async function loadRankList() {
+    var host = document.getElementById('rank-list');
+    var empty = document.getElementById('rank-empty');
+    var count = document.getElementById('rank-count');
+    if (!state.batchId) {
+      if (host) { host.innerHTML = ''; }
+      if (empty) { empty.textContent = '请先选择批次。'; empty.classList.remove('hidden'); }
+      if (count) { count.textContent = '—'; }
+      renderRankPager(0, 0, 1);
+      return;
+    }
+    var major = document.getElementById('rank-major');
+    var className = document.getElementById('rank-class');
+    var keyword = document.getElementById('rank-keyword');
+    var params = new URLSearchParams();
+    params.set('batchId', state.batchId);
+    if (major && major.value.trim()) { params.set('major', major.value.trim()); }
+    if (className && className.value.trim()) { params.set('className', className.value.trim()); }
+    if (keyword && keyword.value.trim()) { params.set('keyword', keyword.value.trim()); }
+    params.set('page', String(state.rankPage));
+    params.set('size', LIST_PAGE_SIZE);
+
+    var result = await callApi('/api/rank/list?' + params.toString());
+    if (result.code !== 200) {
+      if (host) { host.innerHTML = ''; }
+      if (empty) { empty.textContent = '暂时读不到排名结果：该接口可能尚未开放，或服务暂不可用。请稍后刷新。'; empty.classList.remove('hidden'); }
+      if (count) { count.textContent = '—'; }
+      renderRankPager(0, 0, 1);
+      return;
+    }
+    var data = result.data || {};
+    var list = (data.list || data.items) || (Array.isArray(data) ? data : []);
+    if (host) {
+      host.innerHTML = list.map(function (item) {
+        var tier = item.awardTierText || AWARD_TIER_TEXT[item.awardTier] || '—';
+        return '<tr class="border-b border-base-200">' +
+          '<td class="py-2 pr-4 font-mono">' + escapeHtml(text(item.studentNo)) + '</td>' +
+          '<td class="py-2 pr-4">' + escapeHtml(text(item.studentName)) + '</td>' +
+          '<td class="py-2 pr-4">' + escapeHtml(text(item.major)) + '</td>' +
+          '<td class="py-2 pr-4">' + escapeHtml(text(item.className)) + '</td>' +
+          '<td class="py-2 pr-4 font-mono">' + escapeHtml(numText(item.scoreA)) + '</td>' +
+          '<td class="py-2 pr-4 font-mono">' + escapeHtml(numText(item.cScore)) + '</td>' +
+          '<td class="py-2 pr-4 font-mono">' + escapeHtml(numText(item.mu, 3)) + '</td>' +
+          '<td class="py-2 pr-4 font-mono">' + escapeHtml(numText(item.scoreB)) + '</td>' +
+          '<td class="py-2 pr-4 font-mono">' + escapeHtml(numText(item.scoreM)) + '</td>' +
+          '<td class="py-2 pr-4 font-mono">' + escapeHtml(text(item.rankInMajor) + ' / ' + text(item.totalInMajor)) + '</td>' +
+          '<td class="py-2 pr-4 font-mono">' + escapeHtml(text(item.rankInGradeMajor)) + '</td>' +
+          '<td class="py-2 pr-4">' + escapeHtml(tier) + '</td>' +
+          '</tr>';
+      }).join('');
+    }
+    if (empty) {
+      empty.classList.toggle('hidden', list.length > 0);
+      if (!list.length) { empty.textContent = '这一批次还没有排名结果，先点「一键计算」。'; }
+    }
+    if (count) { count.textContent = list.length ? (list.length + ' 条') : '—'; }
+    var total = data.total === undefined ? list.length : data.total;
+    var pages = Math.max(1, Math.ceil(total / Number(LIST_PAGE_SIZE)));
+    renderRankPager(list.length, total, pages);
+  }
+
+  function renderRankPager(sizeShown, total, pages) {
+    setText('rank-total-text', '本页 ' + sizeShown + ' 条 / 共 ' + total + ' 条');
+    setText('rank-page', state.rankPage + ' / ' + pages);
+    var prev = document.getElementById('rank-prev');
+    var next = document.getElementById('rank-next');
+    if (prev) { prev.disabled = state.rankPage <= 1; }
+    if (next) { next.disabled = state.rankPage >= pages; }
+  }
+
+  async function loadTierList() {
+    var host = document.getElementById('tier-list');
+    var empty = document.getElementById('tier-empty');
+    var count = document.getElementById('tier-count');
+    if (!state.batchId) {
+      if (host) { host.innerHTML = ''; }
+      if (empty) { empty.textContent = '请先选择批次。'; empty.classList.remove('hidden'); }
+      if (count) { count.textContent = '—'; }
+      return;
+    }
+    var params = new URLSearchParams();
+    params.set('batchId', state.batchId);
+    params.set('size', '100');
+    var result = await callApi('/api/rank/list?' + params.toString());
+    if (result.code !== 200) {
+      if (host) { host.innerHTML = ''; }
+      if (empty) { empty.textContent = '暂时读不到等级名单：该接口可能尚未开放，或服务暂不可用。请稍后刷新。'; empty.classList.remove('hidden'); }
+      if (count) { count.textContent = '—'; }
+      return;
+    }
+    var data = result.data || {};
+    var list = (data.list || data.items) || (Array.isArray(data) ? data : []);
+    var tiered = list.filter(function (item) { return item && item.awardTier !== null && item.awardTier !== undefined && item.awardTier !== ''; });
+    if (host) {
+      host.innerHTML = tiered.map(function (item) {
+        var tier = item.awardTierText || AWARD_TIER_TEXT[item.awardTier] || '—';
+        return '<tr class="border-b border-base-200">' +
+          '<td class="py-2 pr-4 font-mono">' + escapeHtml(text(item.studentNo)) + '</td>' +
+          '<td class="py-2 pr-4">' + escapeHtml(text(item.studentName)) + '</td>' +
+          '<td class="py-2 pr-4">' + escapeHtml(text(item.major)) + '</td>' +
+          '<td class="py-2 pr-4">' + escapeHtml(text(item.className)) + '</td>' +
+          '<td class="py-2 pr-4 font-mono">' + escapeHtml(numText(item.scoreM)) + '</td>' +
+          '<td class="py-2 pr-4">' + escapeHtml(tier) + '</td>' +
+          '</tr>';
+      }).join('');
+    }
+    if (empty) {
+      empty.classList.toggle('hidden', tiered.length > 0);
+      if (!tiered.length) { empty.textContent = '这一批次还没有授予等级的学生。'; }
+    }
+    if (count) { count.textContent = tiered.length ? (tiered.length + ' 人') : '—'; }
+  }
+
+  async function loadPublicityPreview() {
+    var host = document.getElementById('pub-preview-list');
+    var empty = document.getElementById('pub-preview-empty');
+    var count = document.getElementById('pub-preview-count');
+    if (!state.batchId) {
+      if (host) { host.innerHTML = ''; }
+      if (empty) { empty.textContent = '请先选择批次。'; empty.classList.remove('hidden'); }
+      if (count) { count.textContent = '—'; }
+      return;
+    }
+    var result = await callApi('/api/rank/publicity?batchId=' + encodeURIComponent(state.batchId));
+    if (result.code !== 200) {
+      if (host) { host.innerHTML = ''; }
+      if (empty) { empty.textContent = '暂时读不到公示名单：该接口可能尚未开放，或服务暂不可用。请稍后刷新。'; empty.classList.remove('hidden'); }
+      if (count) { count.textContent = '—'; }
+      return;
+    }
+    var data = result.data;
+    var list = Array.isArray(data) ? data : ((data && data.list) || []);
+    if (host) {
+      host.innerHTML = list.map(function (item) {
+        var tier = item.awardTierText || AWARD_TIER_TEXT[item.awardTier] || '—';
+        var tail = item.studentNoTail || item.tail || '';
+        return '<tr class="border-b border-base-200">' +
+          '<td class="py-2 pr-4">' + escapeHtml(text(item.studentName || item.name)) + '</td>' +
+          '<td class="py-2 pr-4 font-mono">' + escapeHtml(tail ? String(tail) : '—') + '</td>' +
+          '<td class="py-2 pr-4">' + escapeHtml(text(item.major)) + '</td>' +
+          '<td class="py-2 pr-4">' + escapeHtml(text(item.className)) + '</td>' +
+          '<td class="py-2 pr-4">' + escapeHtml(tier) + '</td>' +
+          '</tr>';
+      }).join('');
+    }
+    if (empty) {
+      empty.classList.toggle('hidden', list.length > 0);
+      if (!list.length) { empty.textContent = '本批次还没有可公示的名单。'; }
+    }
+    if (count) { count.textContent = list.length ? (list.length + ' 人') : '—'; }
+  }
+
+  function renderPublicityInfo() {
+    var batch = currentBatch();
+    var status = document.getElementById('pub-status');
+    if (status) {
+      status.textContent = batch ? (BATCH_STATUS_TEXT[batch.status] || text(batch.status)) : '—';
+      status.className = 'badge badge-sm font-mono ' + (batch ? batchStatusCls(batch.status) : 'badge-ghost');
+    }
+    setText('pub-window', batch
+      ? ('公示时间：' + formatDate(batch.publicityStart) + ' 至 ' + formatDate(batch.publicityEnd) + '（不少于 5 个工作日，按工作日折算）')
+      : '请先选择批次。');
+    setText('pub-days', batch ? (text(batch.publicityDays) + ' 个工作日') : '—');
+    setText('pub-notice-title', batch ? batch.noticeTitle : '—');
+    setText('pub-notice-url', batch ? batch.noticeUrl : '—');
+  }
+
+  function objectionRowHtml(item) {
+    var status = item.status || 'pending';
+    var statusText = item.statusText || OBJECTION_STATUS_TEXT[status] || status;
+    var actions = '';
+    if (status === 'pending') {
+      actions = '<button class="btn btn-primary btn-xs rounded-full" data-objection-handle="' + escapeHtml(item.id) + '" type="button">处理</button>';
+    } else {
+      actions = '<button class="btn btn-ghost btn-xs rounded-full" data-objection-handle="' + escapeHtml(item.id) + '" type="button">查看</button>';
+    }
+    return '<article class="card rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">' +
+      '<div class="flex flex-wrap items-start justify-between gap-3">' +
+      '<div class="min-w-0">' +
+      '<p class="text-sm font-semibold">' + escapeHtml(text(item.studentName) + ' · ' + text(item.studentNo)) + '</p>' +
+      '<p class="mt-0.5 text-xs text-base-content/65">' + escapeHtml(formatTime(item.createdAt)) + '</p>' +
+      '</div>' +
+      '<span class="badge badge-sm whitespace-nowrap ' + statusCls(status) + '">' + escapeHtml(statusText) + '</span>' +
+      '</div>' +
+      '<p class="mt-3 text-sm whitespace-pre-wrap">' + escapeHtml(text(item.reason)) + '</p>' +
+      (item.answer ? '<div class="mt-3 rounded-box border border-base-300 p-4"><p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">答复</p><p class="mt-2 text-sm whitespace-pre-wrap">' + escapeHtml(item.answer) + '</p></div>' : '') +
+      '<div class="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-base-300 pt-4">' + actions + '</div>' +
+      '</article>';
+  }
+
+  async function loadObjections() {
+    var host = document.getElementById('objection-list');
+    var empty = document.getElementById('objection-empty');
+    var count = document.getElementById('objection-count');
+    if (!state.batchId) {
+      state.objectionCache = [];
+      if (host) { host.innerHTML = ''; }
+      if (empty) { empty.textContent = '请先选择批次。'; empty.classList.remove('hidden'); }
+      if (count) { count.textContent = '—'; }
+      renderObjectionPager(0, 0, 1);
+      return;
+    }
+    var statusEl = document.getElementById('objection-status');
+    var params = new URLSearchParams();
+    params.set('batchId', state.batchId);
+    if (statusEl && statusEl.value) { params.set('status', statusEl.value); }
+    params.set('page', String(state.objectionPage));
+    params.set('size', LIST_PAGE_SIZE);
+
+    var result = await callApi('/api/rank/objections?' + params.toString());
+    if (result.code !== 200) {
+      state.objectionCache = [];
+      if (host) { host.innerHTML = ''; }
+      if (empty) { empty.textContent = '暂时读不到异议记录：该接口可能尚未开放，或服务暂不可用。请稍后刷新。'; empty.classList.remove('hidden'); }
+      if (count) { count.textContent = '—'; }
+      renderObjectionPager(0, 0, 1);
+      return;
+    }
+    var data = result.data || {};
+    var list = (data.list || data.items) || (Array.isArray(data) ? data : []);
+    state.objectionCache = list;
+    if (host) { host.innerHTML = list.map(objectionRowHtml).join(''); }
+    if (empty) {
+      empty.classList.toggle('hidden', list.length > 0);
+      if (!list.length) { empty.textContent = '没有符合条件的异议记录。'; }
+    }
+    if (count) { count.textContent = list.length ? (list.length + ' 条') : '—'; }
+    var total = data.total === undefined ? list.length : data.total;
+    var pages = Math.max(1, Math.ceil(total / Number(LIST_PAGE_SIZE)));
+    renderObjectionPager(list.length, total, pages);
+    bindObjectionActions();
+  }
+
+  function renderObjectionPager(sizeShown, total, pages) {
+    setText('objection-total-text', '本页 ' + sizeShown + ' 条 / 共 ' + total + ' 条');
+    setText('objection-page', state.objectionPage + ' / ' + pages);
+    var prev = document.getElementById('objection-prev');
+    var next = document.getElementById('objection-next');
+    if (prev) { prev.disabled = state.objectionPage <= 1; }
+    if (next) { next.disabled = state.objectionPage >= pages; }
+  }
+
+  function bindObjectionActions() {
+    var host = document.getElementById('objection-list');
+    if (!host) { return; }
+    host.querySelectorAll('[data-objection-handle]').forEach(function (button) {
+      button.addEventListener('click', function () { openObjectionDialog(this.getAttribute('data-objection-handle')); });
+    });
+  }
+
+  function objectionOf(id) {
+    var found = null;
+    (state.objectionCache || []).forEach(function (item) {
+      if (String(item.id) === String(id)) { found = item; }
+    });
+    return found;
+  }
+
+  function openObjectionDialog(id) {
+    var item = objectionOf(id);
+    if (!item) { return; }
+    setText('objection-dialog-target', '异议处理 · ' + text(item.studentName));
+    var idInput = document.getElementById('objection-dialog-id');
+    if (idInput) { idInput.value = String(item.id); }
+    setText('objection-dialog-student', text(item.studentName) + ' · ' + text(item.studentNo) + ' · ' + text(item.className));
+    setText('objection-dialog-created', formatTime(item.createdAt));
+    setText('objection-dialog-status', item.statusText || OBJECTION_STATUS_TEXT[item.status] || item.status);
+    setText('objection-dialog-reason', text(item.reason));
+    checkRadio('objection-verdict', item.status === 'pending' ? 'accepted' : (item.status || ''));
+    var answer = document.getElementById('objection-answer');
+    if (answer) { answer.value = item.answer || ''; }
+    hideBoxMessage('objection-message');
+    openDialog('objection-dialog');
+  }
+
+  async function submitObjectionHandle() {
+    var idInput = document.getElementById('objection-dialog-id');
+    var id = idInput ? idInput.value : '';
+    var verdict = radioValue('objection-verdict');
+    var answer = document.getElementById('objection-answer');
+    var value = answer ? answer.value.trim() : '';
+    if (!id) { showBoxMessage('objection-message', '没有选中异议记录，请刷新后重试。', 'error'); return; }
+    if (!verdict) { showBoxMessage('objection-message', '请选择受理或驳回。', 'error'); return; }
+    if (value.length < 4) { showBoxMessage('objection-message', '答复不少于 4 字，请写清处理结论与依据。', 'error'); return; }
+
+    var save = document.getElementById('objection-save');
+    if (save) { save.disabled = true; }
+    var result = await callApi('/api/rank/objections/' + encodeURIComponent(id) + '/handle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ verdict: verdict, answer: value })
+    });
+    if (save) { save.disabled = false; }
+    if (result.code !== 200) {
+      showBoxMessage('objection-message', result.message || '提交失败：该异议可能已被其他人处理，请刷新后重试。', 'error');
+      return;
+    }
+    closeDialog('objection-dialog');
+    showMessage(result.message || '异议处理已保存。', 'success');
+    await loadObjections();
+    await refreshStats();
+  }
+
+  function exportCsv(batchId) {
+    var id = batchId || state.batchId;
+    if (!id) { showMessage('请先选择批次，再导出 CSV。', 'error'); return; }
+    window.location.href = '/api/rank/export?batchId=' + encodeURIComponent(id);
+  }
+
+  function bindEvents() {
+    var batchSelect = document.getElementById('batch-select');
+    if (batchSelect) {
+      batchSelect.addEventListener('change', async function () {
+        state.batchId = this.value || '';
+        state.rankPage = 1;
+        state.objectionPage = 1;
+        await refreshStats();
+        await loadMissing();
+        if (state.tab === 'rank') { await loadRankList(); }
+        if (state.tab === 'public') { await loadTierList(); await loadPublicityPreview(); renderPublicityInfo(); }
+        if (state.tab === 'objection') { await loadObjections(); }
+        renderPublicityInfo();
+      });
+    }
+    var termSelect = document.getElementById('term-select');
+    if (termSelect) {
+      termSelect.addEventListener('change', function () {
+        state.term = this.value || '';
+        setText('academic-term-hint', state.term ? ('当前学期：' + state.term) : '请选择学期');
+        var bonusTerm = document.getElementById('bonus-term');
+        if (bonusTerm) { bonusTerm.value = state.term; }
+      });
+    }
+    var refresh = document.getElementById('global-refresh');
+    if (refresh) {
+      refresh.addEventListener('click', async function () {
+        clearMessage();
+        await loadBatches();
+        await refreshStats();
+        if (state.tab === 'academic') { await loadMissing(); }
+        if (state.tab === 'bonus') { await loadBonusList(); }
+        if (state.tab === 'rank') { await loadRankList(); }
+        if (state.tab === 'public') { await loadTierList(); await loadPublicityPreview(); renderPublicityInfo(); }
+        if (state.tab === 'objection') { await loadObjections(); }
+      });
+    }
+    TABS.forEach(function (item) {
+      var button = document.getElementById(item.tabId);
+      if (button) {
+        button.addEventListener('click', function () { switchTab(item.name); });
+      }
+    });
+    var batchCreate = document.getElementById('batch-create');
+    if (batchCreate) { batchCreate.addEventListener('click', function () { openBatch(''); }); }
+    var batchRefresh = document.getElementById('batch-refresh');
+    if (batchRefresh) {
+      batchRefresh.addEventListener('click', async function () { await loadBatches(); await refreshStats(); });
+    }
+    var batchCancel = document.getElementById('batch-cancel');
+    if (batchCancel) { batchCancel.addEventListener('click', function () { closeDialog('batch-dialog'); }); }
+    var batchSave = document.getElementById('batch-save');
+    if (batchSave) { batchSave.addEventListener('click', function () { submitBatch(); }); }
+
+    var academicSave = document.getElementById('academic-save');
+    if (academicSave) { academicSave.addEventListener('click', function () { submitAcademic(); }); }
+    var academicReset = document.getElementById('academic-reset');
+    if (academicReset) {
+      academicReset.addEventListener('click', function () {
+        ['academic-student-id', 'academic-score-a', 'academic-required-avg', 'academic-elective-avg', 'academic-credits', 'academic-course-count', 'academic-note'].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) { el.value = ''; }
+        });
+        hideBoxMessage('academic-message');
+      });
+    }
+    var importSubmit = document.getElementById('import-submit');
+    if (importSubmit) { importSubmit.addEventListener('click', function () { submitImport(); }); }
+    var missingRefresh = document.getElementById('missing-refresh');
+    if (missingRefresh) { missingRefresh.addEventListener('click', function () { loadMissing(); }); }
+
+    var bonusSearch = document.getElementById('bonus-search');
+    if (bonusSearch) {
+      bonusSearch.addEventListener('click', function () {
+        state.bonusPage = 1;
+        loadBonusList();
+      });
+    }
+    var bonusPrev = document.getElementById('bonus-prev');
+    if (bonusPrev) {
+      bonusPrev.addEventListener('click', function () {
+        if (state.bonusPage > 1) { state.bonusPage -= 1; loadBonusList(); }
+      });
+    }
+    var bonusNext = document.getElementById('bonus-next');
+    if (bonusNext) {
+      bonusNext.addEventListener('click', function () { state.bonusPage += 1; loadBonusList(); });
+    }
+    var bonusTerm = document.getElementById('bonus-term');
+    if (bonusTerm) {
+      bonusTerm.addEventListener('change', function () { state.bonusPage = 1; loadBonusList(); });
+    }
+    var bonusStatus = document.getElementById('bonus-status');
+    if (bonusStatus) {
+      bonusStatus.addEventListener('change', function () { state.bonusPage = 1; loadBonusList(); });
+    }
+    var bonusCancel = document.getElementById('bonus-cancel');
+    if (bonusCancel) { bonusCancel.addEventListener('click', function () { closeDialog('bonus-dialog'); }); }
+    var bonusSave = document.getElementById('bonus-save');
+    if (bonusSave) { bonusSave.addEventListener('click', function () { submitBonusReview(); }); }
+    var bonusComment = document.getElementById('bonus-comment');
+    if (bonusComment) { bonusComment.addEventListener('input', updateBonusCommentHint); }
+
+    var rankSearch = document.getElementById('rank-search');
+    if (rankSearch) {
+      rankSearch.addEventListener('click', function () {
+        state.rankPage = 1;
+        loadRankList();
+      });
+    }
+    var rankPrev = document.getElementById('rank-prev');
+    if (rankPrev) {
+      rankPrev.addEventListener('click', function () {
+        if (state.rankPage > 1) { state.rankPage -= 1; loadRankList(); }
+      });
+    }
+    var rankNext = document.getElementById('rank-next');
+    if (rankNext) {
+      rankNext.addEventListener('click', function () { state.rankPage += 1; loadRankList(); });
+    }
+    var rankExport = document.getElementById('rank-export');
+    if (rankExport) { rankExport.addEventListener('click', function () { exportCsv(''); }); }
+    var exportButton = document.getElementById('export-button');
+    if (exportButton) { exportButton.addEventListener('click', function () { exportCsv(''); }); }
+
+    var pubRefresh = document.getElementById('pub-refresh');
+    if (pubRefresh) {
+      pubRefresh.addEventListener('click', async function () {
+        await loadBatches();
+        await loadTierList();
+        await loadPublicityPreview();
+        renderPublicityInfo();
+      });
+    }
+    var pubCompute = document.getElementById('pub-compute');
+    if (pubCompute) {
+      pubCompute.addEventListener('click', function () {
+        runBatchAction(state.batchId, 'compute', '一键计算完成，排名已重算。', '一键计算',
+          '确定要按当前数据重新计算排名吗？已有排名结果会被覆盖。');
+      });
+    }
+    var pubPublicize = document.getElementById('pub-publicize');
+    if (pubPublicize) {
+      pubPublicize.addEventListener('click', function () {
+        runBatchAction(state.batchId, 'publicize', '公示已发布。', '发布公示',
+          '确定要发布公示吗？公示期内学生可以查看名单并提出异议。');
+      });
+    }
+    var pubFinish = document.getElementById('pub-finish');
+    if (pubFinish) {
+      pubFinish.addEventListener('click', function () {
+        runBatchAction(state.batchId, 'finish', '批次已结束。', '结束批次',
+          '确定要结束这个批次吗？结束后不能再提交异议。');
+      });
+    }
+
+    var objectionSearch = document.getElementById('objection-search');
+    if (objectionSearch) {
+      objectionSearch.addEventListener('click', function () {
+        state.objectionPage = 1;
+        loadObjections();
+      });
+    }
+    var objectionStatus = document.getElementById('objection-status');
+    if (objectionStatus) {
+      objectionStatus.addEventListener('change', function () {
+        state.objectionPage = 1;
+        loadObjections();
+      });
+    }
+    var objectionPrev = document.getElementById('objection-prev');
+    if (objectionPrev) {
+      objectionPrev.addEventListener('click', function () {
+        if (state.objectionPage > 1) { state.objectionPage -= 1; loadObjections(); }
+      });
+    }
+    var objectionNext = document.getElementById('objection-next');
+    if (objectionNext) {
+      objectionNext.addEventListener('click', function () { state.objectionPage += 1; loadObjections(); });
+    }
+    var objectionCancel = document.getElementById('objection-cancel');
+    if (objectionCancel) { objectionCancel.addEventListener('click', function () { closeDialog('objection-dialog'); }); }
+    var objectionSave = document.getElementById('objection-save');
+    if (objectionSave) { objectionSave.addEventListener('click', function () { submitObjectionHandle(); }); }
+
+    var logout = document.getElementById('logout-btn');
+    if (logout) {
+      logout.addEventListener('click', async function () {
+        await callApi('/api/auth/logout', { method: 'POST' });
+        window.location.href = 'login.html';
+      });
+    }
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') { closeOpenDialogs(); }
+    });
+    document.querySelectorAll('.nx-scrim').forEach(function (scrim) {
+      scrim.addEventListener('click', function (event) {
+        if (event.target === this) { closeOpenDialogs(); }
+      });
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', async function () {
+    clearMessage();
+    bindEvents();
+    var me = await checkAuth();
+    if (!me) { return; }
+    await loadBatches();
+    await refreshStats();
+    switchTab(state.tab);
+  });
+})();
+</script>
+
+<script src="/js/nest-ui.js" defer></script>
+<script src="/libs/animejs/anime.umd.min.js" defer></script>
+<script src="/libs/countup/countUp.umd.js" defer></script>
+<script src="/libs/vanilla-tilt/vanilla-tilt.min.js" defer></script>
+<script src="/libs/canvas-confetti/confetti.browser.js" defer></script>
+<script src="/js/nest-motion.js" defer></script>
+<script src="/js/nest-particles.js" defer></script>
+<script src="/js/nest-art3.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "port": 9222,
+  "cookie": { "name": "JSESSIONID", "value": "D5EC495D999888508194AA8E0AA3A08A" },
+  "shots": [
+    {
+      "url": "http://localhost:8080/dorm-portal.html",
+      "out": "D:/project/NEST/target/shot-pref.png",
+      "click": "[data-tab=\"pref\"]",
+      "afterClickMs": 2500,
+      "width": 1400,
+      "height": 1500,
+      "script": "(() => { const p = document.getElementById('panel-pref'); if (!p) return {err:'panel-pref 不存在'}; return { hidden: p.classList.contains('hidden'), panelChars: p.innerHTML.length, wantChips: document.querySelectorAll('#draft-want span.inline-flex').length, avoidChips: document.querySelectorAll('#draft-avoid span.inline-flex').length, buildingButtons: document.querySelectorAll('#draft-bld button').length, hasSearchBox: !!document.getElementById('mate-q'), blockShown: (p.textContent.match(/你所在的分块是\\s*([^，]+)/) || [])[1] || null, tabCount: document.querySelectorAll('.tab-btn').length }; })()",
+      "afterScriptMs": 300
+    },
+    {
+      "url": "http://localhost:8080/dorm-portal.html",
+      "out": "D:/project/NEST/target/shot-portal-alloc.png",
+      "width": 1400,
+      "height": 1100
+    },
+    {
+      "url": "http://localhost:8080/login.html",
+      "out": "D:/project/NEST/target/shot-login.png",
+      "width": 1400,
+      "height": 900
+    }
+  ]
+}

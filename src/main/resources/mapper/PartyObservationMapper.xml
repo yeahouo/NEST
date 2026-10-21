@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.PartyObservationMapper">
+
+    <!--
+      考察与思想汇报台账（学工 P16）。
+
+      口径：
+        * type = thought_report（学生自报）/ observation（支部登记）。
+        * review_status CAS：pending -> reviewed|returned；
+          服务层先显式前置校验（只接受 pending），再 CAS（WHERE ... AND review_status=#{fromStatus}）。
+        * internal_note 是支部内部考察意见：学生端由 PartyService.sanitize(...) 抹掉（§11.2-4），
+          但列本身仍要读出来给 staff —— 抹除在服务层做，不在 SQL 里做。
+      本 XML 无裸 '<'。
+    -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.PartyObservation">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="type" property="type"/>
+        <result column="submitted_at" property="submittedAt"/>
+        <result column="period_label" property="periodLabel"/>
+        <result column="content" property="content"/>
+        <result column="review_status" property="reviewStatus"/>
+        <result column="review_by" property="reviewBy"/>
+        <result column="review_at" property="reviewAt"/>
+        <result column="review_opinion" property="reviewOpinion"/>
+        <result column="internal_note" property="internalNote"/>
+        <result column="rule_ref" property="ruleRef"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="user_name" property="userName"/>
+        <result column="student_no" property="studentNo"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        o.id, o.user_id, o.type, o.submitted_at, o.period_label, o.content,
+        o.review_status, o.review_by, o.review_at, o.review_opinion,
+        o.internal_note, o.rule_ref, o.created_by, o.created_at, o.updated_at, o.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.username) AS user_name,
+        u.student_id AS student_no
+    </sql>
+
+    <sql id="Joined_From">
+        FROM party_observation o
+        LEFT JOIN users u ON u.id = o.user_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = o.user_id AND sp.deleted = 0
+    </sql>
+
+    <sql id="List_Filters">
+        <if test="userId != null">AND o.user_id = #{userId}</if>
+        <!-- 辅导员范围：只见 student_profile.counselor_id 名下学生（§11.2-5） -->
+        <if test="counselorId != null">AND sp.counselor_id = #{counselorId}</if>
+        <if test="type != null and type != ''">AND o.type = #{type}</if>
+        <if test="reviewStatus != null and reviewStatus != ''">AND o.review_status = #{reviewStatus}</if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.PartyObservation" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO party_observation
+            (user_id, type, submitted_at, period_label, content, review_status,
+             review_by, review_at, review_opinion, internal_note, rule_ref, created_by,
+             created_at, updated_at, deleted)
+        VALUES
+            (#{userId}, #{type}, #{submittedAt}, #{periodLabel}, #{content}, #{reviewStatus},
+             #{reviewBy}, #{reviewAt}, #{reviewOpinion}, #{internalNote}, #{ruleRef}, #{createdBy},
+             NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE o.id = #{id} AND o.deleted = 0
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE o.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY o.submitted_at DESC, o.id DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE o.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <!-- 最近一条（思想汇报时限提示用） -->
+    <select id="findLatest" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE o.user_id = #{userId} AND o.type = #{type} AND o.deleted = 0
+        ORDER BY o.submitted_at DESC, o.id DESC
+        LIMIT 1
+    </select>
+
+    <!-- CAS on review_status：只允许 pending 的记录被改（服务层已做同款显式前置校验） -->
+    <update id="update">
+        UPDATE party_observation
+        SET period_label = #{observation.periodLabel},
+            content = #{observation.content},
+            review_status = #{observation.reviewStatus},
+            internal_note = #{observation.internalNote},
+            rule_ref = #{observation.ruleRef},
+            updated_at = NOW()
+        WHERE id = #{observation.id} AND deleted = 0 AND review_status = #{fromStatus}
+    </update>
+
+    <!-- 审核：pending -> reviewed|returned，写 review_by / review_at / review_opinion -->
+    <update id="review">
+        UPDATE party_observation
+        SET review_status = #{toStatus},
+            review_by = #{reviewBy},
+            review_at = #{reviewAt},
+            review_opinion = #{reviewOpinion},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND review_status = #{fromStatus}
+    </update>
+
+    <select id="countGroupByReviewStatus" resultType="java.util.LinkedHashMap">
+        SELECT o.review_status AS review_status, COUNT(*) AS total
+        FROM party_observation o
+        WHERE o.deleted = 0
+        GROUP BY o.review_status
+        ORDER BY o.review_status
+    </select>
+
+    <select id="countByUserAndType" resultType="long">
+        SELECT COUNT(*)
+        FROM party_observation o
+        WHERE o.user_id = #{userId} AND o.type = #{type} AND o.deleted = 0
+    </select>
+
+</mapper>

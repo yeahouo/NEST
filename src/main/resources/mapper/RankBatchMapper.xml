@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.RankBatchMapper">
+
+    <!-- 批次列表要显示创建人姓名 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.RankBatch">
+        <id column="id" property="id"/>
+        <result column="batch_name" property="batchName"/>
+        <result column="academic_term" property="academicTerm"/>
+        <result column="graduation_last" property="graduationLast"/>
+        <result column="mu_min" property="muMin"/>
+        <result column="mu_max" property="muMax"/>
+        <result column="qualify_pct" property="qualifyPct"/>
+        <result column="tier1_pct" property="tier1Pct"/>
+        <result column="tier2_pct" property="tier2Pct"/>
+        <result column="tier3_pct" property="tier3Pct"/>
+        <result column="publicity_days" property="publicityDays"/>
+        <result column="status" property="status"/>
+        <result column="notice_title" property="noticeTitle"/>
+        <result column="notice_url" property="noticeUrl"/>
+        <result column="publicity_start" property="publicityStart"/>
+        <result column="publicity_end" property="publicityEnd"/>
+        <result column="computed_at" property="computedAt"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="created_by_name" property="createdByName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        b.id, b.batch_name, b.academic_term, b.graduation_last, b.mu_min, b.mu_max, b.qualify_pct,
+        b.tier1_pct, b.tier2_pct, b.tier3_pct, b.publicity_days, b.status, b.notice_title, b.notice_url,
+        b.publicity_start, b.publicity_end, b.computed_at, b.created_by, b.created_at, b.updated_at, b.deleted,
+        COALESCE(NULLIF(c.real_name, ''), c.nickname, c.username) AS created_by_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM rank_batch b
+        LEFT JOIN users c ON c.id = b.created_by
+    </sql>
+
+    <!-- 列表筛选（非 admin 时 hideDraft=true，草稿批次不对外可见） -->
+    <sql id="List_Filters">
+        <if test="hideDraft">AND b.status != 'draft'</if>
+        <if test="status != null and status != ''">AND b.status = #{status}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (b.batch_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR b.academic_term LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.RankBatch"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO rank_batch
+            (batch_name, academic_term, graduation_last, mu_min, mu_max, qualify_pct,
+             tier1_pct, tier2_pct, tier3_pct, publicity_days, status, notice_title, notice_url,
+             publicity_start, publicity_end, computed_at, created_by, created_at, updated_at, deleted)
+        VALUES
+            (#{batchName}, #{academicTerm}, #{graduationLast}, #{muMin}, #{muMax}, #{qualifyPct},
+             #{tier1Pct}, #{tier2Pct}, #{tier3Pct}, #{publicityDays}, #{status}, #{noticeTitle}, #{noticeUrl},
+             #{publicityStart}, #{publicityEnd}, #{computedAt}, #{createdBy}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE b.id = #{id} AND b.deleted = 0
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE b.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY b.academic_term DESC, b.id DESC
+    </select>
+
+    <!-- 学生自查口径：同一学期若有多个批次，取 id 最新的一条，但草稿批次不对外（与 list 的 hideDraft 一致）。
+         否则学期里后建的 draft 批次会被选中，学生看到「有批次但没排名」的空壳。 -->
+    <select id="findLatestByTerm" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE b.deleted = 0 AND b.status != 'draft'
+        <if test="academicTerm != null and academicTerm != ''">AND b.academic_term = #{academicTerm}</if>
+        ORDER BY b.id DESC
+        LIMIT 1
+    </select>
+
+    <!-- 增量修改：服务层已把「没传的字段」填成现值，这里只做整行覆盖 + CAS（status 必须还是 fromStatus） -->
+    <update id="update">
+        UPDATE rank_batch
+        SET batch_name = #{batch.batchName},
+            academic_term = #{batch.academicTerm},
+            graduation_last = #{batch.graduationLast},
+            mu_min = #{batch.muMin},
+            mu_max = #{batch.muMax},
+            qualify_pct = #{batch.qualifyPct},
+            tier1_pct = #{batch.tier1Pct},
+            tier2_pct = #{batch.tier2Pct},
+            tier3_pct = #{batch.tier3Pct},
+            publicity_days = #{batch.publicityDays},
+            notice_title = #{batch.noticeTitle},
+            notice_url = #{batch.noticeUrl},
+            updated_at = NOW()
+        WHERE id = #{batch.id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE rank_batch
+        SET status = #{toStatus}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <update id="startPublicity">
+        UPDATE rank_batch
+        SET status = 'publicity',
+            publicity_days = #{publicityDays},
+            publicity_start = #{publicityStart},
+            publicity_end = #{publicityEnd},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <update id="markComputed">
+        UPDATE rank_batch
+        SET status = 'computed', computed_at = #{computedAt}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+</mapper>

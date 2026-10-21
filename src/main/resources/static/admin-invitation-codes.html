@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html data-theme="nestlight" lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>邀请码管理 · 学工平台</title>
+  <!--
+    主题必须在样式表之前定下来。放到 defer 的共享脚本里会先按浅色画一帧、
+    再翻成深色 —— 也就是俗称的「闪白」，比没有深色模式更难受。
+    所以这段必须内联，且必须排在 <link rel="stylesheet"> 前面。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+<link rel="stylesheet" href="/css/nest-art3.css">
+  <style>
+    @keyframes modalSlideUp { from { transform: translateY(24px) scale(.98); opacity: 0; } to { transform: none; opacity: 1; } }
+    .modal-container-animate { animation: modalSlideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  </style>
+</head>
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content selection:bg-primary/30">
+
+<div class="relative z-10 flex min-h-screen flex-col">
+  <div class="layout-container flex h-full grow flex-col">
+    <!-- Header -->
+    <header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none px-6 py-2 md:px-20">
+      <div class="navbar-start w-auto min-w-0 flex-1 items-center gap-3">
+        <a href="admin-dashboard.html" class="flex items-center gap-2 hover:text-primary transition-colors nx-muted">
+          <span class="material-symbols-outlined">arrow_back</span>
+        </a>
+        <div class="flex items-center gap-3">
+          <div class="text-primary">
+            <span class="material-symbols-outlined text-3xl">admin_panel_settings</span>
+          </div>
+          <h2 class="text-xl font-black leading-tight tracking-tight uppercase">邀请码管理</h2>
+        </div>
+      </div>
+      <div class="navbar-end w-auto flex-none items-center gap-1 md:gap-2">
+        <button onclick="openCreateModal()" class="btn btn-primary btn-sm gap-2 h-10 px-4">
+          <span class="material-symbols-outlined text-xl">add</span>
+          <span class="text-sm font-medium hidden md:inline">Create Code</span>
+        </button>
+        <button onclick="logout()" class="flex items-center gap-2 px-4 py-2 rounded-full transition-colors nx-danger-soft">
+          <span class="material-symbols-outlined text-xl">logout</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 px-6 pb-16 pt-10 md:px-20">
+      <header class="nx-rise border-b border-base-300 pb-6">
+        <p class="nx-kicker">Admin / Invitation codes</p>
+        <h1 class="mt-2 font-serif text-3xl leading-tight text-base-content sm:text-4xl">邀请码管理</h1>
+        <p class="mt-3 max-w-2xl text-sm leading-relaxed text-base-content/70">Teacher sign-up is invite-only. Issue a code, cap its usage and set an expiry date.</p>
+      </header>
+
+      <!-- Info Banner -->
+      <div class="mt-8 flex items-start gap-4 rounded-box border border-primary/15 bg-primary/5 p-5">
+        <span class="material-symbols-outlined text-2xl text-primary">info</span>
+        <div>
+          <h3 class="font-semibold text-base-content">关于邀请码</h3>
+          <p class="mt-1 text-sm leading-relaxed text-base-content/70">Invitation codes are used for teacher registration. Share these codes with teachers you want to invite. Each code can be configured with usage limits and expiration dates.</p>
+        </div>
+      </div>
+
+      <!-- Codes Grid -->
+      <div class="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3" id="codes-container">
+        <div class="col-span-3 p-12 text-center nx-muted">
+          <span class="material-symbols-outlined animate-pulse text-4xl">sync</span>
+          <p class="mt-2">Loading invitation codes...</p>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Create Code Modal -->
+<div class="fixed inset-0 z-50 hidden items-center justify-center p-4" id="create-modal">
+  <div class="absolute inset-0 nx-scrim" onclick="closeCreateModal()"></div>
+  <div class="relative w-full max-w-md modal-container-animate">
+    <div class="relative w-full p-8 nx-dialog">
+      <button onclick="closeCreateModal()" class="absolute right-4 top-4 p-2 transition-colors nx-icon-ghost">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+      <div class="flex flex-col gap-6">
+        <div class="text-center">
+          <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl nx-tile-icon">
+            <span class="material-symbols-outlined text-3xl text-white">vpn_key</span>
+          </div>
+          <h3 class="font-serif text-2xl text-base-content">生成邀请码</h3>
+          <p class="mt-1 text-sm leading-relaxed text-base-content/70">Generate a new code for teacher registration</p>
+        </div>
+        <div class="flex flex-col gap-4">
+          <div>
+            <label class="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">Code (optional)</label>
+            <input type="text" id="create-code" placeholder="Leave empty for auto-generate" class="input input-bordered h-12 w-full">
+          </div>
+          <div>
+            <label class="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">Description</label>
+            <input type="text" id="create-description" placeholder="e.g., For CS101 teachers" class="input input-bordered h-12 w-full">
+          </div>
+          <div>
+            <label class="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">Max Usage (optional)</label>
+            <input type="number" id="create-max-usage" placeholder="Unlimited if empty" min="1" class="input input-bordered h-12 w-full">
+          </div>
+          <div>
+            <label class="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">Expiration Date (optional)</label>
+            <input type="date" id="create-expires" class="input input-bordered h-12 w-full">
+          </div>
+          <div class="mt-2 flex gap-3">
+            <button onclick="closeCreateModal()" class="btn btn-ghost flex-1">Cancel</button>
+            <button onclick="createCode()" class="btn btn-primary flex-1">Create</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="fixed inset-0 z-50 hidden items-center justify-center p-4" id="delete-modal">
+  <div class="absolute inset-0 nx-scrim" onclick="closeDeleteModal()"></div>
+  <div class="relative w-full max-w-md modal-container-animate">
+    <div class="relative w-full p-8 nx-dialog">
+      <div class="text-center">
+        <span class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-error/10 text-error">
+          <span class="material-symbols-outlined text-3xl">warning</span>
+        </span>
+        <h3 class="mb-2 font-serif text-2xl text-base-content">删除邀请码？</h3>
+        <p class="mb-6 text-sm leading-relaxed text-base-content/70">This code will no longer be usable for teacher registration.</p>
+        <div class="flex gap-3">
+          <button onclick="closeDeleteModal()" class="btn btn-ghost flex-1">Cancel</button>
+          <button onclick="confirmDelete()" class="btn btn-error flex-1">Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Notification -->
+<div class="fixed bottom-6 right-6 z-50 hidden" id="toast">
+  <div class="flex items-center gap-3 rounded-box bg-neutral px-6 py-4 text-neutral-content shadow-lg">
+    <span class="material-symbols-outlined" id="toast-icon">check_circle</span>
+    <span id="toast-message">Success!</span>
+  </div>
+</div>
+
+<script>
+  let deleteCodeId = null;
+
+  async function checkAuth() {
+    try {
+      const response = await fetch('/api/auth/me');
+      const result = await response.json();
+      if (result.code !== 200 || result.data.role?.toLowerCase() !== 'admin') {
+        window.location.href = result.data.role?.toLowerCase() === 'teacher' ? 'teacher-dashboard.html' : 'dashboard.html';
+        return null;
+      }
+      return result.data;
+    } catch (error) {
+      window.location.href = 'login.html';
+      return null;
+    }
+  }
+
+  async function loadCodes() {
+    try {
+      const response = await fetch('/api/admin/invitation-codes');
+      const result = await response.json();
+
+      if (result.code === 200) {
+        renderCodes(result.data);
+      } else {
+        console.error('Failed to load codes:', result.message);
+        renderCodesError(result.message || 'The server returned an error.');
+      }
+    } catch (error) {
+      console.error('Failed to load codes:', error);
+      renderCodesError('Could not reach the server.');
+    }
+  }
+
+  // Visible failure state: an empty area must not be mistaken for "there are no codes".
+  function renderCodesError(reason) {
+    const container = document.getElementById('codes-container');
+    if (!container) return;
+    container.innerHTML = `
+      <div class="col-span-3 p-12 text-center">
+        <div class="h-16 w-16 mx-auto mb-4 rounded-md bg-error/10 flex items-center justify-center">
+          <span class="material-symbols-outlined text-error text-3xl">error</span>
+        </div>
+        <p class="font-bold mb-1">Invitation codes could not be loaded</p>
+        <p class="text-sm mb-2 nx-muted" id="codes-error-reason"></p>
+        <p class="text-xs mb-4 nx-muted">The empty area does not mean there are no codes.</p>
+        <button onclick="loadCodes()" class="px-6 py-2 rounded-lg border border-base-300 font-bold hover:bg-base-200 transition-colors">Retry</button>
+      </div>
+    `;
+    const reasonEl = document.getElementById('codes-error-reason');
+    if (reasonEl) reasonEl.textContent = reason;
+  }
+
+  function renderCodes(codes) {
+    const container = document.getElementById('codes-container');
+
+    if (!codes || codes.length === 0) {
+      container.innerHTML = `
+        <div class="col-span-3 p-12 text-center nx-muted">
+          <span class="material-symbols-outlined text-4xl">vpn_key_off</span>
+          <p class="mt-2">No invitation codes yet</p>
+          <button onclick="openCreateModal()" class="mt-4 nx-btn nx-btn-primary">Create First Code</button>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = codes.map(code => `
+      <div class="p-6 ${!code.usable ? 'opacity-60' : ''} nx-panel">
+        <div class="flex items-start justify-between mb-4">
+          <div class="h-12 w-12 rounded-md ${code.usable ? 'bg-primary/10' : 'bg-slate-500/10'} flex items-center justify-center">
+            <span class="material-symbols-outlined ${code.usable ? 'text-primary' : 'nx-muted'} text-2xl">vpn_key</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs px-2 py-1 rounded-full ${code.status === 1 ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}">${code.status === 1 ? 'Active' : 'Disabled'}</span>
+            ${code.usable ? '' : '<span class="text-xs px-2 py-1 rounded-full bg-base-200 nx-muted">Unavailable</span>'}
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <p class="text-lg font-mono font-bold tracking-wider select-all cursor-pointer" data-nx-copy="${escapeHtml(code.code)}" title="点击复制">${escapeHtml(code.code)}</p>
+          <p class="text-sm mt-1 nx-muted">${escapeHtml(code.description || 'No description')}</p>
+        </div>
+
+        <div class="flex flex-wrap gap-4 text-sm mb-4 nx-muted">
+          <div class="flex items-center gap-1">
+            <span class="material-symbols-outlined text-base">counter_1</span>
+            <span>${code.usageCount || 0}${code.maxUsage ? ' / ' + code.maxUsage : ''} uses</span>
+          </div>
+          ${code.expiresAt ? `
+          <div class="flex items-center gap-1">
+            <span class="material-symbols-outlined text-base">schedule</span>
+            <span>${formatDate(code.expiresAt)}</span>
+          </div>
+          ` : ''}
+        </div>
+
+        <div class="flex gap-2">
+          <button onclick="copyCode('${escapeHtml(code.code)}')" class="flex-1 h-10 rounded-lg border border-primary/20 text-primary text-sm font-bold hover:bg-primary/5 transition-colors flex items-center justify-center gap-1">
+            <span class="material-symbols-outlined text-base">content_copy</span>
+            Copy
+          </button>
+          <button onclick="toggleCode(${code.id})" class="h-10 px-4 rounded-lg border ${code.status === 1 ? 'border-warning/20 text-warning hover:bg-amber-500/5' : 'border-success/20 text-success hover:bg-green-500/5'} transition-colors">
+            <span class="material-symbols-outlined text-lg">${code.status === 1 ? 'block' : 'check_circle'}</span>
+          </button>
+          <button onclick="openDeleteModal(${code.id})" class="h-10 px-4 rounded-lg border border-error/20 hover:bg-red-500/5 transition-colors nx-danger-soft">
+            <span class="material-symbols-outlined text-lg">delete</span>
+          </button>
+        </div>
+
+        <div class="mt-4 pt-4 border-t border-primary/10 text-xs nx-muted">
+          Created: ${formatDate(code.createTime)}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString();
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, function(m) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+    });
+  }
+
+  function copyCode(code) {
+    // 复制这件事不能自己写：学校内网是 http，非安全上下文里 navigator.clipboard
+    // 根本不存在，原来这里既没判断也没 .catch，会静默抛错、用户点了没反应还以为是没点中。
+    // 交给共享层：它会在安全上下文用 Clipboard API、否则退回 execCommand，
+    // 并且真的失败时明说「复制失败」，不假装成功。
+    if (window.NestUI && NestUI.copy) {
+      NestUI.copy(code);
+      return;
+    }
+    // 共享脚本没加载出来时的兜底：至少把话说清楚，别让人以为点中了。
+    showToast('Copy is unavailable here — please select the code and copy it manually.', 'error');
+  }
+
+  function showToast(message, icon = 'check_circle') {
+    const toast = document.getElementById('toast');
+    document.getElementById('toast-message').textContent = message;
+    document.getElementById('toast-icon').textContent = icon;
+    toast.classList.remove('hidden');
+    setTimeout(() => toast.classList.add('hidden'), 3000);
+  }
+
+  function openCreateModal() {
+    // Reset form
+    document.getElementById('create-code').value = '';
+    document.getElementById('create-description').value = '';
+    document.getElementById('create-max-usage').value = '';
+    document.getElementById('create-expires').value = '';
+
+    document.getElementById('create-modal').classList.remove('hidden');
+    document.getElementById('create-modal').classList.add('flex');
+  }
+
+  function closeCreateModal() {
+    document.getElementById('create-modal').classList.add('hidden');
+    document.getElementById('create-modal').classList.remove('flex');
+  }
+
+  async function createCode() {
+    const code = document.getElementById('create-code').value.trim();
+    const description = document.getElementById('create-description').value.trim();
+    const maxUsage = document.getElementById('create-max-usage').value;
+    const expires = document.getElementById('create-expires').value;
+
+    const body = {};
+    if (code) body.code = code;
+    if (description) body.description = description;
+    if (maxUsage) body.maxUsage = parseInt(maxUsage);
+    if (expires) body.expiresAt = expires + ' 23:59:59';
+
+    try {
+      const response = await fetch('/api/admin/invitation-codes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const result = await response.json();
+
+      if (result.code === 200) {
+        closeCreateModal();
+        loadCodes();
+        showToast('Invitation code created!', 'check_circle');
+      } else {
+        showToast(result.message || 'Failed to create code', 'error');
+      }
+    } catch (error) {
+      console.error('Failed to create code:', error);
+      showToast('Failed to create code', 'error');
+    }
+  }
+
+  async function toggleCode(id) {
+    try {
+      const response = await fetch(`/api/admin/invitation-codes/${id}/toggle`, { method: 'PUT' });
+      const result = await response.json();
+
+      if (result.code === 200) {
+        loadCodes();
+        showToast(result.message, 'sync');
+      } else {
+        showToast(result.message || 'Failed to toggle code', 'error');
+      }
+    } catch (error) {
+      console.error('Failed to toggle code:', error);
+    }
+  }
+
+  function openDeleteModal(id) {
+    deleteCodeId = id;
+    document.getElementById('delete-modal').classList.remove('hidden');
+    document.getElementById('delete-modal').classList.add('flex');
+  }
+
+  function closeDeleteModal() {
+    document.getElementById('delete-modal').classList.add('hidden');
+    document.getElementById('delete-modal').classList.remove('flex');
+    deleteCodeId = null;
+  }
+
+  async function confirmDelete() {
+    if (!deleteCodeId) return;
+
+    try {
+      const response = await fetch(`/api/admin/invitation-codes/${deleteCodeId}`, { method: 'DELETE' });
+      const result = await response.json();
+
+      if (result.code === 200) {
+        closeDeleteModal();
+        loadCodes();
+        showToast('Code deleted', 'delete');
+      } else {
+        showToast(result.message || 'Failed to delete code', 'error');
+      }
+    } catch (error) {
+      console.error('Failed to delete code:', error);
+    }
+  }
+
+  async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = 'login.html';
+  }
+
+  // Initialize
+  checkAuth().then(() => loadCodes());
+</script>
+  <script defer src="/js/nest-ui.js"></script>
+    <script defer src="/libs/animejs/anime.umd.min.js"></script>
+    <script defer src="/libs/countup/countUp.umd.js"></script>
+    <script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+    <script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+    <script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+</body>
+</html>

@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.CommunityCivilRoomMapper">
+
+    <!-- 文明宿舍候选与结果（学工 P15）。没有 status 列：公示与否看 published_at，CAS 谓词用 published_at IS NULL。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.CommunityCivilRoom">
+        <id column="id" property="id"/>
+        <result column="term" property="term"/>
+        <result column="batch_ids" property="batchIds"/>
+        <result column="building" property="building"/>
+        <result column="room_no" property="roomNo"/>
+        <result column="member_count" property="memberCount"/>
+        <result column="avg_score" property="avgScore"/>
+        <result column="min_score" property="minScore"/>
+        <result column="rank_in_building" property="rankInBuilding"/>
+        <result column="awarded" property="awarded"/>
+        <result column="award_level" property="awardLevel"/>
+        <result column="published_at" property="publishedAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+    </resultMap>
+
+    <sql id="Columns">
+        r.id, r.term, r.batch_ids, r.building, r.room_no, r.member_count, r.avg_score, r.min_score,
+        r.rank_in_building, r.awarded, r.award_level, r.published_at,
+        r.created_at, r.updated_at, r.deleted
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.CommunityCivilRoom" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO community_civil_room
+            (term, batch_ids, building, room_no, member_count, avg_score, min_score, rank_in_building,
+             awarded, award_level, published_at, created_at, updated_at, deleted)
+        VALUES
+            (#{term}, #{batchIds}, #{building}, #{roomNo}, #{memberCount}, #{avgScore}, #{minScore},
+             #{rankInBuilding}, #{awarded}, #{awardLevel}, #{publishedAt}, NOW(), NOW(), 0)
+    </insert>
+
+    <!-- 已公示过的房间重复汇总时只刷新分数，不动人工确认的 awarded / award_level / published_at -->
+    <update id="refresh">
+        UPDATE community_civil_room
+        SET batch_ids = #{batchIds},
+            member_count = #{memberCount},
+            avg_score = #{avgScore},
+            min_score = #{minScore},
+            rank_in_building = #{rankInBuilding},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND published_at IS NOT NULL
+    </update>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Columns"/>
+        FROM community_civil_room r
+        WHERE r.id = #{id} AND r.deleted = 0
+    </select>
+
+    <select id="findByTermRoom" resultMap="BaseResultMap">
+        SELECT <include refid="Columns"/>
+        FROM community_civil_room r
+        WHERE r.term = #{term} AND r.building = #{building} AND r.room_no = #{roomNo} AND r.deleted = 0
+        LIMIT 1
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Columns"/>
+        FROM community_civil_room r
+        WHERE r.deleted = 0
+        <if test="term != null and term != ''">AND r.term = #{term}</if>
+        <if test="building != null and building != ''">AND r.building = #{building}</if>
+        <if test="awarded != null">AND r.awarded = #{awarded}</if>
+        <!-- 公示接口只能用这个开关：未公示的候选不对学生下发 -->
+        <if test="publishedOnly">AND r.published_at IS NOT NULL</if>
+        ORDER BY r.term DESC, r.building ASC, r.rank_in_building ASC, r.id ASC
+    </select>
+
+    <update id="deleteDraftByTerm">
+        UPDATE community_civil_room
+        SET deleted = 1, updated_at = NOW()
+        WHERE term = #{term} AND deleted = 0 AND published_at IS NULL
+    </update>
+
+    <!-- CAS：id + deleted + published_at IS NULL，重复公示不会覆盖已公示结果 -->
+    <update id="publish">
+        UPDATE community_civil_room
+        SET awarded = #{awarded},
+            award_level = #{awardLevel},
+            published_at = #{publishedAt},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND published_at IS NULL
+    </update>
+
+    <!-- 按学期汇总「已发布批次」（published / finished）的检查均分；名次在服务层按楼栋内排序算 -->
+    <select id="aggregate" resultType="java.util.LinkedHashMap">
+        SELECT i.building AS building,
+               i.room_no AS room_no,
+               COUNT(*) AS member_count,
+               ROUND(AVG(i.score), 2) AS avg_score,
+               MIN(i.score) AS min_score,
+               GROUP_CONCAT(DISTINCT i.batch_id ORDER BY i.batch_id) AS batch_ids
+        FROM community_inspection i
+        INNER JOIN community_batch b ON b.id = i.batch_id AND b.deleted = 0
+        WHERE i.deleted = 0
+          AND b.term = #{term}
+          AND b.status IN
+        <foreach collection="statuses" item="st" open="(" separator="," close=")">#{st}</foreach>
+        GROUP BY i.building, i.room_no
+        ORDER BY i.building ASC, avg_score DESC, i.room_no ASC
+    </select>
+
+    <select id="summary" resultType="java.util.LinkedHashMap">
+        SELECT COUNT(*) AS total,
+               SUM(CASE WHEN r.published_at IS NOT NULL THEN 1 ELSE 0 END) AS published,
+               SUM(CASE WHEN r.awarded = 1 THEN 1 ELSE 0 END) AS awarded,
+               ROUND(MAX(r.avg_score), 2) AS best_avg,
+               COUNT(DISTINCT r.building) AS buildings
+        FROM community_civil_room r
+        WHERE r.deleted = 0
+        <if test="term != null and term != ''">AND r.term = #{term}</if>
+    </select>
+
+</mapper>

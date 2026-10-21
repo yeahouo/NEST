@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.PartyStageMapper">
+
+    <!--
+      阶段台账（学工 P16）。
+
+      硬口径（§11.2-9）：
+        * 推进 = 服务层显式前置校验 + CAS：WHERE id=#{id} AND deleted=0 AND stage=#{fromStage}，
+          fromStage 取**显式枚举前置态**（服务层传常量，不传刚读到的值，否则 WHERE 恒真）。
+        * 阶段只向前；回退走 rollback（仅 admin + 原因 + 审计）。
+        * 本 XML 里没有任何裸 '<'（比较一律用 != 或 &lt;），避免 SAXParseException。
+
+      该步日期/依据写入用 <choose> 按 toStage 决定列名 —— 五组列一一对应
+      applicant / activist / candidate / probationary / full，service 只给 toStage 与 stepDate。
+    -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.PartyStage">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="branch_name" property="branchName"/>
+        <result column="stage" property="stage"/>
+        <result column="applicant_date" property="applicantDate"/>
+        <result column="applicant_ref" property="applicantRef"/>
+        <result column="activist_date" property="activistDate"/>
+        <result column="activist_ref" property="activistRef"/>
+        <result column="candidate_date" property="candidateDate"/>
+        <result column="candidate_ref" property="candidateRef"/>
+        <result column="probationary_date" property="probationaryDate"/>
+        <result column="probationary_ref" property="probationaryRef"/>
+        <result column="full_date" property="fullDate"/>
+        <result column="full_ref" property="fullRef"/>
+        <result column="internal_note" property="internalNote"/>
+        <result column="internal_discussion" property="internalDiscussion"/>
+        <result column="stage_publicity_id" property="stagePublicityId"/>
+        <result column="rollback_reason" property="rollbackReason"/>
+        <result column="rollback_at" property="rollbackAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="user_name" property="userName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        s.id, s.user_id, s.branch_name, s.stage,
+        s.applicant_date, s.applicant_ref,
+        s.activist_date, s.activist_ref,
+        s.candidate_date, s.candidate_ref,
+        s.probationary_date, s.probationary_ref,
+        s.full_date, s.full_ref,
+        s.internal_note, s.internal_discussion, s.stage_publicity_id,
+        s.rollback_reason, s.rollback_at, s.created_at, s.updated_at, s.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.username) AS user_name,
+        u.student_id AS student_no,
+        sp.class_name AS class_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM party_stage s
+        LEFT JOIN users u ON u.id = s.user_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = s.user_id AND sp.deleted = 0
+    </sql>
+
+    <sql id="List_Filters">
+        <if test="userId != null">AND s.user_id = #{userId}</if>
+        <!-- 辅导员范围：只见 student_profile.counselor_id 名下学生（§11.2-5） -->
+        <if test="counselorId != null">AND sp.counselor_id = #{counselorId}</if>
+        <if test="stage != null and stage != ''">AND s.stage = #{stage}</if>
+        <if test="branchName != null and branchName != ''">AND s.branch_name = #{branchName}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.student_id LIKE CONCAT('%', #{keyword}, '%')
+                 OR s.branch_name LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.PartyStage" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO party_stage
+            (user_id, branch_name, stage,
+             applicant_date, applicant_ref,
+             activist_date, activist_ref,
+             candidate_date, candidate_ref,
+             probationary_date, probationary_ref,
+             full_date, full_ref,
+             internal_note, internal_discussion, stage_publicity_id,
+             rollback_reason, rollback_at, created_at, updated_at, deleted)
+        VALUES
+            (#{userId}, #{branchName}, #{stage},
+             #{applicantDate}, #{applicantRef},
+             #{activistDate}, #{activistRef},
+             #{candidateDate}, #{candidateRef},
+             #{probationaryDate}, #{probationaryRef},
+             #{fullDate}, #{fullRef},
+             #{internalNote}, #{internalDiscussion}, #{stagePublicityId},
+             #{rollbackReason}, #{rollbackAt}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE s.id = #{id} AND s.deleted = 0
+    </select>
+
+    <select id="findByUserId" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE s.user_id = #{userId} AND s.deleted = 0
+        ORDER BY s.id DESC
+        LIMIT 1
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE s.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY s.id DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE s.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <!--
+      一步向前推进：CAS on stage。WHERE 三条件 id + deleted + stage=fromStage 缺一不可。
+      日期/依据落在哪一列由 toStage 决定（<choose> 五分支，穷尽五档枚举）。
+    -->
+    <update id="advance">
+        UPDATE party_stage
+        SET
+        <choose>
+            <when test="toStage == 'applicant'">
+                applicant_date = #{stepDate}, applicant_ref = #{stepRef},
+            </when>
+            <when test="toStage == 'activist'">
+                activist_date = #{stepDate}, activist_ref = #{stepRef},
+            </when>
+            <when test="toStage == 'candidate'">
+                candidate_date = #{stepDate}, candidate_ref = #{stepRef},
+            </when>
+            <when test="toStage == 'probationary'">
+                probationary_date = #{stepDate}, probationary_ref = #{stepRef},
+            </when>
+            <otherwise>
+                full_date = #{stepDate}, full_ref = #{stepRef},
+            </otherwise>
+        </choose>
+            stage = #{toStage},
+            branch_name = COALESCE(#{branchName}, branch_name),
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND stage = #{fromStage}
+    </update>
+
+    <update id="bindPublicity">
+        UPDATE party_stage
+        SET stage_publicity_id = #{publicityId},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND stage = #{stage}
+    </update>
+
+    <update id="updateInternal">
+        UPDATE party_stage
+        SET branch_name = COALESCE(#{branchName}, branch_name),
+            internal_note = #{internalNote},
+            internal_discussion = #{internalDiscussion},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND stage = #{stage}
+    </update>
+
+    <!-- 回退（仅 admin）：CAS on stage，写 rollback_reason / rollback_at，供审计追溯 -->
+    <update id="rollback">
+        UPDATE party_stage
+        SET stage = #{toStage},
+            rollback_reason = #{reason},
+            rollback_at = #{at},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND stage = #{fromStage}
+    </update>
+
+    <select id="countGroupByStage" resultType="java.util.LinkedHashMap">
+        SELECT s.stage AS stage, COUNT(*) AS total
+        FROM party_stage s
+        WHERE s.deleted = 0
+        GROUP BY s.stage
+        ORDER BY s.stage
+    </select>
+
+    <select id="countGroupByBranch" resultType="java.util.LinkedHashMap">
+        SELECT s.branch_name AS branch_name, COUNT(*) AS total
+        FROM party_stage s
+        WHERE s.deleted = 0
+        GROUP BY s.branch_name
+        ORDER BY s.branch_name
+    </select>
+
+</mapper>

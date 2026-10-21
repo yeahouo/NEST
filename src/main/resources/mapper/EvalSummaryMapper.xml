@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.EvalSummaryMapper">
+
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.EvalSummary">
+        <id column="id" property="id"/>
+        <result column="student_id" property="studentId"/>
+        <result column="academic_term" property="academicTerm"/>
+        <result column="total_score" property="totalScore"/>
+        <result column="rank_in_class" property="rankInClass"/>
+        <result column="grade_level" property="gradeLevel"/>
+        <result column="detail_json" property="detailJson"/>
+        <result column="computed_at" property="computedAt"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="major" property="major"/>
+        <result column="grade" property="grade"/>
+        <result column="counselor_name" property="counselorName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        m.id, m.student_id, m.academic_term, m.total_score, m.rank_in_class, m.grade_level,
+        m.detail_json, m.computed_at,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(sp.student_no, u.student_id) AS student_no,
+        COALESCE(NULLIF(sp.class_name, ''), '未填班级') AS class_name,
+        sp.major, sp.grade,
+        COALESCE(NULLIF(c.real_name, ''), c.username) AS counselor_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM eval_summary m
+        LEFT JOIN users u ON u.id = m.student_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = m.student_id AND sp.deleted = 0
+        LEFT JOIN users c ON c.id = sp.counselor_id
+    </sql>
+
+    <!-- 列表排序：先班级，再名次（没有名次的排最后），同分按学号稳定 -->
+    <sql id="List_Order">
+        ORDER BY class_name, m.rank_in_class IS NULL, m.rank_in_class, m.total_score DESC, m.student_id
+    </sql>
+
+    <select id="findByStudentTerm" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE m.student_id = #{studentId} AND m.academic_term = #{term}
+    </select>
+
+    <select id="listByTerm" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE m.academic_term = #{term}
+        <if test="className != null and className != ''">
+            AND sp.class_name = #{className}
+        </if>
+        <if test="scopeCounselorId != null">
+            AND sp.counselor_id = #{scopeCounselorId}
+        </if>
+        <include refid="List_Order"/>
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByTerm" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE m.academic_term = #{term}
+        <if test="className != null and className != ''">
+            AND sp.class_name = #{className}
+        </if>
+        <if test="scopeCounselorId != null">
+            AND sp.counselor_id = #{scopeCounselorId}
+        </if>
+    </select>
+
+    <select id="searchByTerm" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE m.academic_term = #{term}
+        <if test="className != null and className != ''">
+            AND sp.class_name = #{className}
+        </if>
+        <if test="scopeCounselorId != null">
+            AND sp.counselor_id = #{scopeCounselorId}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.nickname LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.student_no LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.class_name LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <include refid="List_Order"/>
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countSearch" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE m.academic_term = #{term}
+        <if test="className != null and className != ''">
+            AND sp.class_name = #{className}
+        </if>
+        <if test="scopeCounselorId != null">
+            AND sp.counselor_id = #{scopeCounselorId}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.nickname LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.student_no LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.class_name LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </select>
+
+    <insert id="upsert" parameterType="com.umi.nest.entity.EvalSummary">
+        INSERT INTO eval_summary
+            (student_id, academic_term, total_score, rank_in_class, grade_level, detail_json, computed_at)
+        VALUES
+            (#{studentId}, #{academicTerm}, #{totalScore}, #{rankInClass}, #{gradeLevel}, #{detailJson}, NOW())
+        ON DUPLICATE KEY UPDATE
+            total_score   = VALUES(total_score),
+            rank_in_class = VALUES(rank_in_class),
+            grade_level   = VALUES(grade_level),
+            detail_json   = VALUES(detail_json),
+            computed_at   = NOW()
+    </insert>
+
+    <!-- 一次查出该学期所有汇总行的等级与分数，服务层算 已评/平均/等级分布 -->
+    <select id="statsByTerm" resultType="java.util.Map">
+        SELECT COUNT(*) AS graded,
+               AVG(m.total_score) AS avg_score,
+               MAX(m.total_score) AS max_score,
+               MIN(m.total_score) AS min_score,
+               SUM(CASE WHEN m.grade_level = '优秀' THEN 1 ELSE 0 END) AS excellent,
+               SUM(CASE WHEN m.grade_level = '良好' THEN 1 ELSE 0 END) AS good,
+               SUM(CASE WHEN m.grade_level = '合格' THEN 1 ELSE 0 END) AS pass,
+               SUM(CASE WHEN m.grade_level = '不合格' THEN 1 ELSE 0 END) AS fail
+        <include refid="Joined_From"/>
+        WHERE m.academic_term = #{term}
+        <if test="className != null and className != ''">
+            AND sp.class_name = #{className}
+        </if>
+        <if test="scopeCounselorId != null">
+            AND sp.counselor_id = #{scopeCounselorId}
+        </if>
+    </select>
+
+    <delete id="deleteByTerm">
+        DELETE m <include refid="Joined_From"/>
+        WHERE m.academic_term = #{term}
+        <if test="scopeCounselorId != null">
+            AND sp.counselor_id = #{scopeCounselorId}
+        </if>
+    </delete>
+
+</mapper>

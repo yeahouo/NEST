@@ -1,0 +1,60 @@
+Paper Shaders (@paper-design/shaders)
+=====================================
+upstream : https://github.com/paper-design/shaders
+package  : @paper-design/shaders
+version  : 0.0.81
+license  : Apache-2.0 (see LICENSE / NOTICE in this directory)
+fetched  : 2026-10-15 via `npm pack @paper-design/shaders`
+npm meta : unpackedSize 879,961 bytes, tarball 224,248 bytes, dependencies {}
+entry    : ESM only ("type": "module"), upstream main = ./dist/index.js
+
+Vendored subset (only what /js/nest-art.js imports; upstream dist/ layout preserved)
+-----------------------------------------------------------------------------------
+  shader-mount.js                      21,549  WebGL2 mount: canvas, rAF loop, uniforms, resize/intersection observers
+  vertex-shader.js                      5,370  shared vertex shader
+  shader-sizing.js                        758  defaultObjectSizing / defaultPatternSizing / ShaderFitOptions
+  shader-utils.js                       3,669  GLSL helper snippets (declarePI, rotation2, proceduralHash21, ...)
+  shader-color-spaces.js                2,690  hex/hsl parsing helpers
+  get-shader-color-from-string.js       3,299  getShaderColorFromString('#3e63dd') -> [r,g,b,a] in 0..1
+  empty-pixel.js                          392  transparent 1x1 pixel
+  types.js                                264  type-only stub
+  shaders/mesh-gradient.js              3,627  meshGradientFragmentShader + meshGradientMeta
+  shaders/grain-gradient.js             8,608
+  shaders/dithering.js                  7,402
+  shaders/dot-grid.js                   3,006
+  shaders/static-mesh-gradient.js       3,739
+  shaders/water.js                      3,456
+  shaders/swirl.js                      2,704
+  shaders/god-rays.js                   3,979
+
+API notes (read from the vendored source, 2026-10-15)
+-----------------------------------------------------
+  new ShaderMount(parentElement, fragmentShader, uniforms, webGlContextAttributes,
+                  speed = 0, frame = 0, minPixelRatio = 2,
+                  maxPixelCount = 1920*1080*4, mipmaps = [])
+    * prepends its own <canvas> into parentElement and injects a style[data-paper-shader]
+      with `@layer paper-shaders` rules: parent becomes position:relative + isolation:isolate,
+      canvas becomes position:absolute; inset:0; z-index:-1; width/height:100%.
+      => the parent MUST NOT paint its own background, or the canvas hides behind it.
+    * throws `Paper Shaders: WebGL is not supported in this browser` when webgl2 is missing
+      => always wrap in try/catch and keep a CSS fallback.
+    * speed = 0 stops the rAF loop entirely (static shader, no recurring cost).
+    * u_time is written by the mount as currentFrame * 1e-3; u_resolution / u_pixelRatio too.
+    * array uniforms must be passed as ARRAY OF ARRAYS: [[r,g,b,a], ...]
+      (a flat array only works for length 2/3/4; 20 floats would silently not be set).
+    * unknown uniform keys log `Uniform location for <key> not found` -> pass only real uniforms.
+
+  mesh-gradient uniforms: u_colors (vec4[10], max 10 colors), u_colorsCount,
+  u_distortion, u_swirl, u_grainMixer, u_grainOverlay
+
+  *** TRAP (found 2026-10-15 with gl.readPixels, cost us a silently blank canvas) ***
+  The shared VERTEX shader also needs the SIZING uniforms, and the core package does NOT
+  fill them for you (the upstream React wrapper does):
+      u_fit (=ShaderFitOptions.contain=1) u_scale(1) u_rotation(0) u_offsetX/u_offsetY(0)
+      u_originX/u_originY(0.5) u_worldWidth/u_worldHeight(0) u_imageAspectRatio(1)
+  Skip them and u_scale defaults to 0; the vertex shader does `v_objectUV /= u_scale`
+  -> Inf/NaN -> the fragment output is written as fully transparent black.
+  Symptom: the page looks fine (CSS still paints) but the canvas draws NOTHING, and no
+  console error/warning appears. Proof command: tools\check-art.ps1 (its first two
+  assertions mount the same shader twice, with and without SIZING, and read pixels back).
+  `import { ShaderFitOptions, defaultObjectSizing } from '../shader-sizing.js'` to build them.

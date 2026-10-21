@@ -1,0 +1,2140 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="nestlight">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>志愿服务 · 管理端 · 学工平台</title>
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        if (saved === 'nestdark') {
+          document.documentElement.classList.add('dark');
+          document.documentElement.setAttribute('data-theme', 'nestdark');
+          document.documentElement.style.colorScheme = 'dark';
+        } else {
+          document.documentElement.setAttribute('data-theme', 'nestlight');
+          document.documentElement.style.colorScheme = 'light';
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <link rel="icon" type="image/png" href="/icons/icon-192.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="stylesheet" href="/libs/open-props/open-props.min.css">
+  <link rel="stylesheet" href="/css/nest-fonts.css">
+  <link rel="stylesheet" href="/css/nest.css">
+  <link rel="stylesheet" href="/css/nest-art3.css">
+  <script src="/pwa.js" defer></script>
+</head>
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content">
+  <header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none border-0 p-0">
+    <div class="navbar mx-auto min-h-0 w-full max-w-7xl gap-3 px-5 py-2 md:px-8">
+      <div class="navbar-start gap-3">
+        <a class="flex items-center gap-3" href="teacher-dashboard.html">
+          <span class="nx-logo"><span class="material-symbols-outlined text-xl">terminal</span></span>
+          <span class="hidden text-lg font-black uppercase tracking-tight sm:inline">学工平台</span>
+        </a>
+        <span class="hidden h-5 w-px bg-base-300 lg:block"></span>
+      </div>
+      <div class="navbar-end gap-1.5">
+        <a class="btn btn-ghost btn-sm gap-2 rounded-full" data-nx-cmd="工作台" data-nx-cmd-group="跳转" data-nx-cmd-icon="dashboard" href="teacher-dashboard.html">
+          <span class="material-symbols-outlined text-lg">dashboard</span>
+          <span class="hidden md:inline">工作台</span>
+        </a>
+        <button aria-label="切换深色 / 浅色模式" class="nx-icon-btn" data-nx-theme-toggle title="切换深色 / 浅色模式" type="button">
+          <span class="material-symbols-outlined nx-theme-icon-light">dark_mode</span>
+          <span class="material-symbols-outlined nx-theme-icon-dark">light_mode</span>
+        </button>
+        <a class="nx-icon-btn" data-nx-cmd="设置" data-nx-cmd-group="跳转" data-nx-cmd-icon="settings" href="settings.html" title="设置">
+          <span class="material-symbols-outlined">settings</span>
+        </a>
+        <button class="btn btn-ghost btn-sm gap-2 rounded-full" data-nx-cmd="退出登录" data-nx-cmd-group="操作" data-nx-cmd-icon="logout" id="logout-btn" type="button">
+          <span class="material-symbols-outlined text-lg">logout</span>
+          <span class="hidden md:inline">退出</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 px-5 py-8 md:px-8 md:py-12">
+    <div class="mx-auto w-full max-w-7xl">
+      <header class="mb-8 border-b border-base-300 pb-6">
+        <p class="nx-kicker">§ 25 · Staff / Volunteer</p>
+        <h1 data-nx-split="1" class="mt-2 font-serif text-3xl leading-tight sm:text-4xl lg:text-5xl">志愿服务 · 时长台账与审核</h1>
+        <p class="mt-4 max-w-2xl text-sm text-base-content/70">
+          覆盖项目立项、报名与出勤登记、时长补录与审核、黑名单、申诉受理、统计与导出。本平台只做台账与时限提示，不做资格判定。
+        </p>
+        <p class="mt-3 text-xs leading-relaxed text-base-content/65">
+          <strong>审核口径</strong>：时长审核权与星级认定权在「<strong>厦门大学嘉庚学院青年志愿服务指导中心</strong>」，本页只登记审核动作与依据。
+          辅导员（<code class="font-mono">teacher</code>）账号<strong>只能录入 / 提报</strong>，不能审核时长、不能审批立项、不能登记黑名单与裁定申诉；相关按钮对本角色置灰并标注原因。
+          累计时长只计 <code class="font-mono">status=approved</code> 且未删除的记录（S21 第三十条），本页不代算、不代授。
+        </p>
+        <p class="mt-2 text-xs leading-relaxed text-base-content/65" id="role-note">
+          当前身份：读取中…
+        </p>
+      </header>
+
+      <div id="vol-message" class="alert hidden mb-6 items-start gap-2"></div>
+
+      <section class="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 md:grid-cols-4">
+        <div class="flex flex-col gap-1 bg-base-100 p-6">
+          <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">待审核时长</dt>
+          <dd class="mt-1 font-serif text-2xl" id="stat-pending-records">—</dd>
+        </div>
+        <div class="flex flex-col gap-1 bg-base-100 p-6">
+          <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">台账记录数</dt>
+          <dd class="mt-1 font-serif text-2xl" id="stat-total-records">—</dd>
+        </div>
+        <div class="flex flex-col gap-1 bg-base-100 p-6">
+          <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">黑名单生效中</dt>
+          <dd class="mt-1 font-serif text-2xl" id="stat-active-blacklist">—</dd>
+        </div>
+        <div class="flex flex-col gap-1 bg-base-100 p-6">
+          <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">待受理申诉</dt>
+          <dd class="mt-1 font-serif text-2xl" id="stat-open-appeals">—</dd>
+        </div>
+      </section>
+
+      <section class="mb-8 flex flex-wrap items-center gap-2 rounded-box border border-base-300 bg-base-100 p-1.5" id="vol-tabs">
+        <button class="tab-btn nx-tab is-active" id="tab-record" type="button">时长记录台账</button>
+        <button class="tab-btn nx-tab" id="tab-project" type="button">项目立项</button>
+        <button class="tab-btn nx-tab" id="tab-enroll" type="button">报名与出勤</button>
+        <button class="tab-btn nx-tab" id="tab-black" type="button">黑名单</button>
+        <button class="tab-btn nx-tab" id="tab-appeal" type="button">申诉受理</button>
+        <button class="tab-btn nx-tab" id="tab-stat" type="button">统计与导出</button>
+      </section>
+
+      <!-- ================= 时长记录台账 ================= -->
+      <section id="panel-record">
+        <div class="card mb-6 rounded-box border border-base-300 bg-base-200 shadow-xl">
+          <div class="p-6 md:p-7">
+            <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Records · 时长记录</p>
+            <h2 class="mt-2 font-serif text-2xl">时长记录台账与逐条审核</h2>
+            <p class="mt-3 text-xs leading-relaxed text-base-content/65">
+              每天上限 8 小时（S21 第二十二条）：超出只提示需中心审核，不硬拒；交通 / 培训单程不足 30 分钟不计（第二十三 / 二十四条）；
+              补录更正窗口 = 项目结束后 6 个月（第二十六条，超窗后端返回 400）；校外自行参加不通过校内认定（第二十五条）；
+              审核为 CAS，终态（已通过 / 已驳回）不可再改，重复审核后端返回 400 并显示原因。
+            </p>
+
+            <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-4">
+              <label class="form-control">
+                <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</span>
+                <select class="select select-bordered select-sm" id="rec-status">
+                  <option value="">全部</option>
+                  <option value="pending">待审核</option>
+                  <option value="approved">已通过</option>
+                  <option value="rejected">已驳回</option>
+                </select>
+              </label>
+              <label class="form-control">
+                <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">来源</span>
+                <select class="select select-bordered select-sm" id="rec-source">
+                  <option value="">全部</option>
+                  <option value="platform">平台打卡</option>
+                  <option value="makeup">补录</option>
+                </select>
+              </label>
+              <label class="form-control">
+                <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">时数类型</span>
+                <select class="select select-bordered select-sm" id="rec-hourtype">
+                  <option value="">全部</option>
+                  <option value="credit">信用时数</option>
+                  <option value="honor">荣誉时数</option>
+                </select>
+              </label>
+              <label class="form-control">
+                <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">项目</span>
+                <select class="select select-bordered select-sm" id="rec-project">
+                  <option value="">全部项目</option>
+                </select>
+              </label>
+              <label class="form-control">
+                <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">起始日期</span>
+                <input class="input input-bordered input-sm" id="rec-start" type="date">
+              </label>
+              <label class="form-control">
+                <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">结束日期</span>
+                <input class="input input-bordered input-sm" id="rec-end" type="date">
+              </label>
+              <label class="form-control md:col-span-2">
+                <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生姓名 / 学号</span>
+                <input class="input input-bordered input-sm" id="rec-keyword" placeholder="张 / 2023" type="text">
+              </label>
+            </div>
+            <div class="mt-4 flex flex-wrap items-center gap-2">
+              <button class="btn btn-primary btn-sm rounded-full" id="rec-search" type="button">筛选</button>
+              <button class="btn btn-ghost btn-sm rounded-full" id="rec-reset" type="button">重置</button>
+              <button class="btn btn-outline btn-sm rounded-full" id="rec-create" type="button">单条录入</button>
+              <button class="btn btn-outline btn-sm rounded-full" id="rec-batch" type="button">批量录入</button>
+              <button class="btn btn-ghost btn-sm rounded-full" id="rec-export" type="button">导出统计 CSV</button>
+            </div>
+
+            <div class="mt-5 overflow-x-auto">
+              <table class="w-full border-collapse text-sm">
+                <thead>
+                  <tr class="border-b border-base-300">
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学号</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">项目</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">服务日期</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">时长</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">时数</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">来源</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">录入主体</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</th>
+                    <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="rec-list"></tbody>
+              </table>
+              <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="rec-empty">暂无时长记录。</p>
+            </div>
+            <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+              <p class="font-mono text-xs text-base-content/65" id="rec-total"></p>
+              <div class="flex items-center gap-2">
+                <button class="btn btn-ghost btn-sm rounded-full" id="rec-prev" type="button">上一页</button>
+                <span class="font-mono text-xs" id="rec-page">1 / 1</span>
+                <button class="btn btn-ghost btn-sm rounded-full" id="rec-next" type="button">下一页</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 项目立项 ================= -->
+      <section class="card mb-6 hidden rounded-box border border-base-300 bg-base-200 shadow-xl" id="panel-project">
+        <div class="p-6 md:p-7">
+          <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Projects · 立项</p>
+          <h2 class="mt-2 font-serif text-2xl">志愿服务项目立项管理</h2>
+          <p class="mt-3 text-xs leading-relaxed text-base-content/65">
+            状态机：草稿 → 待审批 → 已批准 / 已驳回。草稿与已驳回可编辑（PUT），其余状态前端禁止提交编辑；
+            立项审批权在指导中心（admin），辅导员只能提报。学生只能在「已批准」项目上报名。审批同样走 CAS，重复审批后端返回 400。
+          </p>
+
+          <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-4">
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</span>
+              <select class="select select-bordered select-sm" id="prj-status">
+                <option value="">全部</option>
+                <option value="draft">草稿</option>
+                <option value="pending">待审批</option>
+                <option value="approved">已批准</option>
+                <option value="rejected">已驳回</option>
+              </select>
+            </label>
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">组织类型</span>
+              <select class="select select-bordered select-sm" id="prj-orgtype">
+                <option value="">全部</option>
+                <option value="center">青年志愿服务指导中心</option>
+                <option value="department">院系志愿服务组织</option>
+                <option value="club">校内公益类组织、社团</option>
+                <option value="studentActivity">学生活动组织单位</option>
+              </select>
+            </label>
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">志愿类别</span>
+              <select class="select select-bordered select-sm" id="prj-category">
+                <option value="">全部</option>
+              </select>
+            </label>
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">项目 / 组织</span>
+              <input class="input input-bordered input-sm" id="prj-keyword" placeholder="项目名称 / 发起组织" type="text">
+            </label>
+          </div>
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            <button class="btn btn-primary btn-sm rounded-full" id="prj-search" type="button">筛选</button>
+            <button class="btn btn-ghost btn-sm rounded-full" id="prj-reset" type="button">重置</button>
+            <button class="btn btn-outline btn-sm rounded-full" id="prj-create" type="button">新建立项</button>
+          </div>
+
+          <div class="mt-5 overflow-x-auto">
+            <table class="w-full border-collapse text-sm">
+              <thead>
+                <tr class="border-b border-base-300">
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">项目名称</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">类别</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">发起组织</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">起止时间</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">地点</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">招募上限</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">提交人</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">操作</th>
+                </tr>
+              </thead>
+              <tbody id="prj-list"></tbody>
+            </table>
+            <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="prj-empty">暂无立项记录。</p>
+          </div>
+          <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <p class="font-mono text-xs text-base-content/65" id="prj-total"></p>
+            <div class="flex items-center gap-2">
+              <button class="btn btn-ghost btn-sm rounded-full" id="prj-prev" type="button">上一页</button>
+              <span class="font-mono text-xs" id="prj-page">1 / 1</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="prj-next" type="button">下一页</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 报名与出勤 ================= -->
+      <section class="card mb-6 hidden rounded-box border border-base-300 bg-base-200 shadow-xl" id="panel-enroll">
+        <div class="p-6 md:p-7">
+          <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Enrollments · 报名</p>
+          <h2 class="mt-2 font-serif text-2xl">报名与出勤登记</h2>
+          <p class="mt-3 text-xs leading-relaxed text-base-content/65">
+            状态机：待确认 → 已确认 → 已参加 / 无故缺席；待确认与已确认可取消。已取消的报名不得登记出勤（§7 违规顺序必拒），
+            前端只对「已确认」的报名开放出勤按钮；未批准项目不能报名。
+          </p>
+
+          <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-4">
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">项目</span>
+              <select class="select select-bordered select-sm" id="enr-project">
+                <option value="">全部项目</option>
+              </select>
+            </label>
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</span>
+              <select class="select select-bordered select-sm" id="enr-status">
+                <option value="">全部</option>
+                <option value="pending">待确认</option>
+                <option value="confirmed">已确认</option>
+                <option value="cancelled">已取消</option>
+                <option value="attended">已参加</option>
+                <option value="absent">无故缺席</option>
+              </select>
+            </label>
+            <label class="form-control md:col-span-2">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生姓名 / 学号</span>
+              <input class="input input-bordered input-sm" id="enr-keyword" placeholder="张 / 2023" type="text">
+            </label>
+          </div>
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            <button class="btn btn-primary btn-sm rounded-full" id="enr-search" type="button">筛选</button>
+            <button class="btn btn-ghost btn-sm rounded-full" id="enr-reset" type="button">重置</button>
+          </div>
+
+          <div class="mt-5 overflow-x-auto">
+            <table class="w-full border-collapse text-sm">
+              <thead>
+                <tr class="border-b border-base-300">
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学号</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">班级</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">项目</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">报名时间</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">备注</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">出勤登记</th>
+                </tr>
+              </thead>
+              <tbody id="enr-list"></tbody>
+            </table>
+            <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="enr-empty">暂无报名记录。</p>
+          </div>
+          <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <p class="font-mono text-xs text-base-content/65" id="enr-total"></p>
+            <div class="flex items-center gap-2">
+              <button class="btn btn-ghost btn-sm rounded-full" id="enr-prev" type="button">上一页</button>
+              <span class="font-mono text-xs" id="enr-page">1 / 1</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="enr-next" type="button">下一页</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 黑名单 ================= -->
+      <section class="card mb-6 hidden rounded-box border border-base-300 bg-base-200 shadow-xl" id="panel-black">
+        <div class="p-6 md:p-7">
+          <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Blacklist · 黑名单</p>
+          <h2 class="mt-2 font-serif text-2xl">志愿服务黑名单</h2>
+          <p class="mt-3 text-xs leading-relaxed text-base-content/65">
+            期限按「S21 第三十六条 / 第三十四条」口径：<strong>列入日期 + 6 个月</strong>（到期日由后端按日期推算，本地只做提示，不做定时任务）。
+            登记与撤销权在指导中心（admin）；辅导员不可登记、不可撤销。撤销后状态变为「已撤销」，已到期由后端比对日期返回。
+          </p>
+
+          <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-4">
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</span>
+              <select class="select select-bordered select-sm" id="blk-status">
+                <option value="">全部</option>
+                <option value="active">生效中</option>
+                <option value="expired">已到期</option>
+                <option value="revoked">已撤销</option>
+              </select>
+            </label>
+            <label class="form-control md:col-span-3">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生姓名 / 学号</span>
+              <input class="input input-bordered input-sm" id="blk-keyword" placeholder="张 / 2023" type="text">
+            </label>
+          </div>
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            <button class="btn btn-primary btn-sm rounded-full" id="blk-search" type="button">筛选</button>
+            <button class="btn btn-ghost btn-sm rounded-full" id="blk-reset" type="button">重置</button>
+            <button class="btn btn-outline btn-sm rounded-full" id="blk-create" type="button">登记黑名单</button>
+          </div>
+
+          <div class="mt-5 overflow-x-auto">
+            <table class="w-full border-collapse text-sm">
+              <thead>
+                <tr class="border-b border-base-300">
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学号</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">条款</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">事由</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">列入</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">到期（+6 个月）</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">剩余</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">操作</th>
+                </tr>
+              </thead>
+              <tbody id="blk-list"></tbody>
+            </table>
+            <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="blk-empty">暂无黑名单记录。</p>
+          </div>
+          <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <p class="font-mono text-xs text-base-content/65" id="blk-total"></p>
+            <div class="flex items-center gap-2">
+              <button class="btn btn-ghost btn-sm rounded-full" id="blk-prev" type="button">上一页</button>
+              <span class="font-mono text-xs" id="blk-page">1 / 1</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="blk-next" type="button">下一页</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 申诉受理 ================= -->
+      <section class="card mb-6 hidden rounded-box border border-base-300 bg-base-200 shadow-xl" id="panel-appeal">
+        <div class="p-6 md:p-7">
+          <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Appeals · 申诉</p>
+          <h2 class="mt-2 font-serif text-2xl">申诉受理与裁定</h2>
+          <p class="mt-3 text-xs leading-relaxed text-base-content/65">
+            申诉应在 <strong>5 个工作日内</strong>提出，由<strong>团委</strong>受理裁定（S21 第三十七条）；超窗后端返回 400，前端对超窗申诉标注「超窗」并禁用裁定按钮。
+            裁定为 CAS：在途状态可裁定为「已受理 / 已驳回 / 已结案」，终态不可再改。
+          </p>
+
+          <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-4">
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</span>
+              <select class="select select-bordered select-sm" id="apl-status">
+                <option value="">全部</option>
+                <option value="pending">待受理</option>
+                <option value="accepted">已受理</option>
+                <option value="rejected">已驳回</option>
+                <option value="closed">已结案</option>
+              </select>
+            </label>
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">窗口</span>
+              <select class="select select-bordered select-sm" id="apl-window">
+                <option value="">全部</option>
+                <option value="1">5 个工作日内</option>
+                <option value="0">已超窗</option>
+              </select>
+            </label>
+            <label class="form-control md:col-span-2">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生姓名 / 学号</span>
+              <input class="input input-bordered input-sm" id="apl-keyword" placeholder="张 / 2023" type="text">
+            </label>
+          </div>
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            <button class="btn btn-primary btn-sm rounded-full" id="apl-search" type="button">筛选</button>
+            <button class="btn btn-ghost btn-sm rounded-full" id="apl-reset" type="button">重置</button>
+          </div>
+
+          <div class="mt-5 overflow-x-auto">
+            <table class="w-full border-collapse text-sm">
+              <thead>
+                <tr class="border-b border-base-300">
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学号</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">对象</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">理由</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">提交时间</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">窗口</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">受理组织</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">裁定</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">操作</th>
+                </tr>
+              </thead>
+              <tbody id="apl-list"></tbody>
+            </table>
+            <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="apl-empty">暂无申诉记录。</p>
+          </div>
+          <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <p class="font-mono text-xs text-base-content/65" id="apl-total"></p>
+            <div class="flex items-center gap-2">
+              <button class="btn btn-ghost btn-sm rounded-full" id="apl-prev" type="button">上一页</button>
+              <span class="font-mono text-xs" id="apl-page">1 / 1</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="apl-next" type="button">下一页</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 统计与导出 ================= -->
+      <section class="card mb-6 hidden rounded-box border border-base-300 bg-base-200 shadow-xl" id="panel-stat">
+        <div class="p-6 md:p-7">
+          <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Stats · 统计</p>
+          <h2 class="mt-2 font-serif text-2xl">统计口径、汇总与导出</h2>
+          <p class="mt-3 text-xs leading-relaxed text-base-content/65">
+            统计只计已通过且未删除的时长记录。累计时长与星级推算只做提示，认定权在「厦门大学嘉庚学院青年志愿服务指导中心」。
+            星级阈值（S21 第三十条）：50 一星 / 100 二星 / 150 三星 / 300 四星 / 500 五星；不足 50 小时无星级。每学年下限 20 小时（第三十三条），未达标不得参与团内评奖评优（只提示，不阻断）。
+          </p>
+
+          <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-4">
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学年</span>
+              <input class="input input-bordered input-sm" id="stat-year-input" placeholder="2025-2026" type="text">
+            </label>
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">组织类型</span>
+              <select class="select select-bordered select-sm" id="stat-orgtype">
+                <option value="">全部</option>
+                <option value="center">青年志愿服务指导中心</option>
+                <option value="department">院系志愿服务组织</option>
+                <option value="club">校内公益类组织、社团</option>
+                <option value="studentActivity">学生活动组织单位</option>
+              </select>
+            </label>
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">志愿类别</span>
+              <select class="select select-bordered select-sm" id="stat-category">
+                <option value="">全部</option>
+              </select>
+            </label>
+            <div class="flex items-end gap-2">
+              <button class="btn btn-primary btn-sm rounded-full" id="stat-refresh" type="button">刷新统计</button>
+              <button class="btn btn-outline btn-sm rounded-full" id="stat-export" type="button">导出 CSV</button>
+            </div>
+          </div>
+
+          <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2" id="stat-summary"></div>
+
+          <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div class="rounded-box border border-base-300 bg-base-100 p-4">
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">按组织</p>
+              <div class="mt-3 space-y-2" id="stat-organizer"></div>
+            </div>
+            <div class="rounded-box border border-base-300 bg-base-100 p-4">
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">按类别</p>
+              <div class="mt-3 space-y-2" id="stat-category-list"></div>
+            </div>
+            <div class="rounded-box border border-base-300 bg-base-100 p-4">
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">按学年</p>
+              <div class="mt-3 space-y-2" id="stat-year-list"></div>
+            </div>
+          </div>
+
+          <div class="mt-6 rounded-box border border-base-300 bg-base-100 p-4">
+            <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">单人累计核对（只读）</p>
+            <p class="mt-2 text-xs leading-relaxed text-base-content/65">按学生 user_id 读取累计信用 / 荣誉时数与星级提示（S21 第三十条），用于录入前核对，不作为认定结论。</p>
+            <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
+              <label class="form-control">
+                <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生 user_id</span>
+                <input class="input input-bordered input-sm" id="stat-user" placeholder="4" type="text">
+              </label>
+              <div class="flex items-end md:col-span-3">
+                <button class="btn btn-ghost btn-sm rounded-full" id="stat-user-check" type="button">读取累计</button>
+              </div>
+            </div>
+            <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2" id="stat-user-box"></div>
+          </div>
+
+          <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2" id="stat-rules"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="nx-hairline-t border-base-300 px-5 py-6 md:px-8">
+    <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
+      <p class="font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65">学工平台 · Staff Volunteer</p>
+      <p class="text-xs text-base-content/60">审核与认定权：厦门大学嘉庚学院青年志愿服务指导中心 · 本页只做台账与时限提示</p>
+    </div>
+  </footer>
+
+  <!-- =================== 弹窗 =================== -->
+
+  <div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="record-dialog">
+    <div class="card nx-dialog w-full max-w-lg p-6">
+      <h2 class="font-serif text-2xl" id="rec-dialog-title">单条录入时长</h2>
+      <p class="mt-2 text-xs text-base-content/65" id="rec-dialog-target">—</p>
+      <input id="rec-id" type="hidden">
+      <div class="mt-5 grid grid-cols-1 gap-3">
+        <label class="form-control">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生 user_id（必填）</span>
+          <input class="input input-bordered" id="rec-form-user" placeholder="4" type="text">
+        </label>
+        <label class="form-control">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关联项目（补录可留空）</span>
+          <select class="select select-bordered" id="rec-form-project">
+            <option value="">不关联项目</option>
+          </select>
+        </label>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <label class="form-control">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">服务日期（必填）</span>
+            <input class="input input-bordered" id="rec-form-date" type="date">
+          </label>
+          <label class="form-control">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">时长（小时，每天上限 8）</span>
+            <input class="input input-bordered" id="rec-form-hours" placeholder="2.5" type="text">
+          </label>
+        </div>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <label class="form-control">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">时数类型</span>
+            <select class="select select-bordered" id="rec-form-hourtype">
+              <option value="credit">信用时数</option>
+              <option value="honor">荣誉时数</option>
+            </select>
+          </label>
+          <label class="form-control">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">来源</span>
+            <select class="select select-bordered" id="rec-form-source">
+              <option value="platform">平台打卡</option>
+              <option value="makeup">补录</option>
+            </select>
+          </label>
+        </div>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <label class="form-control">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">签到时间（可空）</span>
+            <input class="input input-bordered" id="rec-form-signin" type="datetime-local">
+          </label>
+          <label class="form-control">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">签退时间（可空）</span>
+            <input class="input input-bordered" id="rec-form-signout" type="datetime-local">
+          </label>
+        </div>
+        <label class="form-control">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">补录说明（第二十六条 6 个月窗口；交通 / 培训单程不足 30 分钟不计）</span>
+          <textarea class="textarea textarea-bordered" id="rec-form-note" rows="2"></textarea>
+        </label>
+      </div>
+      <div id="rec-dialog-message" class="alert hidden mt-4 items-start gap-2"></div>
+      <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+        <button class="btn btn-ghost rounded-full" id="rec-dialog-close" type="button">返回</button>
+        <button class="btn btn-primary rounded-full" id="rec-dialog-save" type="button">提交录入</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="record-batch-dialog">
+    <div class="card nx-dialog w-full max-w-lg p-6">
+      <h2 class="font-serif text-2xl">批量录入时长</h2>
+      <p class="mt-2 text-xs text-base-content/65">每行一条：<code class="font-mono">user_id,服务日期(YYYY-MM-DD),小时数[,补录说明]</code>；一次性提交给后端按同一事务写入，仍全部进入「待审核」。</p>
+      <div class="mt-5 grid grid-cols-1 gap-3">
+        <label class="form-control">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关联项目（可留空）</span>
+          <select class="select select-bordered" id="rb-project">
+            <option value="">不关联项目</option>
+          </select>
+        </label>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <label class="form-control">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">时数类型</span>
+            <select class="select select-bordered" id="rb-hourtype">
+              <option value="credit">信用时数</option>
+              <option value="honor">荣誉时数</option>
+            </select>
+          </label>
+          <label class="form-control">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">来源</span>
+            <select class="select select-bordered" id="rb-source">
+              <option value="makeup">补录</option>
+              <option value="platform">平台打卡</option>
+            </select>
+          </label>
+        </div>
+        <label class="form-control">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">批量数据</span>
+          <textarea class="textarea textarea-bordered font-mono text-xs" id="rb-text" placeholder="4,2025-03-01,3&#10;7,2025-03-01,2.5,迎新引导补录" rows="8"></textarea>
+        </label>
+      </div>
+      <div id="rb-dialog-message" class="alert hidden mt-4 items-start gap-2"></div>
+      <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+        <button class="btn btn-ghost rounded-full" id="rb-dialog-close" type="button">返回</button>
+        <button class="btn btn-primary rounded-full" id="rb-dialog-save" type="button">解析并提交</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="record-review-dialog">
+    <div class="card nx-dialog w-full max-w-lg p-6">
+      <h2 class="font-serif text-2xl">时长记录审核</h2>
+      <p class="mt-2 text-xs text-base-content/65" id="rv-target">—</p>
+      <input id="rv-id" type="hidden">
+      <div class="mt-5 grid grid-cols-1 gap-3">
+        <label class="form-control">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">审核动作</span>
+          <select class="select select-bordered" id="rv-action">
+            <option value="approve">通过</option>
+            <option value="reject">驳回</option>
+          </select>
+        </label>
+        <label class="form-control">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">驳回原因（驳回必填）</span>
+          <textarea class="textarea textarea-bordered" id="rv-reason" rows="3"></textarea>
+        </label>
+      </div>
+      <div id="rv-message" class="alert hidden mt-4 items-start gap-2"></div>
+      <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+        <button class="btn btn-ghost rounded-full" id="rv-close" type="button">返回</button>
+        <button class="btn btn-primary rounded-full" id="rv-save" type="button">提交审核</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="project-dialog">
+    <div class="card nx-dialog w-full max-w-lg p-6">
+      <h2 class="font-serif text-2xl" id="pd-title">新建立项</h2>
+      <p class="mt-2 text-xs text-base-content/65">仅「草稿」「已驳回」可编辑；提交审批后由指导中心审批。</p>
+      <input id="pd-id" type="hidden">
+      <div class="mt-5 grid grid-cols-1 gap-3">
+        <label class="form-control">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">项目名称（必填）</span>
+          <input class="input input-bordered" id="pd-name" placeholder="翔安校区迎新志愿服务" type="text">
+        </label>
+        <label class="form-control">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">志愿类别（§3.3 十五类）</span>
+          <select class="select select-bordered" id="pd-category"></select>
+        </label>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <label class="form-control">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">发起组织</span>
+            <input class="input input-bordered" id="pd-organizer" placeholder="青年志愿服务指导中心" type="text">
+          </label>
+          <label class="form-control">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">组织类型</span>
+            <select class="select select-bordered" id="pd-orgtype">
+              <option value="center">青年志愿服务指导中心</option>
+              <option value="department">院系志愿服务组织</option>
+              <option value="club">校内公益类组织、社团</option>
+              <option value="studentActivity">学生活动组织单位</option>
+            </select>
+          </label>
+        </div>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <label class="form-control">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">开始时间</span>
+            <input class="input input-bordered" id="pd-start" type="datetime-local">
+          </label>
+          <label class="form-control">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">结束时间</span>
+            <input class="input input-bordered" id="pd-end" type="datetime-local">
+          </label>
+        </div>
+        <label class="form-control">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">服务地点</span>
+          <input class="input input-bordered" id="pd-location" placeholder="翔安校区 · 一期食堂" type="text">
+        </label>
+        <label class="form-control">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">时长说明（第二十三 / 二十四条：交通 / 培训单程不足 30 分钟不计）</span>
+          <textarea class="textarea textarea-bordered" id="pd-duration" rows="2"></textarea>
+        </label>
+        <label class="form-control">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">招募人数上限</span>
+          <input class="input input-bordered" id="pd-limit" placeholder="20" type="text">
+        </label>
+      </div>
+      <div id="pd-message" class="alert hidden mt-4 items-start gap-2"></div>
+      <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+        <button class="btn btn-ghost rounded-full" id="pd-close" type="button">返回</button>
+        <button class="btn btn-primary rounded-full" id="pd-save" type="button">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="project-review-dialog">
+    <div class="card nx-dialog w-full max-w-lg p-6">
+      <h2 class="font-serif text-2xl">立项审批</h2>
+      <p class="mt-2 text-xs text-base-content/65" id="prv-target">—</p>
+      <input id="prv-id" type="hidden">
+      <div class="mt-5 grid grid-cols-1 gap-3">
+        <label class="form-control">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">审批动作（仅指导中心 admin）</span>
+          <select class="select select-bordered" id="prv-action">
+            <option value="approve">批准</option>
+            <option value="reject">驳回</option>
+          </select>
+        </label>
+        <label class="form-control">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">驳回原因（驳回必填）</span>
+          <textarea class="textarea textarea-bordered" id="prv-reason" rows="3"></textarea>
+        </label>
+      </div>
+      <div id="prv-message" class="alert hidden mt-4 items-start gap-2"></div>
+      <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+        <button class="btn btn-ghost rounded-full" id="prv-close" type="button">返回</button>
+        <button class="btn btn-primary rounded-full" id="prv-save" type="button">提交审批</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="blacklist-dialog">
+    <div class="card nx-dialog w-full max-w-lg p-6">
+      <h2 class="font-serif text-2xl">登记志愿服务黑名单</h2>
+      <p class="mt-2 text-xs text-base-content/65">依据 S21 第三十四条 (一)~(五) 与第三十五条；期限按第三十六条为列入日期起 <strong>6 个月</strong>（到期日由后端推算）。</p>
+      <input id="bd-id" type="hidden">
+      <div class="mt-5 grid grid-cols-1 gap-3">
+        <label class="form-control">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生 user_id（必填）</span>
+          <input class="input input-bordered" id="bd-user" placeholder="4" type="text">
+        </label>
+        <label class="form-control">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">条款（§3.1）</span>
+          <select class="select select-bordered" id="bd-clause">
+            <option value="c34_1">第三十四条（一）无故缺席致影响恶劣</option>
+            <option value="c34_2">第三十四条（二）言行不当损害学校形象</option>
+            <option value="c34_3">第三十四条（三）故意煽动负面情绪</option>
+            <option value="c34_4">第三十四条（四）社交媒体不良言论诋毁</option>
+            <option value="c34_5">第三十四条（五）中心认定其它行为</option>
+            <option value="c35">第三十五条 未按要求开展工作或受警告及以上处分</option>
+          </select>
+        </label>
+        <label class="form-control">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">列入日期</span>
+          <input class="input input-bordered" id="bd-listed" type="date">
+        </label>
+        <div class="rounded-box border border-base-300 bg-base-200 p-4">
+          <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">到期日（S21 第三十六条：列入 + 6 个月，本地提示值）</p>
+          <p class="mt-1 font-serif text-xl" id="bd-expire">—</p>
+        </div>
+        <label class="form-control">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">事由说明（必填，写入台账与审计）</span>
+          <textarea class="textarea textarea-bordered" id="bd-reason" rows="3"></textarea>
+        </label>
+      </div>
+      <div id="bd-message" class="alert hidden mt-4 items-start gap-2"></div>
+      <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+        <button class="btn btn-ghost rounded-full" id="bd-close" type="button">返回</button>
+        <button class="btn btn-primary rounded-full" id="bd-save" type="button">登记</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="appeal-dialog">
+    <div class="card nx-dialog w-full max-w-lg p-6">
+      <h2 class="font-serif text-2xl">申诉裁定</h2>
+      <p class="mt-2 text-xs text-base-content/65" id="ad-target">—</p>
+      <p class="mt-1 text-xs leading-relaxed text-base-content/65">5 个工作日内提出，由团委受理裁定（S21 第三十七条）。超窗申诉后端会拒绝裁定并返回 400。</p>
+      <input id="ad-id" type="hidden">
+      <div class="mt-5 grid grid-cols-1 gap-3">
+        <label class="form-control">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">裁定结论</span>
+          <select class="select select-bordered" id="ad-status">
+            <option value="accepted">已受理</option>
+            <option value="rejected">已驳回</option>
+            <option value="closed">已结案</option>
+          </select>
+        </label>
+        <label class="form-control">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">裁定内容（必填）</span>
+          <textarea class="textarea textarea-bordered" id="ad-ruling" rows="4"></textarea>
+        </label>
+      </div>
+      <div id="ad-message" class="alert hidden mt-4 items-start gap-2"></div>
+      <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+        <button class="btn btn-ghost rounded-full" id="ad-close" type="button">返回</button>
+        <button class="btn btn-primary rounded-full" id="ad-save" type="button">提交裁定</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (async function () {
+      'use strict';
+
+      var PAGE_SIZE = 10;
+      var PAGE = { rec: 1, prj: 1, enr: 1, blk: 1, apl: 1 };
+      var TOTAL = { rec: 0, prj: 0, enr: 0, blk: 0, apl: 0 };
+      var PAGER = {
+        rec: { page: 'rec-page', total: 'rec-total' },
+        prj: { page: 'prj-page', total: 'prj-total' },
+        enr: { page: 'enr-page', total: 'enr-total' },
+        blk: { page: 'blk-page', total: 'blk-total' },
+        apl: { page: 'apl-page', total: 'apl-total' }
+      };
+
+      var TAB_PANELS = {
+        record: 'panel-record',
+        project: 'panel-project',
+        enroll: 'panel-enroll',
+        black: 'panel-black',
+        appeal: 'panel-appeal',
+        stat: 'panel-stat'
+      };
+      var TAB_BUTTONS = {
+        record: 'tab-record',
+        project: 'tab-project',
+        enroll: 'tab-enroll',
+        black: 'tab-black',
+        appeal: 'tab-appeal',
+        stat: 'tab-stat'
+      };
+
+      var TONE = { ghost: 'badge-ghost', info: 'badge-info', warning: 'badge-warning', primary: 'badge-primary', success: 'badge-success', error: 'badge-error' };
+
+      var RECORD_BADGE = {
+        pending: { label: '待审核', tone: 'warning' },
+        approved: { label: '已通过', tone: 'success' },
+        rejected: { label: '已驳回', tone: 'error' }
+      };
+      var PROJECT_BADGE = {
+        draft: { label: '草稿', tone: 'ghost' },
+        pending: { label: '待审批', tone: 'warning' },
+        approved: { label: '已批准', tone: 'success' },
+        rejected: { label: '已驳回', tone: 'error' }
+      };
+      var ENROLL_BADGE = {
+        pending: { label: '待确认', tone: 'warning' },
+        confirmed: { label: '已确认', tone: 'info' },
+        cancelled: { label: '已取消', tone: 'ghost' },
+        attended: { label: '已参加', tone: 'success' },
+        absent: { label: '无故缺席', tone: 'error' }
+      };
+      var BLACK_BADGE = {
+        active: { label: '生效中', tone: 'error' },
+        expired: { label: '已到期', tone: 'ghost' },
+        revoked: { label: '已撤销', tone: 'warning' }
+      };
+      var APPEAL_BADGE = {
+        pending: { label: '待受理', tone: 'warning' },
+        accepted: { label: '已受理', tone: 'info' },
+        rejected: { label: '已驳回', tone: 'error' },
+        closed: { label: '已结案', tone: 'success' }
+      };
+
+      var HOUR_TYPE_TEXT = { credit: '信用时数', honor: '荣誉时数' };
+      var SOURCE_TEXT = { platform: '平台打卡', makeup: '补录' };
+      var SUBJECT_TEXT = {
+        center: '指导中心',
+        department: '院系组织',
+        club: '公益类社团',
+        studentActivity: '学生活动组织单位'
+      };
+      var CLAUSE_TEXT = {
+        c34_1: '第三十四条（一）无故缺席致影响恶劣',
+        c34_2: '第三十四条（二）言行不当损害学校形象',
+        c34_3: '第三十四条（三）故意煽动负面情绪',
+        c34_4: '第三十四条（四）社交媒体不良言论诋毁',
+        c34_5: '第三十四条（五）中心认定其它行为',
+        c35: '第三十五条 未按要求开展工作或受警告及以上处分'
+      };
+
+      // §3.3 志愿服务类别（十五类）
+      var VOL_CATEGORIES = [
+        '乡村振兴', '环境保护', '文明实践', '关爱少年儿童', '为老服务',
+        '阳光助残', '卫生健康', '应急救援与抗击疫情', '社区治理与邻里守望',
+        '文化传播', '法律服务与普法', '校园公益', '大型赛会活动', '海外服务', '其它'
+      ];
+
+      var IS_ADMIN = false;
+      var ENTITY = { record: [], project: [], enroll: [], appeal: [] };
+
+      function escapeHtml(value) {
+        return String(value == null ? '' : value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      async function callApi(url, options) {
+        var config = options || {};
+        config.credentials = 'same-origin';
+        if (config.body && typeof config.body === 'object') {
+          config.headers = Object.assign({ 'Content-Type': 'application/json' }, config.headers || {});
+          config.body = JSON.stringify(config.body);
+        }
+        var response;
+        try {
+          response = await fetch(url, config);
+        } catch (e) {
+          return { code: 0, message: '网络请求失败：' + (e && e.message ? e.message : e), data: null };
+        }
+        var result;
+        try {
+          result = await response.json();
+        } catch (e) {
+          result = { code: response.status, message: '服务没有返回可解析的内容（HTTP ' + response.status + '）', data: null };
+        }
+        if (result && result.code === undefined && response.status >= 400) {
+          result = { code: response.status, message: '请求失败（HTTP ' + response.status + '）', data: null };
+        }
+        if (result && result.code === 401) {
+          window.location.href = 'login.html';
+          return { code: 401, message: '请先登录', data: null };
+        }
+        return result;
+      }
+
+      function showMessage(message, type) {
+        var host = document.getElementById('vol-message');
+        if (!host) { return; }
+        var ok = type === 'success';
+        host.className = 'alert mb-6 items-start gap-2 ' + (ok ? 'alert-success' : 'alert-error');
+        host.innerHTML = '<span class="material-symbols-outlined">' + (ok ? 'check_circle' : 'error') + '</span>'
+          + '<span>' + escapeHtml(message) + '</span>';
+      }
+
+      function clearMessage() {
+        var host = document.getElementById('vol-message');
+        if (host) { host.className = 'alert hidden mb-6 items-start gap-2'; host.innerHTML = ''; }
+      }
+
+      function showBoxMessage(hostId, message, type) {
+        var host = document.getElementById(hostId);
+        if (!host) { return null; }
+        var ok = type === 'success';
+        host.className = 'alert mt-4 items-start gap-2 ' + (ok ? 'alert-success' : 'alert-error');
+        host.textContent = message || '';
+        return host;
+      }
+
+      function hideBoxMessage(hostId) {
+        var host = document.getElementById(hostId);
+        if (host) { host.className = 'alert hidden mt-4 items-start gap-2'; host.textContent = ''; }
+      }
+
+      function text(value) {
+        return (value === null || value === undefined || value === '') ? '—' : value;
+      }
+
+      function formatTime(value) {
+        if (!value) { return '—'; }
+        return String(value).replace('T', ' ').slice(0, 16);
+      }
+
+      function formatDay(value) {
+        if (!value) { return '—'; }
+        return String(value).slice(0, 10);
+      }
+
+      function hoursText(value) {
+        if (value === null || value === undefined || value === '') { return '—'; }
+        var num = Number(value);
+        if (!isFinite(num)) { return String(value); }
+        return (Math.round(num * 100) / 100) + ' h';
+      }
+
+      function intOrNull(value) {
+        var str = String(value == null ? '' : value).trim();
+        if (str === '' || !/^-?\d+$/.test(str)) { return null; }
+        return parseInt(str, 10);
+      }
+
+      function numOrNull(value) {
+        var str = String(value == null ? '' : value).trim();
+        if (str === '' || !/^-?\d+(\.\d+)?$/.test(str)) { return null; }
+        return Number(str);
+      }
+
+      function optParam(label, value) {
+        var raw = String(value == null ? '' : value).trim();
+        return raw ? (label + '=' + encodeURIComponent(raw)) : '';
+      }
+
+      function buildQuery(parts) {
+        var list = parts.filter(Boolean);
+        return list.length ? ('?' + list.join('&')) : '';
+      }
+
+      function setText(id, value) {
+        var el = document.getElementById(id);
+        if (el) { el.textContent = text(value); }
+      }
+
+      function toggleEmpty(emptyId, isEmpty) {
+        var el = document.getElementById(emptyId);
+        if (el) { el.classList.toggle('hidden', !isEmpty); }
+      }
+
+      function badge(table, value) {
+        var map = table || {};
+        var item = map[value] || { label: text(value), tone: 'ghost' };
+        var cls = 'badge badge-sm ' + (TONE[item.tone] || TONE.ghost);
+        return '<span class="' + cls + '">' + escapeHtml(item.label) + '</span>';
+      }
+
+      function statLine(label, value) {
+        return '<div class="flex items-center justify-between gap-3 text-xs">'
+          + '<span class="text-base-content/70">' + escapeHtml(label) + '</span>'
+          + '<span class="font-mono">' + escapeHtml(text(value)) + '</span></div>';
+      }
+
+      function ruleCard(title, value) {
+        return '<div class="rounded-box border border-base-300 bg-base-100 p-4">'
+          + '<p class="text-sm font-semibold">' + escapeHtml(title) + '</p>'
+          + '<p class="mt-1 text-xs leading-relaxed text-base-content/70">' + escapeHtml(value) + '</p>'
+          + '</div>';
+      }
+
+      function openDialog(id) {
+        var el = document.getElementById(id);
+        if (el) { el.classList.remove('hidden'); el.classList.add('flex'); }
+      }
+
+      function closeDialog(id) {
+        var el = document.getElementById(id);
+        if (el) { el.classList.add('hidden'); el.classList.remove('flex'); }
+      }
+
+      function renderPager(kind) {
+        var conf = PAGER[kind];
+        if (!conf) { return; }
+        var pages = Math.max(1, Math.ceil((TOTAL[kind] || 0) / PAGE_SIZE));
+        if (PAGE[kind] > pages) { PAGE[kind] = pages; }
+        setText(conf.page, PAGE[kind] + ' / ' + pages);
+        setText(conf.total, '共 ' + (TOTAL[kind] || 0) + ' 条');
+      }
+
+      function bindRows(hostId, attr, handler) {
+        var host = document.getElementById(hostId);
+        if (!host) { return; }
+        host.querySelectorAll('[' + attr + ']').forEach(function (button) {
+          button.addEventListener('click', function () { handler(this.getAttribute(attr), this); });
+        });
+      }
+
+      function valueOf(id) {
+        var el = document.getElementById(id);
+        return el ? String(el.value == null ? '' : el.value).trim() : '';
+      }
+
+      function setValue(id, value) {
+        var el = document.getElementById(id);
+        if (el) { el.value = (value === null || value === undefined) ? '' : String(value); }
+      }
+
+      function setRaw(id, value) { setValue(id, value); }
+
+      function btn(attr, value, label, disabled, title) {
+        return '<button class="btn btn-ghost btn-xs rounded-full" ' + attr + '="' + escapeHtml(value) + '" type="button"'
+          + (disabled ? (' disabled title="' + escapeHtml(title || '') + '"') : '')
+          + '>' + escapeHtml(label) + '</button>';
+      }
+
+      function adminOnly(attr, value, label, allowed, reason) {
+        return btn(attr, value, label, !allowed, reason);
+      }
+
+      // ------------------------------------------------------------ 下拉与选项
+      function fillSelect(id, items, placeholder) {
+        var el = document.getElementById(id);
+        if (!el) { return; }
+        var html = placeholder ? ('<option value="">' + escapeHtml(placeholder) + '</option>') : '';
+        el.innerHTML = html + items.map(function (item) {
+          return '<option value="' + escapeHtml(item.value) + '">' + escapeHtml(item.label) + '</option>';
+        }).join('');
+      }
+
+      function categoryOptions() {
+        return VOL_CATEGORIES.map(function (name) { return { value: name, label: name }; });
+      }
+
+      function fillCategorySelects() {
+        fillSelect('prj-category', categoryOptions(), '全部');
+        fillSelect('stat-category', categoryOptions(), '全部');
+        fillSelect('pd-category', categoryOptions(), '');
+      }
+
+      function projectOptions(list) {
+        return (list || []).map(function (row) {
+          return { value: row.id, label: text(row.projectName) };
+        });
+      }
+
+      function fillProjectSelects(list) {
+        fillSelect('rec-project', projectOptions(list), '全部项目');
+        fillSelect('enr-project', projectOptions(list), '全部项目');
+        fillSelect('rec-form-project', projectOptions(list), '不关联项目');
+        fillSelect('rb-project', projectOptions(list), '不关联项目');
+      }
+
+      async function loadProjectOptions() {
+        var result = await callApi('/api/volunteer/projects' + buildQuery(['page=1', 'size=100']));
+        var data = (result && result.data) ? result.data : {};
+        var list = Array.isArray(data.list) ? data.list : [];
+        ENTITY.project = list;
+        fillProjectSelects(list);
+      }
+
+      // ------------------------------------------------------------ 概览
+      async function loadOverview() {
+        var pending = await callApi('/api/volunteer/records' + buildQuery(['page=1', 'size=1', 'status=pending']));
+        if (pending && pending.code === 200 && pending.data) {
+          setText('stat-pending-records', pending.data.total || 0);
+        } else {
+          setText('stat-pending-records', '—');
+        }
+        var all = await callApi('/api/volunteer/records' + buildQuery(['page=1', 'size=1']));
+        if (all && all.code === 200 && all.data) {
+          setText('stat-total-records', all.data.total || 0);
+        } else {
+          setText('stat-total-records', '—');
+        }
+        var black = await callApi('/api/volunteer/blacklist' + buildQuery(['page=1', 'size=1', 'status=active']));
+        if (black && black.code === 200 && black.data) {
+          setText('stat-active-blacklist', black.data.total || 0);
+        } else {
+          setText('stat-active-blacklist', '—');
+        }
+        var appeals = await callApi('/api/volunteer/appeals' + buildQuery(['page=1', 'size=1', 'status=pending']));
+        if (appeals && appeals.code === 200 && appeals.data) {
+          setText('stat-open-appeals', appeals.data.total || 0);
+        } else {
+          setText('stat-open-appeals', '—');
+        }
+      }
+
+      // ------------------------------------------------------------ 时长记录台账
+      async function loadRecords() {
+        var query = buildQuery([
+          'page=' + PAGE.rec,
+          'size=' + PAGE_SIZE,
+          optParam('status', valueOf('rec-status')),
+          optParam('source', valueOf('rec-source')),
+          optParam('hourType', valueOf('rec-hourtype')),
+          optParam('projectId', valueOf('rec-project')),
+          optParam('startDate', valueOf('rec-start')),
+          optParam('endDate', valueOf('rec-end')),
+          optParam('keyword', valueOf('rec-keyword'))
+        ]);
+        var result = await callApi('/api/volunteer/records' + query);
+        var data = (result && result.data) ? result.data : {};
+        var list = Array.isArray(data.list) ? data.list : [];
+        ENTITY.record = list;
+        TOTAL.rec = data.total || list.length;
+        toggleEmpty('rec-empty', list.length === 0);
+        if (result && result.code !== 200) {
+          showMessage((result && result.message) || '时长记录加载失败。', 'error');
+        }
+
+        var host = document.getElementById('rec-list');
+        if (host) {
+          host.innerHTML = list.map(function (item) {
+            var canReview = IS_ADMIN && item.status === 'pending';
+            var reason = IS_ADMIN ? '仅「待审核」记录可审核（终态不可再改）' : '仅指导中心（admin）可审核时长，辅导员只能录入 / 提报';
+            var reject = item.status === 'rejected' && item.rejectReason
+              ? '<div class="mt-1 text-[11px] text-error">驳回：' + escapeHtml(text(item.rejectReason)) + '</div>' : '';
+            return '<tr class="border-b border-base-300">'
+              + '<td class="py-2 pr-4 font-semibold">' + escapeHtml(text(item.studentName)) + '</td>'
+              + '<td class="py-2 pr-4 font-mono text-xs">' + escapeHtml(text(item.studentNo)) + '</td>'
+              + '<td class="py-2 pr-4 text-xs">' + escapeHtml(text(item.projectName)) + '</td>'
+              + '<td class="py-2 pr-4 font-mono text-xs">' + escapeHtml(formatDay(item.serviceDate)) + '</td>'
+              + '<td class="py-2 pr-4 font-mono text-xs">' + escapeHtml(hoursText(item.hours)) + '</td>'
+              + '<td class="py-2 pr-4 text-xs">' + escapeHtml(text(item.hourTypeText || HOUR_TYPE_TEXT[item.hourType])) + '</td>'
+              + '<td class="py-2 pr-4 text-xs">' + escapeHtml(text(SOURCE_TEXT[item.source] || item.source)) + '</td>'
+              + '<td class="py-2 pr-4 text-xs">' + escapeHtml(text(SUBJECT_TEXT[item.recorderSubject] || item.recorderSubject)) + '</td>'
+              + '<td class="py-2 pr-4">' + badge(RECORD_BADGE, item.status) + reject + '</td>'
+              + '<td class="py-2 pr-4"><div class="flex flex-wrap items-center gap-1">'
+              + adminOnly('data-rec-review', item.id, '审核', canReview, reason)
+              + adminOnly('data-rec-makeup', item.id, '补录更正', IS_ADMIN, '仅指导中心（admin）可补录更正')
+              + '</div></td>'
+              + '</tr>';
+          }).join('');
+          bindRows('rec-list', 'data-rec-review', function (id) { openRecordReview(id); });
+          bindRows('rec-list', 'data-rec-makeup', function (id) { openMakeup(id); });
+        }
+        renderPager('rec');
+      }
+
+      function openRecordCreate() {
+        setRaw('rec-id', '');
+        setRaw('rec-form-user', '');
+        setRaw('rec-form-project', '');
+        setRaw('rec-form-date', '');
+        setRaw('rec-form-hours', '');
+        setRaw('rec-form-hourtype', 'credit');
+        setRaw('rec-form-source', 'platform');
+        setRaw('rec-form-signin', '');
+        setRaw('rec-form-signout', '');
+        setRaw('rec-form-note', '');
+        setText('rec-dialog-title', '单条录入时长');
+        setText('rec-dialog-target', '录入后记录为「待审核」，由指导中心审核；辅导员只能录入 / 提报。');
+        hideBoxMessage('rec-dialog-message');
+        openDialog('record-dialog');
+      }
+
+      function openMakeup(id) {
+        var item = ENTITY.record.filter(function (row) { return String(row.id) === String(id); })[0] || null;
+        if (!item) { return; }
+        setRaw('rec-id', item.id);
+        setRaw('rec-form-user', item.userId);
+        setRaw('rec-form-project', item.projectId || '');
+        setRaw('rec-form-date', item.serviceDate || '');
+        setRaw('rec-form-hours', item.hours);
+        setRaw('rec-form-hourtype', item.hourType || 'credit');
+        setRaw('rec-form-source', 'makeup');
+        setRaw('rec-form-signin', item.signIn ? String(item.signIn).slice(0, 16) : '');
+        setRaw('rec-form-signout', item.signOut ? String(item.signOut).slice(0, 16) : '');
+        setRaw('rec-form-note', item.makeupNote || '');
+        setText('rec-dialog-title', '补录更正（第二十六条，6 个月窗口）');
+        setText('rec-dialog-target', '待补录对象 #' + item.id + '（原状态：' + text(item.statusText || item.status) + '）。超窗后端返回 400，请按提示处理。');
+        hideBoxMessage('rec-dialog-message');
+        openDialog('record-dialog');
+      }
+
+      async function saveRecord() {
+        var userId = intOrNull(valueOf('rec-form-user'));
+        if (!userId) { showBoxMessage('rec-dialog-message', '请填写学生 user_id（整数）。', 'error'); return; }
+        var serviceDate = valueOf('rec-form-date');
+        if (!serviceDate) { showBoxMessage('rec-dialog-message', '请选择服务日期。', 'error'); return; }
+        var hours = numOrNull(valueOf('rec-form-hours'));
+        if (hours === null || hours < 0) { showBoxMessage('rec-dialog-message', '请填写合法的小时数。', 'error'); return; }
+        var body = {
+          userId: userId,
+          projectId: intOrNull(valueOf('rec-form-project')),
+          serviceDate: serviceDate,
+          hours: hours,
+          hourType: valueOf('rec-form-hourtype') || 'credit',
+          source: valueOf('rec-form-source') || 'platform',
+          signIn: valueOf('rec-form-signin') || null,
+          signOut: valueOf('rec-form-signout') || null,
+          makeupNote: valueOf('rec-form-note') || null
+        };
+        var result = await callApi('/api/volunteer/records', { method: 'POST', body: body });
+        if (result && result.code === 200) {
+          closeDialog('record-dialog');
+          showMessage(result.message || '已提交录入，等待指导中心审核。', 'success');
+          await loadOverview();
+          await loadRecords();
+        } else {
+          showBoxMessage('rec-dialog-message', (result && result.message) || '录入失败。', 'error');
+        }
+      }
+
+      function openRecordBatch() {
+        setRaw('rb-project', '');
+        setRaw('rb-hourtype', 'credit');
+        setRaw('rb-source', 'makeup');
+        setRaw('rb-text', '');
+        hideBoxMessage('rb-dialog-message');
+        openDialog('record-batch-dialog');
+      }
+
+      function parseBatchLines(raw) {
+        var lines = String(raw || '').split(/\r?\n/);
+        var records = [];
+        var errors = [];
+        lines.forEach(function (line, index) {
+          var trimmed = line.trim();
+          if (!trimmed) { return; }
+          var cells = trimmed.split(',').map(function (cell) { return cell.trim(); });
+          var userId = intOrNull(cells[0]);
+          var serviceDate = cells[1] || '';
+          var hours = numOrNull(cells[2]);
+          if (!userId) { errors.push('第 ' + (index + 1) + ' 行：user_id 非法'); return; }
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(serviceDate)) { errors.push('第 ' + (index + 1) + ' 行：服务日期需为 YYYY-MM-DD'); return; }
+          if (hours === null || hours < 0) { errors.push('第 ' + (index + 1) + ' 行：小时数非法'); return; }
+          records.push({
+            userId: userId,
+            projectId: null,
+            serviceDate: serviceDate,
+            hours: hours,
+            hourType: null,
+            source: null,
+            makeupNote: cells[3] || null
+          });
+        });
+        return { records: records, errors: errors };
+      }
+
+      async function saveRecordBatch() {
+        var parsed = parseBatchLines(valueOf('rb-text'));
+        if (parsed.errors.length) {
+          showBoxMessage('rb-dialog-message', '数据有误：' + parsed.errors.slice(0, 3).join('；') + (parsed.errors.length > 3 ? ' 等' : ''), 'error');
+          return;
+        }
+        if (!parsed.records.length) {
+          showBoxMessage('rb-dialog-message', '请至少填写一行数据。', 'error');
+          return;
+        }
+        var projectId = intOrNull(valueOf('rb-project'));
+        var hourType = valueOf('rb-hourtype') || 'credit';
+        var source = valueOf('rb-source') || 'makeup';
+        parsed.records.forEach(function (row) {
+          row.projectId = projectId;
+          row.hourType = hourType;
+          row.source = source;
+        });
+        var result = await callApi('/api/volunteer/records/batch', {
+          method: 'POST',
+          body: { records: parsed.records, items: parsed.records }
+        });
+        if (result && result.code === 200) {
+          closeDialog('record-batch-dialog');
+          showMessage(result.message || ('已批量提交 ' + parsed.records.length + ' 条，等待指导中心审核。'), 'success');
+          await loadOverview();
+          await loadRecords();
+        } else {
+          showBoxMessage('rb-dialog-message', (result && result.message) || '批量录入失败。', 'error');
+        }
+      }
+
+      function openRecordReview(id) {
+        var item = ENTITY.record.filter(function (row) { return String(row.id) === String(id); })[0] || null;
+        setRaw('rv-id', id);
+        setRaw('rv-action', 'approve');
+        setRaw('rv-reason', '');
+        setText('rv-target', item
+          ? (text(item.studentName) + ' · ' + text(item.projectName) + ' · ' + formatDay(item.serviceDate) + ' · ' + hoursText(item.hours) + '（当前：' + text(item.statusText || item.status) + '）')
+          : ('记录 #' + id));
+        hideBoxMessage('rv-message');
+        openDialog('record-review-dialog');
+      }
+
+      async function saveRecordReview() {
+        var id = valueOf('rv-id');
+        if (!id) { return; }
+        var action = valueOf('rv-action');
+        var reason = valueOf('rv-reason');
+        if (action === 'reject' && !reason) {
+          showBoxMessage('rv-message', '驳回必须填写原因。', 'error');
+          return;
+        }
+        var result = await callApi('/api/volunteer/records/' + encodeURIComponent(id) + '/review', {
+          method: 'POST',
+          body: { action: action, rejectReason: reason || null }
+        });
+        if (result && result.code === 200) {
+          closeDialog('record-review-dialog');
+          showMessage(result.message || '审核已提交。', 'success');
+          await loadOverview();
+          await loadRecords();
+        } else {
+          showBoxMessage('rv-message', (result && result.message) || '审核失败。', 'error');
+        }
+      }
+
+      // ------------------------------------------------------------ 项目立项
+      async function loadProjects() {
+        var query = buildQuery([
+          'page=' + PAGE.prj,
+          'size=' + PAGE_SIZE,
+          optParam('status', valueOf('prj-status')),
+          optParam('organizerType', valueOf('prj-orgtype')),
+          optParam('category', valueOf('prj-category')),
+          optParam('keyword', valueOf('prj-keyword'))
+        ]);
+        var result = await callApi('/api/volunteer/projects' + query);
+        var data = (result && result.data) ? result.data : {};
+        var list = Array.isArray(data.list) ? data.list : [];
+        ENTITY.project = list;
+        TOTAL.prj = data.total || list.length;
+        toggleEmpty('prj-empty', list.length === 0);
+        if (result && result.code !== 200) {
+          showMessage((result && result.message) || '立项列表加载失败。', 'error');
+        }
+
+        var host = document.getElementById('prj-list');
+        if (host) {
+          host.innerHTML = list.map(function (item) {
+            var editable = item.status === 'draft' || item.status === 'rejected';
+            var pending = item.status === 'pending';
+            var reject = item.status === 'rejected' && item.rejectReason
+              ? '<div class="mt-1 text-[11px] text-error">驳回：' + escapeHtml(text(item.rejectReason)) + '</div>' : '';
+            return '<tr class="border-b border-base-300">'
+              + '<td class="py-2 pr-4 font-semibold">' + escapeHtml(text(item.projectName)) + '</td>'
+              + '<td class="py-2 pr-4 text-xs">' + escapeHtml(text(item.category)) + '</td>'
+              + '<td class="py-2 pr-4 text-xs">' + escapeHtml(text(item.organizer)) + '</td>'
+              + '<td class="py-2 pr-4 font-mono text-[11px]">' + escapeHtml(formatTime(item.startTime)) + '<br>' + escapeHtml(formatTime(item.endTime)) + '</td>'
+              + '<td class="py-2 pr-4 text-xs">' + escapeHtml(text(item.location)) + '</td>'
+              + '<td class="py-2 pr-4 font-mono text-xs">' + escapeHtml(text(item.recruitLimit)) + (item.enrolledCount ? (' / 已报 ' + escapeHtml(item.enrolledCount)) : '') + '</td>'
+              + '<td class="py-2 pr-4 text-xs">' + escapeHtml(text(item.submitUserName)) + '</td>'
+              + '<td class="py-2 pr-4">' + badge(PROJECT_BADGE, item.status) + reject + '</td>'
+              + '<td class="py-2 pr-4"><div class="flex flex-wrap items-center gap-1">'
+              + btn('data-prj-edit', item.id, '编辑', !editable, '仅「草稿」「已驳回」可编辑')
+              + btn('data-prj-submit', item.id, '提交审批', !editable, '仅「草稿」「已驳回」可重新提报')
+              + adminOnly('data-prj-review', item.id, '审批', IS_ADMIN && pending,
+                IS_ADMIN ? '仅「待审批」可审批' : '仅指导中心（admin）可审批立项')
+              + '</div></td>'
+              + '</tr>';
+          }).join('');
+          bindRows('prj-list', 'data-prj-edit', function (id) { openProjectEdit(id); });
+          bindRows('prj-list', 'data-prj-submit', function (id) { submitProject(id); });
+          bindRows('prj-list', 'data-prj-review', function (id) { openProjectReview(id); });
+        }
+        renderPager('prj');
+      }
+
+      function fillProjectDialog(item) {
+        setRaw('pd-id', item && item.id ? item.id : '');
+        setRaw('pd-name', item ? item.projectName : '');
+        setRaw('pd-category', item ? item.category : '校园公益');
+        setRaw('pd-organizer', item ? item.organizer : '');
+        setRaw('pd-orgtype', item && item.organizerType ? item.organizerType : 'center');
+        setValue('pd-start', item && item.startTime ? String(item.startTime).slice(0, 16) : '');
+        setValue('pd-end', item && item.endTime ? String(item.endTime).slice(0, 16) : '');
+        setRaw('pd-location', item ? item.location : '');
+        setRaw('pd-duration', item ? item.durationNote : '');
+        setRaw('pd-limit', item && item.recruitLimit !== null && item.recruitLimit !== undefined ? item.recruitLimit : '');
+      }
+
+      function openProjectCreate() {
+        fillProjectDialog(null);
+        setText('pd-title', '新建立项');
+        hideBoxMessage('pd-message');
+        openDialog('project-dialog');
+      }
+
+      function openProjectEdit(id) {
+        var item = ENTITY.project.filter(function (row) { return String(row.id) === String(id); })[0] || null;
+        if (!item) { return; }
+        fillProjectDialog(item);
+        setText('pd-title', '编辑立项（仅草稿 / 已驳回）');
+        hideBoxMessage('pd-message');
+        openDialog('project-dialog');
+      }
+
+      async function saveProject() {
+        var id = valueOf('pd-id');
+        var projectName = valueOf('pd-name');
+        if (!projectName) { showBoxMessage('pd-message', '请填写项目名称。', 'error'); return; }
+        var body = {
+          projectName: projectName,
+          category: valueOf('pd-category') || null,
+          organizer: valueOf('pd-organizer') || null,
+          organizerType: valueOf('pd-orgtype') || null,
+          startTime: valueOf('pd-start') || null,
+          endTime: valueOf('pd-end') || null,
+          location: valueOf('pd-location') || null,
+          durationNote: valueOf('pd-duration') || null,
+          recruitLimit: intOrNull(valueOf('pd-limit'))
+        };
+        var result = id
+          ? await callApi('/api/volunteer/projects/' + encodeURIComponent(id), { method: 'PUT', body: body })
+          : await callApi('/api/volunteer/projects', { method: 'POST', body: body });
+        if (result && result.code === 200) {
+          closeDialog('project-dialog');
+          showMessage(result.message || (id ? '立项已更新。' : '立项已创建（草稿）。'), 'success');
+          await loadProjects();
+          await loadProjectOptions();
+        } else {
+          showBoxMessage('pd-message', (result && result.message) || '保存失败。', 'error');
+        }
+      }
+
+      async function submitProject(id) {
+        var result = await callApi('/api/volunteer/projects/' + encodeURIComponent(id), {
+          method: 'PUT',
+          body: { status: 'pending' }
+        });
+        if (result && result.code === 200) {
+          showMessage(result.message || '已提交审批。', 'success');
+          await loadProjects();
+        } else {
+          showMessage((result && result.message) || '提交审批失败。', 'error');
+        }
+      }
+
+      function openProjectReview(id) {
+        var item = ENTITY.project.filter(function (row) { return String(row.id) === String(id); })[0] || null;
+        setRaw('prv-id', id);
+        setRaw('prv-action', 'approve');
+        setRaw('prv-reason', '');
+        setText('prv-target', item ? (text(item.projectName) + ' · ' + text(item.organizer) + '（当前：' + text(item.statusText || item.status) + '）') : ('项目 #' + id));
+        hideBoxMessage('prv-message');
+        openDialog('project-review-dialog');
+      }
+
+      async function saveProjectReview() {
+        var id = valueOf('prv-id');
+        if (!id) { return; }
+        var action = valueOf('prv-action');
+        var reason = valueOf('prv-reason');
+        if (action === 'reject' && !reason) {
+          showBoxMessage('prv-message', '驳回必须填写原因。', 'error');
+          return;
+        }
+        var result = await callApi('/api/volunteer/projects/' + encodeURIComponent(id) + '/review', {
+          method: 'POST',
+          body: { action: action, rejectReason: reason || null }
+        });
+        if (result && result.code === 200) {
+          closeDialog('project-review-dialog');
+          showMessage(result.message || '审批已提交。', 'success');
+          await loadProjects();
+          await loadProjectOptions();
+        } else {
+          showBoxMessage('prv-message', (result && result.message) || '审批失败。', 'error');
+        }
+      }
+
+      // ------------------------------------------------------------ 报名与出勤
+      async function loadEnrollments() {
+        var query = buildQuery([
+          'page=' + PAGE.enr,
+          'size=' + PAGE_SIZE,
+          optParam('projectId', valueOf('enr-project')),
+          optParam('status', valueOf('enr-status')),
+          optParam('keyword', valueOf('enr-keyword'))
+        ]);
+        var result = await callApi('/api/volunteer/enrollments' + query);
+        var data = (result && result.data) ? result.data : {};
+        var list = Array.isArray(data.list) ? data.list : [];
+        ENTITY.enroll = list;
+        TOTAL.enr = data.total || list.length;
+        toggleEmpty('enr-empty', list.length === 0);
+        if (result && result.code !== 200) {
+          showMessage((result && result.message) || '报名列表加载失败。', 'error');
+        }
+
+        var host = document.getElementById('enr-list');
+        if (host) {
+          host.innerHTML = list.map(function (item) {
+            var canAttend = item.status === 'confirmed';
+            var tip = canAttend ? '' : '只有「已确认」的报名可登记出勤（已取消 / 已终态不可改）';
+            return '<tr class="border-b border-base-300">'
+              + '<td class="py-2 pr-4 font-semibold">' + escapeHtml(text(item.studentName)) + '</td>'
+              + '<td class="py-2 pr-4 font-mono text-xs">' + escapeHtml(text(item.studentNo)) + '</td>'
+              + '<td class="py-2 pr-4 text-xs">' + escapeHtml(text(item.className)) + '</td>'
+              + '<td class="py-2 pr-4 text-xs">' + escapeHtml(text(item.projectName)) + '</td>'
+              + '<td class="py-2 pr-4 font-mono text-xs">' + escapeHtml(formatTime(item.applyTime)) + '</td>'
+              + '<td class="py-2 pr-4">' + badge(ENROLL_BADGE, item.status) + '</td>'
+              + '<td class="py-2 pr-4 text-xs text-base-content/70">' + escapeHtml(text(item.remark)) + '</td>'
+              + '<td class="py-2 pr-4"><div class="flex flex-wrap items-center gap-1">'
+              + btn('data-enr-attend', item.id, '出席', !canAttend, tip)
+              + btn('data-enr-absent', item.id, '缺席', !canAttend, tip)
+              + '</div></td>'
+              + '</tr>';
+          }).join('');
+          bindRows('enr-list', 'data-enr-attend', function (id) { saveAttendance(id, 'attended'); });
+          bindRows('enr-list', 'data-enr-absent', function (id) { saveAttendance(id, 'absent'); });
+        }
+        renderPager('enr');
+      }
+
+      async function saveAttendance(id, status) {
+        var result = await callApi('/api/volunteer/enrollments/' + encodeURIComponent(id) + '/attendance', {
+          method: 'POST',
+          body: { status: status }
+        });
+        if (result && result.code === 200) {
+          showMessage(result.message || ('已登记为' + (status === 'attended' ? '已出席' : '无故缺席') + '。'), 'success');
+          await loadEnrollments();
+        } else {
+          showMessage((result && result.message) || '出勤登记失败。', 'error');
+        }
+      }
+
+      // ------------------------------------------------------------ 黑名单
+      async function loadBlacklist() {
+        var query = buildQuery([
+          'page=' + PAGE.blk,
+          'size=' + PAGE_SIZE,
+          optParam('status', valueOf('blk-status')),
+          optParam('keyword', valueOf('blk-keyword'))
+        ]);
+        var result = await callApi('/api/volunteer/blacklist' + query);
+        var data = (result && result.data) ? result.data : {};
+        var list = Array.isArray(data.list) ? data.list : [];
+        TOTAL.blk = data.total || list.length;
+        toggleEmpty('blk-empty', list.length === 0);
+        if (result && result.code !== 200) {
+          showMessage((result && result.message) || '黑名单加载失败。', 'error');
+        }
+
+        var host = document.getElementById('blk-list');
+        if (host) {
+          host.innerHTML = list.map(function (item) {
+            var canRevoke = IS_ADMIN && item.status === 'active';
+            var revokeTip = IS_ADMIN ? '只有「生效中」可撤销' : '仅指导中心（admin）可撤销黑名单，辅导员不可登记 / 撤销';
+            return '<tr class="border-b border-base-300">'
+              + '<td class="py-2 pr-4 font-semibold">' + escapeHtml(text(item.studentName)) + '</td>'
+              + '<td class="py-2 pr-4 font-mono text-xs">' + escapeHtml(text(item.studentNo)) + '</td>'
+              + '<td class="py-2 pr-4 text-xs">' + escapeHtml(text(item.clauseText || CLAUSE_TEXT[item.clause] || item.clause)) + '</td>'
+              + '<td class="py-2 pr-4 text-xs text-base-content/70">' + escapeHtml(text(item.reason)) + '</td>'
+              + '<td class="py-2 pr-4 font-mono text-xs">' + escapeHtml(formatDay(item.listedAt)) + '</td>'
+              + '<td class="py-2 pr-4 font-mono text-xs">' + escapeHtml(formatDay(item.expireAt)) + '</td>'
+              + '<td class="py-2 pr-4 font-mono text-xs">' + escapeHtml(item.daysLeft === null || item.daysLeft === undefined ? '—' : (item.daysLeft + ' 天')) + '</td>'
+              + '<td class="py-2 pr-4">' + badge(BLACK_BADGE, item.status) + '</td>'
+              + '<td class="py-2 pr-4">' + adminOnly('data-blk-revoke', item.id, '撤销', canRevoke, revokeTip) + '</td>'
+              + '</tr>';
+          }).join('');
+          bindRows('blk-list', 'data-blk-revoke', function (id) { revokeBlacklist(id); });
+        }
+        renderPager('blk');
+      }
+
+      function todayString() {
+        var now = new Date();
+        var month = String(now.getMonth() + 1);
+        var day = String(now.getDate());
+        if (month.length < 2) { month = '0' + month; }
+        if (day.length < 2) { day = '0' + day; }
+        return now.getFullYear() + '-' + month + '-' + day;
+      }
+
+      function plusMonths(dayString, months) {
+        var match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dayString || ''));
+        if (!match) { return ''; }
+        var year = parseInt(match[1], 10);
+        var month = parseInt(match[2], 10) - 1 + months;
+        var day = parseInt(match[3], 10);
+        var base = new Date(year, month, day);
+        if (base.getDate() !== day) { base = new Date(year, month + 1, 0); }
+        var mm = String(base.getMonth() + 1);
+        var dd = String(base.getDate());
+        if (mm.length < 2) { mm = '0' + mm; }
+        if (dd.length < 2) { dd = '0' + dd; }
+        return base.getFullYear() + '-' + mm + '-' + dd;
+      }
+
+      function refreshExpirePreview() {
+        var listed = valueOf('bd-listed') || todayString();
+        var expire = plusMonths(listed, 6);
+        setText('bd-expire', expire ? (expire + '（' + listed + ' + 6 个月）') : '—');
+      }
+
+      function openBlacklistCreate() {
+        setRaw('bd-id', '');
+        setRaw('bd-user', '');
+        setRaw('bd-clause', 'c34_1');
+        setRaw('bd-listed', todayString());
+        setRaw('bd-reason', '');
+        refreshExpirePreview();
+        hideBoxMessage('bd-message');
+        openDialog('blacklist-dialog');
+      }
+
+      async function saveBlacklist() {
+        var userId = intOrNull(valueOf('bd-user'));
+        if (!userId) { showBoxMessage('bd-message', '请填写学生 user_id（整数）。', 'error'); return; }
+        var clause = valueOf('bd-clause');
+        if (!clause) { showBoxMessage('bd-message', '请选择条款。', 'error'); return; }
+        var reason = valueOf('bd-reason');
+        if (!reason) { showBoxMessage('bd-message', '请填写事由说明。', 'error'); return; }
+        var result = await callApi('/api/volunteer/blacklist', {
+          method: 'POST',
+          body: { userId: userId, clause: clause, reason: reason, listedAt: valueOf('bd-listed') || null }
+        });
+        if (result && result.code === 200) {
+          closeDialog('blacklist-dialog');
+          showMessage(result.message || '已登记黑名单（期限 6 个月）。', 'success');
+          await loadOverview();
+          await loadBlacklist();
+        } else {
+          showBoxMessage('bd-message', (result && result.message) || '登记失败。', 'error');
+        }
+      }
+
+      async function revokeBlacklist(id) {
+        var result = await callApi('/api/volunteer/blacklist/' + encodeURIComponent(id) + '/revoke', { method: 'POST', body: {} });
+        if (result && result.code === 200) {
+          showMessage(result.message || '已撤销。', 'success');
+          await loadOverview();
+          await loadBlacklist();
+        } else {
+          showMessage((result && result.message) || '撤销失败。', 'error');
+        }
+      }
+
+      // ------------------------------------------------------------ 申诉
+      async function loadAppeals() {
+        var query = buildQuery([
+          'page=' + PAGE.apl,
+          'size=' + PAGE_SIZE,
+          optParam('status', valueOf('apl-status')),
+          optParam('withinWindow', valueOf('apl-window')),
+          optParam('keyword', valueOf('apl-keyword'))
+        ]);
+        var result = await callApi('/api/volunteer/appeals' + query);
+        var data = (result && result.data) ? result.data : {};
+        var list = Array.isArray(data.list) ? data.list : [];
+        ENTITY.appeal = list;
+        TOTAL.apl = data.total || list.length;
+        toggleEmpty('apl-empty', list.length === 0);
+        if (result && result.code !== 200) {
+          showMessage((result && result.message) || '申诉列表加载失败。', 'error');
+        }
+
+        var host = document.getElementById('apl-list');
+        if (host) {
+          host.innerHTML = list.map(function (item) {
+            var inWindow = !(item.withinWindow === 0 || item.withinWindow === false);
+            var windowBadge = inWindow
+              ? '<span class="badge badge-sm badge-info">5 个工作日内</span>'
+              : '<span class="badge badge-sm badge-error">超窗</span>';
+            var target = item.recordId ? ('时长记录 #' + item.recordId) : (item.blacklistId ? ('黑名单 #' + item.blacklistId) : '—');
+            var canRule = IS_ADMIN && inWindow && item.status !== 'closed' && item.status !== 'rejected';
+            var tip = !IS_ADMIN ? '仅团委受理人（admin）可裁定' : (inWindow ? '仅在途状态可裁定' : '超窗申诉后端拒绝裁定（第三十七条）');
+            return '<tr class="border-b border-base-300">'
+              + '<td class="py-2 pr-4 font-semibold">' + escapeHtml(text(item.studentName)) + '</td>'
+              + '<td class="py-2 pr-4 font-mono text-xs">' + escapeHtml(text(item.studentNo)) + '</td>'
+              + '<td class="py-2 pr-4 text-xs">' + escapeHtml(target) + '</td>'
+              + '<td class="py-2 pr-4 text-xs text-base-content/70">' + escapeHtml(text(item.reason)) + '</td>'
+              + '<td class="py-2 pr-4 font-mono text-xs">' + escapeHtml(formatTime(item.submitTime)) + '</td>'
+              + '<td class="py-2 pr-4">' + windowBadge
+              + '<div class="mt-1 text-[11px] text-base-content/60">截止 ' + escapeHtml(formatTime(item.deadline)) + '</div></td>'
+              + '<td class="py-2 pr-4 text-xs">' + escapeHtml(text(item.acceptOrg)) + '</td>'
+              + '<td class="py-2 pr-4 text-xs text-base-content/70">' + escapeHtml(text(item.ruling)) + '</td>'
+              + '<td class="py-2 pr-4">' + badge(APPEAL_BADGE, item.status) + '</td>'
+              + '<td class="py-2 pr-4">' + adminOnly('data-apl-rule', item.id, '裁定', canRule, tip) + '</td>'
+              + '</tr>';
+          }).join('');
+          bindRows('apl-list', 'data-apl-rule', function (id) { openAppealRule(id); });
+        }
+        renderPager('apl');
+      }
+
+      function openAppealRule(id) {
+        var item = ENTITY.appeal.filter(function (row) { return String(row.id) === String(id); })[0] || null;
+        setRaw('ad-id', id);
+        setRaw('ad-status', item && item.status && item.status !== 'pending' ? item.status : 'accepted');
+        setRaw('ad-ruling', item && item.ruling ? item.ruling : '');
+        setText('ad-target', item
+          ? (text(item.studentName) + ' · ' + text(item.acceptOrg) + ' · 提交 ' + formatTime(item.submitTime) + ' · 截止 ' + formatTime(item.deadline))
+          : ('申诉 #' + id));
+        hideBoxMessage('ad-message');
+        openDialog('appeal-dialog');
+      }
+
+      async function saveAppealRule() {
+        var id = valueOf('ad-id');
+        if (!id) { return; }
+        var ruling = valueOf('ad-ruling');
+        if (!ruling) { showBoxMessage('ad-message', '请填写裁定内容。', 'error'); return; }
+        var result = await callApi('/api/volunteer/appeals/' + encodeURIComponent(id) + '/rule', {
+          method: 'POST',
+          body: { status: valueOf('ad-status'), ruling: ruling }
+        });
+        if (result && result.code === 200) {
+          closeDialog('appeal-dialog');
+          showMessage(result.message || '裁定已提交。', 'success');
+          await loadOverview();
+          await loadAppeals();
+        } else {
+          showBoxMessage('ad-message', (result && result.message) || '裁定失败。', 'error');
+        }
+      }
+
+      // ------------------------------------------------------------ 统计与导出
+      var STAT_RULES = [
+        ['每天上限', '每天最多认定 8 小时（S21 第二十二条）；超出只提示需中心审核，不硬拒。'],
+        ['交通与培训', '交通 / 培训单程不足 30 分钟不计入时长（S21 第二十三 / 二十四条）。'],
+        ['补录更正窗口', '补录更正须在项目结束后 6 个月内提出，超窗后端返回 400（S21 第二十六条）。'],
+        ['校外自行参加', '校外自行参加的志愿服务活动不通过校内认定（S21 第二十五条）。'],
+        ['每学年下限', '每学年志愿服务不少于 20 小时；未达标不得参与团内评奖评优（S21 第三十三条，只提示不阻断）。'],
+        ['星级推算', '≥50 一星 / ≥100 二星 / ≥150 三星 / ≥300 四星 / ≥500 五星；不足 50 小时无星级（S21 第三十条，只推算不授予）。'],
+        ['黑名单期限', '列入日期起 6 个月（S21 第三十四 / 三十六条，由后端按日期推算，无定时任务）。'],
+        ['申诉窗口', '5 个工作日内提出，由团委受理裁定（S21 第三十七条）；超窗后端返回 400。'],
+        ['不计志愿服务', '第十八条列举的 11 类活动不计入志愿服务时长。'],
+        ['认定主体', '时长审核与星级认定权在「厦门大学嘉庚学院青年志愿服务指导中心」。']
+      ];
+
+      function renderStatRules() {
+        var host = document.getElementById('stat-rules');
+        if (host) {
+          host.innerHTML = STAT_RULES.map(function (pair) { return ruleCard(pair[0], pair[1]); }).join('');
+        }
+      }
+
+      function pickArray(data, keys) {
+        for (var i = 0; i < keys.length; i += 1) {
+          var value = data ? data[keys[i]] : null;
+          if (Array.isArray(value)) { return value; }
+        }
+        return [];
+      }
+
+      function renderRows(hostId, rows) {
+        var host = document.getElementById(hostId);
+        if (!host) { return; }
+        if (!rows.length) {
+          host.innerHTML = '<p class="text-xs text-base-content/60">暂无可展示的分组数据。</p>';
+          return;
+        }
+        host.innerHTML = rows.map(function (row) {
+          if (row && typeof row === 'object') {
+            var label = row.name || row.label || row.category || row.organizer || row.schoolYear || row.year || row.key || '—';
+            label = SUBJECT_TEXT[label] || label;
+            var hours = row.hours !== undefined ? row.hours : (row.totalHours !== undefined ? row.totalHours : row.sum);
+            var count = row.total !== undefined ? row.total : (row.count !== undefined ? row.count : row.records);
+            var right = (hours !== undefined && hours !== null) ? (hoursText(hours) + (count !== undefined && count !== null ? (' · ' + count + ' 条') : '')) : text(count);
+            return '<div class="flex items-center justify-between gap-3 text-xs">'
+              + '<span class="text-base-content/70">' + escapeHtml(text(label)) + '</span>'
+              + '<span class="font-mono">' + escapeHtml(right) + '</span></div>';
+          }
+          return '<div class="text-xs text-base-content/70">' + escapeHtml(text(row)) + '</div>';
+        }).join('');
+      }
+
+      async function loadStats() {
+        renderStatRules();
+        var query = buildQuery([
+          optParam('schoolYear', valueOf('stat-year-input')),
+          optParam('organizerType', valueOf('stat-orgtype')),
+          optParam('category', valueOf('stat-category'))
+        ]);
+        var result = await callApi('/api/volunteer/stats' + query);
+        var data = (result && result.data) ? result.data : null;
+        var sumHost = document.getElementById('stat-summary');
+        if (!data) {
+          if (sumHost) {
+            sumHost.innerHTML = ruleCard('统计接口', (result && result.message) || '统计接口未就绪（后端 VolunteerController 未部署时返回 404）。');
+          }
+          renderRows('stat-organizer', []);
+          renderRows('stat-category-list', []);
+          renderRows('stat-year-list', []);
+          return;
+        }
+        if (sumHost) {
+          sumHost.innerHTML = [
+            statLine('台账记录总数', data.totalRecords),
+            statLine('已通过记录数', data.approvedRecords),
+            statLine('待审核记录数', data.pendingRecords),
+            statLine('累计认定时长（h）', data.totalHours),
+            statLine('信用时数（h）', data.creditHours),
+            statLine('荣誉时数（h）', data.honorHours),
+            statLine('本学年时长（h）', data.yearHours),
+            statLine('统计学年', data.schoolYear)
+          ].map(function (html) { return '<div class="rounded-box border border-base-300 bg-base-100 p-4">' + html + '</div>'; }).join('');
+        }
+        renderRows('stat-organizer', pickArray(data, ['byOrganizer', 'organizerStats', 'byOrganizerType', 'organizers']));
+        renderRows('stat-category-list', pickArray(data, ['byCategory', 'categoryStats', 'categories']));
+        renderRows('stat-year-list', pickArray(data, ['byYear', 'yearStats', 'bySchoolYear', 'years']));
+      }
+
+      async function checkUserSummary() {
+        var userId = intOrNull(valueOf('stat-user'));
+        var host = document.getElementById('stat-user-box');
+        if (!userId) {
+          if (host) { host.innerHTML = ruleCard('读取累计', '请填写学生 user_id（整数）。'); }
+          return;
+        }
+        var result = await callApi('/api/volunteer/summary/' + encodeURIComponent(userId));
+        if (!host) { return; }
+        if (!result || result.code !== 200 || !result.data) {
+          host.innerHTML = ruleCard('读取累计', (result && result.message) || '读取失败。');
+          return;
+        }
+        var data = result.data;
+        host.innerHTML = [
+          statLine('累计时长（h）', data.totalHours),
+          statLine('信用时数（h）', data.creditHours),
+          statLine('荣誉时数（h）', data.honorHours),
+          statLine('本学年时长（h）', data.yearHours),
+          statLine('本学年是否达标（≥20h）', data.yearQualified ? '是' : '否'),
+          statLine('星级提示（只推算不授予）', data.starLevelText),
+          statLine('下次升级还需（h）', data.remainToNextLevel),
+          statLine('数据来源', data.starSource)
+        ].map(function (html) { return '<div class="rounded-box border border-base-300 bg-base-100 p-4">' + html + '</div>'; }).join('');
+      }
+
+      async function exportCsv() {
+        var url = '/api/volunteer/stats/export' + buildQuery([
+          optParam('schoolYear', valueOf('stat-year-input')),
+          optParam('organizerType', valueOf('stat-orgtype')),
+          optParam('category', valueOf('stat-category'))
+        ]);
+        try {
+          var response = await fetch(url, { credentials: 'same-origin' });
+          var contentType = String(response.headers.get('Content-Type') || '');
+          if (contentType.indexOf('json') >= 0) {
+            var payload = await response.json();
+            if (payload && payload.code === 401) { window.location.href = 'login.html'; return; }
+            showMessage((payload && payload.message) || '导出失败。', 'error');
+            return;
+          }
+          if (contentType.indexOf('html') >= 0) {
+            showMessage('服务把请求重定向到了登录页，请重新登录后再导出。', 'error');
+            return;
+          }
+          if (!response.ok) {
+            showMessage('导出失败，HTTP ' + response.status + '。', 'error');
+            return;
+          }
+          var blob = await response.blob();
+          var objectUrl = URL.createObjectURL(blob);
+          var link = document.createElement('a');
+          link.href = objectUrl;
+          link.download = 'volunteer-stats.csv';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 1000);
+          showMessage('已导出志愿服务统计（UTF-8 带 BOM，脱敏到学号后四位，不含身份证号与联系方式）。', 'success');
+        } catch (e) {
+          showMessage('导出失败：' + (e && e.message ? e.message : e), 'error');
+        }
+      }
+
+      // ------------------------------------------------------------ 页签
+      function switchTab(name) {
+        Object.keys(TAB_PANELS).forEach(function (key) {
+          var panel = document.getElementById(TAB_PANELS[key]);
+          var button = document.getElementById(TAB_BUTTONS[key]);
+          var active = key === name;
+          if (panel) { panel.classList.toggle('hidden', !active); }
+          if (button) { button.classList.toggle('is-active', active); }
+        });
+        clearMessage();
+        if (name === 'record') { loadRecords(); }
+        if (name === 'project') { loadProjects(); }
+        if (name === 'enroll') { loadEnrollments(); }
+        if (name === 'black') { loadBlacklist(); }
+        if (name === 'appeal') { loadAppeals(); }
+        if (name === 'stat') { loadStats(); }
+      }
+
+      async function checkAuth() {
+        var result = await callApi('/api/auth/me');
+        if (!result || result.code !== 200 || !result.data) {
+          window.location.href = 'login.html';
+          return null;
+        }
+        if (result.data.role && result.data.role === 'student') {
+          window.location.href = 'volunteer.html';
+          return null;
+        }
+        return result.data;
+      }
+
+      async function logout() {
+        try { await callApi('/api/auth/logout', { method: 'POST' }); } catch (e) {}
+        window.location.href = 'login.html';
+      }
+
+      function renderRoleNote(me) {
+        var role = me && me.role ? me.role : 'unknown';
+        var name = me && me.realName ? me.realName : '';
+        var scope = IS_ADMIN
+          ? '可见全量台账，可审核时长、审批立项、登记 / 撤销黑名单、裁定申诉、登记星级相关统计。'
+          : '可见名下学生与本人提报的项目；只能录入时长、提报立项、登记出勤，不能审核、不能登记黑名单、不能裁定申诉。';
+        setText('role-note', '当前身份：' + role + (name ? ('（' + name + '）') : '') + ' · ' + scope);
+      }
+
+      function applyRoleGating() {
+        var createBtn = document.getElementById('blk-create');
+        if (createBtn) {
+          createBtn.disabled = !IS_ADMIN;
+          createBtn.title = IS_ADMIN ? '' : '仅指导中心（admin）可登记黑名单';
+        }
+      }
+
+      // ---------------------------------------------------------------- 绑定
+      Object.keys(TAB_BUTTONS).forEach(function (key) {
+        var button = document.getElementById(TAB_BUTTONS[key]);
+        if (button) { button.addEventListener('click', function () { switchTab(key); }); }
+      });
+      var logoutBtn = document.getElementById('logout-btn');
+      if (logoutBtn) { logoutBtn.addEventListener('click', logout); }
+
+      ['rec', 'prj', 'enr', 'blk', 'apl'].forEach(function (kind) {
+        var prev = document.getElementById(kind + '-prev');
+        var next = document.getElementById(kind + '-next');
+        if (prev) {
+          prev.addEventListener('click', function () { PAGE[kind] = Math.max(1, PAGE[kind] - 1); reload(kind); });
+        }
+        if (next) {
+          next.addEventListener('click', function () { PAGE[kind] = PAGE[kind] + 1; reload(kind); });
+        }
+      });
+
+      function reload(kind) {
+        if (kind === 'rec') { loadRecords(); }
+        if (kind === 'prj') { loadProjects(); }
+        if (kind === 'enr') { loadEnrollments(); }
+        if (kind === 'blk') { loadBlacklist(); }
+        if (kind === 'apl') { loadAppeals(); }
+      }
+
+      var bindings = [
+        ['rec-search', function () { PAGE.rec = 1; loadRecords(); }],
+        ['rec-reset', function () {
+          ['rec-status', 'rec-source', 'rec-hourtype', 'rec-project', 'rec-start', 'rec-end', 'rec-keyword'].forEach(function (id) { setRaw(id, ''); });
+          PAGE.rec = 1;
+          loadRecords();
+        }],
+        ['rec-create', openRecordCreate],
+        ['rec-batch', openRecordBatch],
+        ['rec-export', exportCsv],
+        ['rec-dialog-close', function () { closeDialog('record-dialog'); }],
+        ['rec-dialog-save', saveRecord],
+        ['rb-dialog-close', function () { closeDialog('record-batch-dialog'); }],
+        ['rb-dialog-save', saveRecordBatch],
+        ['rv-close', function () { closeDialog('record-review-dialog'); }],
+        ['rv-save', saveRecordReview],
+        ['prj-search', function () { PAGE.prj = 1; loadProjects(); }],
+        ['prj-reset', function () {
+          ['prj-status', 'prj-orgtype', 'prj-category', 'prj-keyword'].forEach(function (id) { setRaw(id, ''); });
+          PAGE.prj = 1;
+          loadProjects();
+        }],
+        ['prj-create', openProjectCreate],
+        ['pd-close', function () { closeDialog('project-dialog'); }],
+        ['pd-save', saveProject],
+        ['prv-close', function () { closeDialog('project-review-dialog'); }],
+        ['prv-save', saveProjectReview],
+        ['enr-search', function () { PAGE.enr = 1; loadEnrollments(); }],
+        ['enr-reset', function () {
+          ['enr-project', 'enr-status', 'enr-keyword'].forEach(function (id) { setRaw(id, ''); });
+          PAGE.enr = 1;
+          loadEnrollments();
+        }],
+        ['blk-search', function () { PAGE.blk = 1; loadBlacklist(); }],
+        ['blk-reset', function () {
+          ['blk-status', 'blk-keyword'].forEach(function (id) { setRaw(id, ''); });
+          PAGE.blk = 1;
+          loadBlacklist();
+        }],
+        ['blk-create', openBlacklistCreate],
+        ['bd-close', function () { closeDialog('blacklist-dialog'); }],
+        ['bd-save', saveBlacklist],
+        ['apl-search', function () { PAGE.apl = 1; loadAppeals(); }],
+        ['apl-reset', function () {
+          ['apl-status', 'apl-window', 'apl-keyword'].forEach(function (id) { setRaw(id, ''); });
+          PAGE.apl = 1;
+          loadAppeals();
+        }],
+        ['ad-close', function () { closeDialog('appeal-dialog'); }],
+        ['ad-save', saveAppealRule],
+        ['stat-refresh', loadStats],
+        ['stat-export', exportCsv],
+        ['stat-user-check', checkUserSummary]
+      ];
+      bindings.forEach(function (pair) {
+        var el = document.getElementById(pair[0]);
+        if (el) { el.addEventListener('click', pair[1]); }
+      });
+
+      var listedInput = document.getElementById('bd-listed');
+      if (listedInput) { listedInput.addEventListener('change', refreshExpirePreview); }
+
+      fillCategorySelects();
+      clearMessage();
+      var me = await checkAuth();
+      if (me) {
+        IS_ADMIN = me.role === 'admin';
+        applyRoleGating();
+        renderRoleNote(me);
+        await loadOverview();
+        await loadProjectOptions();
+        await loadRecords();
+      }
+    })();
+  </script>
+
+  <script src="/js/nest-ui.js" defer></script>
+  <script src="/libs/animejs/anime.umd.min.js" defer></script>
+  <script src="/libs/countup/countUp.umd.js" defer></script>
+  <script src="/libs/vanilla-tilt/vanilla-tilt.min.js" defer></script>
+  <script src="/libs/canvas-confetti/confetti.browser.js" defer></script>
+  <script src="/js/nest-motion.js" defer></script>
+  <script src="/js/nest-particles.js" defer></script>
+  <script src="/js/nest-art3.js" defer></script>
+</body>
+</html>

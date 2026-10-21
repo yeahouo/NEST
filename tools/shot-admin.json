@@ -1,0 +1,16 @@
+{
+  "port": 9222,
+  "cookie": { "name": "JSESSIONID", "value": "6F250B2E50806F8CC0D50EA086032DDA", "url": "http://localhost:8080", "path": "/" },
+  "shots": [
+    {
+      "url": "http://localhost:8080/dorm-admin.html",
+      "out": "D:/project/NEST/target/shot-admin-appeal.png",
+      "click": "[data-tab=\"appeal\"]",
+      "afterClickMs": 2500,
+      "width": 1700,
+      "height": 1250,
+      "script": "(() => { const t = document.querySelector('#panel-appeal table'); if (!t) return { err: 'no table' }; const heads = [...t.querySelectorAll('thead th')].map(x => x.textContent.trim()); const r = t.querySelector('tbody tr'); const cells = r ? [...r.querySelectorAll('td')].map(x => x.textContent.trim().slice(0, 30)) : []; return { heads, cells, buttons: [...t.querySelectorAll('button')].map(b => b.textContent.trim()) }; })()",
+      "afterScriptMs": 300
+    }
+  ]
+}

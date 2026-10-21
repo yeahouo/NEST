@@ -1,0 +1,38 @@
+Open Props — vendored locally for NEST (安居)
+================================================================================
+
+upstream : https://github.com/argyleink/open-props  (Adam Argyle)
+npm      : open-props
+version  : 1.7.23
+license  : MIT (Copyright (c) 2021 Adam Argyle) — full text in ./LICENSE
+file     : open-props.min.css  29,566 bytes  SHA256(前 12 位) 4BC9BEC663EB
+
+Why it is here
+--------------
+第十七轮「整站艺术化」，需要一套**有出处**的几何与动效令牌（曲线、阴影、圆角、
+渐变、字体栈）。设计政策是「只采用能找到出处的现成设计」，所以不在 input.css 里
+自己拍数值：改用 Open Props 的既定令牌，input.css 里的 nx-* 组件通过 var() 引用它们。
+
+实际用到（其余令牌存在但不引用，便于日后取用）：
+  --radius-round: 1e5px        胶囊按钮/标签的圆角（取代自己写 999px）
+  --radius-2: 5px, --radius-3: 1rem, --radius-4: 2rem   圆角刻度
+  --ease-1/2/3/4/5, --ease-out-3, --ease-elastic-3      过渡曲线
+  --shadow-1/2/3/4/5/6, --inner-shadow-highlight        层级阴影
+  --gradient-1..30                                      背景渐变（取其中数条做艺术底）
+  --font-sans / --font-serif / --font-mono              字体栈（本地字体的回退链）
+
+How it is loaded
+----------------
+`tools/wire-open-props.mjs` 把下面这一行插到每个页面 `/css/nest-fonts.css` 之前：
+    <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+Open Props 的令牌全部声明在 `:where(html)` 里（特异性 0），所以 input.css 里
+`:root` 的同名覆盖必然生效——不会出现「第三方令牌压过项目令牌」这种事。
+它只有自定义属性，没有任何布局/组件规则，不会和 Tailwind 的工具类打架。
+断网可用：Service Worker 的 `/libs/` 走 stale-while-revalidate（见 sw.js）。
+
+Trap (每次升级都要看)
+---------------------
+open-props.min.css 里的阴影令牌是 `calc()` 链（--shadow-color/--shadow-strength
++ 6 档），只有在**加载了这个文件**的页面才存在。若某个页面漏插这行 link，
+`var(--shadow-2)` 会静默失效（阴影消失，不报错）。自检：任一页面控制台
+`getComputedStyle(document.documentElement).getPropertyValue('--shadow-2')` 应为非空。

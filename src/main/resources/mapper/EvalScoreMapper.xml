@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.EvalScoreMapper">
+
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.EvalScore">
+        <id column="id" property="id"/>
+        <result column="student_id" property="studentId"/>
+        <result column="indicator_id" property="indicatorId"/>
+        <result column="academic_term" property="academicTerm"/>
+        <result column="score" property="score"/>
+        <result column="source" property="source"/>
+        <result column="evidence" property="evidence"/>
+        <result column="scorer_id" property="scorerId"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="indicator_code" property="indicatorCode"/>
+        <result column="indicator_name" property="indicatorName"/>
+        <result column="dimension" property="dimension"/>
+        <result column="max_score" property="maxScore"/>
+        <result column="weight" property="weight"/>
+        <result column="scorer_name" property="scorerName"/>
+    </resultMap>
+
+    <!-- 指标信息来自 eval_indicator（维度/权重/满分），学生信息来自 users + student_profile -->
+    <sql id="Joined_Columns">
+        s.id, s.student_id, s.indicator_id, s.academic_term, s.score, s.source, s.evidence,
+        s.scorer_id, s.created_at, s.updated_at,
+        i.code AS indicator_code, i.name AS indicator_name, i.dimension, i.max_score, i.weight,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(sp.student_no, u.student_id) AS student_no,
+        COALESCE(sp.class_name, u.class_name) AS class_name,
+        COALESCE(NULLIF(sc.real_name, ''), sc.username) AS scorer_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM eval_score s
+        LEFT JOIN eval_indicator i ON i.id = s.indicator_id
+        LEFT JOIN users u ON u.id = s.student_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = s.student_id AND sp.deleted = 0
+        LEFT JOIN users sc ON sc.id = s.scorer_id
+    </sql>
+
+    <select id="listByStudent" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE s.student_id = #{studentId} AND s.academic_term = #{term}
+        ORDER BY i.sort_order, i.id
+    </select>
+
+    <select id="listByStudentSource" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE s.student_id = #{studentId} AND s.academic_term = #{term} AND s.source = #{source}
+        ORDER BY i.sort_order, i.id
+    </select>
+
+    <select id="listByTerm" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE s.academic_term = #{term}
+        <if test="scopeCounselorId != null">
+            AND sp.counselor_id = #{scopeCounselorId}
+        </if>
+        ORDER BY s.student_id, i.sort_order
+    </select>
+
+    <insert id="upsert" parameterType="com.umi.nest.entity.EvalScore">
+        INSERT INTO eval_score
+            (student_id, indicator_id, academic_term, score, source, evidence, scorer_id, created_at, updated_at)
+        VALUES
+            (#{studentId}, #{indicatorId}, #{academicTerm}, #{score}, #{source}, #{evidence}, #{scorerId}, NOW(), NOW())
+        ON DUPLICATE KEY UPDATE
+            score      = VALUES(score),
+            evidence   = VALUES(evidence),
+            scorer_id  = VALUES(scorer_id),
+            updated_at = NOW()
+    </insert>
+
+    <delete id="deleteByStudentTermSource">
+        DELETE FROM eval_score
+        WHERE student_id = #{studentId} AND academic_term = #{term} AND source = #{source}
+    </delete>
+
+    <select id="listScoredStudents" resultType="java.util.Map">
+        SELECT DISTINCT s.student_id,
+               COALESCE(NULLIF(sp.class_name, ''), '未填班级') AS class_name
+        FROM eval_score s
+        LEFT JOIN student_profile sp ON sp.user_id = s.student_id AND sp.deleted = 0
+        WHERE s.academic_term = #{term}
+        <if test="scopeCounselorId != null">
+            AND sp.counselor_id = #{scopeCounselorId}
+        </if>
+        ORDER BY class_name, s.student_id
+    </select>
+
+    <select id="countScoredStudents" resultType="int">
+        SELECT COUNT(DISTINCT s.student_id)
+        FROM eval_score s
+        LEFT JOIN student_profile sp ON sp.user_id = s.student_id AND sp.deleted = 0
+        WHERE s.academic_term = #{term}
+        <if test="scopeCounselorId != null">
+            AND sp.counselor_id = #{scopeCounselorId}
+        </if>
+    </select>
+
+    <select id="listTerms" resultType="java.lang.String">
+        SELECT DISTINCT academic_term FROM eval_score ORDER BY academic_term DESC
+    </select>
+
+</mapper>

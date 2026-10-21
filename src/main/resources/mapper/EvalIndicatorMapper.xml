@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.EvalIndicatorMapper">
+
+    <!-- 显式列映射：tools/check-mapper-columns.mjs 只认 <sql> 片段 / <result column> / AS 别名，
+         靠 map-underscore-to-camel-case 隐式对上会让这个检查报「字段读不出来」。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.EvalIndicator">
+        <id column="id" property="id"/>
+        <result column="dimension" property="dimension"/>
+        <result column="code" property="code"/>
+        <result column="name" property="name"/>
+        <result column="description" property="description"/>
+        <result column="max_score" property="maxScore"/>
+        <result column="weight" property="weight"/>
+        <result column="sort_order" property="sortOrder"/>
+        <result column="active" property="active"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <select id="listActive" resultMap="BaseResultMap">
+        SELECT id, dimension, code, name, description, max_score, weight, sort_order, active, created_at
+        FROM eval_indicator
+        WHERE active = 1
+        ORDER BY sort_order, id
+    </select>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT id, dimension, code, name, description, max_score, weight, sort_order, active, created_at
+        FROM eval_indicator
+        WHERE id = #{id}
+    </select>
+
+    <select id="findByCode" resultMap="BaseResultMap">
+        SELECT id, dimension, code, name, description, max_score, weight, sort_order, active, created_at
+        FROM eval_indicator
+        WHERE code = #{code}
+    </select>
+
+    <select id="countActive" resultType="int">
+        SELECT COUNT(*) FROM eval_indicator WHERE active = 1
+    </select>
+
+</mapper>

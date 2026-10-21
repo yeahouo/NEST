@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html data-theme="nestlight" lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+  <title>学工平台 · 宿舍分配工作台</title>
+  <link href="/manifest.webmanifest" rel="manifest"/>
+  <meta content="#3e63dd" name="theme-color"/>
+  <link href="/icons/icon-192.png" rel="icon" sizes="192x192" type="image/png"/>
+  <link href="/icons/apple-touch-icon.png" rel="apple-touch-icon"/>
+  <meta content="yes" name="apple-mobile-web-app-capable"/>
+  <meta content="default" name="apple-mobile-web-app-status-bar-style"/>
+  <meta content="学工平台" name="apple-mobile-web-app-title"/>
+  <script defer src="/pwa.js"></script>
+  <!--
+    主题必须在样式表之前定下来。放到 defer 的共享脚本里会先按浅色画一帧、
+    再翻成深色 —— 也就是俗称的「闪白」，比没有深色模式更难受。
+    所以这段必须内联，且必须排在 <link rel="stylesheet"> 前面。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+<link rel="stylesheet" href="/css/nest-art3.css">
+  <style>
+    /* .tab-active 的外观已并入 nest.css 的 .nx-tab.tab-active（第十二轮统一），这里不再重复定义 */
+    .mono { font-variant-numeric: tabular-nums; }
+    table.grid-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    table.grid-table th { text-align: left; font-weight: 600; color: var(--nx-muted); padding: .5rem .75rem; border-bottom: 1px solid var(--nx-sep); white-space: nowrap; }
+    table.grid-table td { padding: .5rem .75rem; border-bottom: 1px solid var(--nx-sep); }
+  </style>
+</head>
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content selection:bg-primary/30">
+<div class="relative z-10 flex min-h-screen flex-col">
+  <header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none px-6 py-2 md:px-20">
+    <div class="navbar-start w-auto min-w-0 flex-1 items-center gap-3">
+      <div class="text-primary"><span class="material-symbols-outlined text-3xl">apartment</span></div>
+      <div>
+        <h2 class="nx-brand text-xl leading-tight">学工平台 <span class="text-primary">宿舍分配</span></h2>
+        <p class="text-xs nx-muted">宿舍智能分配与可解释决策支持 · 管理端</p>
+      </div>
+    </div>
+    <div class="navbar-end w-auto flex-none items-center gap-1 md:gap-2">
+      <button onclick="location.href='dorm-psyche.html'" class="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-primary/10 transition-colors">
+        <span class="material-symbols-outlined text-xl">psychology</span><span class="text-sm font-medium hidden md:inline">心理特征</span>
+      </button>
+      <button onclick="location.href='dorm-portal.html'" class="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-primary/10 transition-colors">
+        <span class="material-symbols-outlined text-xl">person</span><span class="text-sm font-medium hidden md:inline">学生门户</span>
+      </button>
+      <button onclick="location.href='admin-dashboard.html'" class="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-primary/10 transition-colors">
+        <span class="material-symbols-outlined text-xl">arrow_back</span><span class="text-sm font-medium hidden md:inline">返回后台</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="flex-1 px-6 pb-16 pt-10 md:px-20">
+    <div class="mx-auto max-w-7xl nx-rise">
+      <header class="mb-8 border-b border-base-300 pb-6">
+        <p class="nx-kicker">Residence / Admin console</p>
+        <h1 class="mt-2 font-serif text-3xl leading-tight sm:text-4xl">宿舍分配工作台</h1>
+        <p class="mt-3 max-w-3xl text-sm leading-relaxed nx-muted">导入数据 → 一键分配 → 查看解释与审计 → 处理申诉。所有相容度指标都算在<strong class="text-base-content">算法看不到的隐真值</strong>上。</p>
+      </header>
+
+      <div class="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 md:grid-cols-4" id="stats"></div>
+
+      <nav class="mb-8 flex flex-wrap gap-1.5 rounded-box border border-base-300 bg-base-200 p-1.5">
+        <button data-tab="data" class="tab-btn tab-active nx-tab"><span class="material-symbols-outlined align-middle text-base">database</span> 数据准备</button>
+        <button data-tab="assign" class="tab-btn nx-tab"><span class="material-symbols-outlined align-middle text-base">play_circle</span> 一键分配</button>
+        <button data-tab="rooms" class="tab-btn nx-tab"><span class="material-symbols-outlined align-middle text-base">meeting_room</span> 房间视图</button>
+        <button data-tab="why" class="tab-btn nx-tab"><span class="material-symbols-outlined align-middle text-base">help</span> 四维解释</button>
+        <button data-tab="appeal" class="tab-btn nx-tab"><span class="material-symbols-outlined align-middle text-base">gavel</span> 申诉处理</button>
+        <button data-tab="audit" class="tab-btn nx-tab"><span class="material-symbols-outlined align-middle text-base">balance</span> 公平性审计</button>
+        <button data-tab="collect" class="tab-btn nx-tab"><span class="material-symbols-outlined align-middle text-base">fact_check</span> 补采建议</button>
+        <button data-tab="raw" class="tab-btn nx-tab"><span class="material-symbols-outlined align-middle text-base">data_object</span> 原始响应</button>
+      </nav>
+
+      <div id="panel-data" class="panel"></div>
+      <div id="panel-assign" class="panel hidden"></div>
+      <div id="panel-rooms" class="panel hidden"></div>
+      <div id="panel-why" class="panel hidden"></div>
+      <div id="panel-appeal" class="panel hidden"></div>
+      <div id="panel-audit" class="panel hidden"></div>
+      <div id="panel-collect" class="panel hidden"></div>
+      <div id="panel-raw" class="panel hidden"><pre id="raw-out" class="max-h-[70vh] overflow-auto rounded-box border border-base-300 bg-base-300 p-4 font-mono text-xs"></pre></div>
+    </div>
+  </main>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let BATCHES = [], CURRENT = null, SUMMARY = null, GROUND_TRUTH = false;
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function num(x,d=2){return x==null||Number.isNaN(Number(x))?'—':Number(x).toFixed(d);}
+function pct(x){return x==null?'—':(Number(x)*100).toFixed(1)+'%';}
+function toast(msg, bad){ const d=document.createElement('div');
+  d.className='fixed bottom-6 right-6 z-[100] rounded-box px-5 py-3 text-sm font-medium shadow-lg '+(bad?'bg-error text-error-content':'bg-neutral text-neutral-content');
+  d.textContent=msg; document.body.appendChild(d); setTimeout(()=>d.remove(), bad?6000:3000); }
+function raw(o){ $('raw-out').textContent = JSON.stringify(o,null,2); }
+
+async function api(url, opts) {
+  const res = await fetch(url, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
+  let j; try { j = await res.json(); } catch(e){ throw new Error('HTTP '+res.status+' 返回了非 JSON 内容'); }
+  if (j.code !== 200) throw new Error(j.message || ('HTTP '+res.status));
+  return j.data;
+}
+const post = (u,b) => api(u,{method:'POST', body: JSON.stringify(b||{})});
+async function guard(fn){ try { await fn(); } catch(e){ toast(e.message, true); console.error(e); } }
+
+// ── 统一对话框的页内兜底（nest-ui.js 是 defer 加载的，所以调用时才看 window.NestUI） ──
+function nxAlert(message, options) {
+  if (window.NestUI && NestUI.dialog) return NestUI.dialog.alert(message, options);
+  window.alert(message);
+  return Promise.resolve();
+}
+function nxConfirm(message, options) {
+  if (window.NestUI && NestUI.dialog) return NestUI.dialog.confirm(message, options);
+  return Promise.resolve(window.confirm(message));
+}
+
+function card(title, icon, body, extra) {
+  return `<div class="p-6 mb-6 ${extra||''} nx-panel">
+    <div class="flex items-center gap-2 mb-4"><span class="material-symbols-outlined text-primary">${icon}</span>
+    <h3 class="font-bold text-lg">${esc(title)}</h3></div>${body}</div>`;
+}
+function statCard(label, value, sub, icon) {
+  return `<div class="flex flex-col gap-1 bg-base-100 p-6">
+    <div class="flex items-center gap-3 mb-1"><span class="material-symbols-outlined text-primary text-xl">${icon}</span>
+    <span class="text-xs nx-muted">${esc(label)}</span></div>
+    <div class="text-2xl font-black mono">${value}</div>
+    <div class="text-xs mt-1 nx-muted">${esc(sub||'')}</div></div>`;
+}
+
+// ── 概览 ────────────────────────────────────────────────
+async function loadSummary() {
+  SUMMARY = await api('/api/dorm/summary');
+  GROUND_TRUTH = !!SUMMARY.hasGroundTruth;
+  const newest = (BATCHES && BATCHES.length) ? '最近 #' + BATCHES[0].id : '还没有跑过';
+  $('stats').innerHTML =
+    statCard('学生', SUMMARY.students ?? 0, '床位共 ' + (SUMMARY.capacityTotal ?? 0) + ' 个', 'groups') +
+    statCard('房间', SUMMARY.rooms ?? 0, '志愿 ' + (SUMMARY.preferences ?? 0) + ' 条 · 特征 ' + (SUMMARY.features ?? 0) + ' 条', 'meeting_room') +
+    statCard('分配批次', SUMMARY.batches ?? 0, newest, 'inventory_2') +
+    statCard('隐真值', GROUND_TRUTH ? '已就绪' : '无', GROUND_TRUTH ? '指标在真值上计算' : '指标将退回模型预测值', 'visibility');
+  return SUMMARY;
+}
+
+// ── Tab ────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => guard(async () => {
+  document.querySelectorAll('.tab-btn').forEach(x => x.classList.remove('tab-active'));
+  b.classList.add('tab-active');
+  document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden'));
+  const t = b.dataset.tab; $('panel-'+t).classList.remove('hidden');
+  if (t === 'data') renderData();
+  if (t === 'assign') renderAssign();
+  if (t === 'rooms') await renderRooms();
+  if (t === 'why') renderWhy();
+  if (t === 'appeal') await renderAppeal();
+  if (t === 'audit') await renderAudit();
+  if (t === 'collect') await renderCollect();
+})));
+
+// ── 数据准备 ────────────────────────────────────────────
+function renderData() {
+  $('panel-data').innerHTML =
+  card('生成合成数据（带隐真值）', 'science', `
+    <p class="text-sm nx-muted mb-4">
+      生成器先抽真实特征 z，再定义一个<strong>算法永远看不到</strong>的真值相容度 g（含隐变量磁场项与「早起×晚睡」交互项），
+      然后模拟「发问卷」只把带噪声的观测 o 交给求解器。最后用 g 评估。<br>
+      真值单独存进 <code>dorm_ground_truth</code>，求解器不读这张表——这是物理隔离，不是口头承诺。</p>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+      <label class="block"><span class="text-xs nx-muted">学生数</span>
+        <input id="g-n" type="number" value="1000" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2"/></label>
+      <label class="block"><span class="text-xs nx-muted">随机种子</span>
+        <input id="g-seed" type="number" value="20260927" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2"/></label>
+      <label class="block"><span class="text-xs nx-muted">噪声强度</span>
+        <input id="g-noise" type="number" step="0.05" value="0.2" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2"/></label>
+      <label class="block"><span class="text-xs nx-muted">缺失率</span>
+        <input id="g-missing" type="number" step="0.05" value="0" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2"/></label>
+      <label class="block"><span class="text-xs nx-muted">志愿紧张度</span>
+        <input id="g-tension" type="number" step="0.1" value="0.5" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2"/></label>
+      <label class="block"><span class="text-xs nx-muted">楼栋数</span>
+        <input id="g-buildings" type="number" value="3" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2"/></label>
+      <label class="block"><span class="text-xs nx-muted">房间容量</span>
+        <input id="g-cap" type="number" value="4" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2"/></label>
+      <label class="block"><span class="text-xs nx-muted">年级混合</span>
+        <select id="g-grademix" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2">
+          <option value="true">是（同楼混年级）</option><option value="false">否</option></select></label>
+    </div>
+    <button onclick="genData()" class="nx-btn nx-btn-primary nx-btn-lg">生成并覆盖现有数据</button>
+    <div id="gen-out" class="mt-4 text-sm"></div>`) +
+  card('手工导入 JSON', 'upload_file', `
+    <p class="text-sm nx-muted mb-3">
+      students[].feature 是 11 维观测值，顺序：入睡时刻(小时,跨零点+24) / 起床时刻 / 吸烟 / 卫生 / 外向度 /
+      在房间学习 / 噪声容忍度 / 社交活跃度 / 物品共享 / 游戏 / 学业拼搏。缺失请写 null，<strong>不要写 0</strong>（0 是「很外向」，null 才是「不知道」）。</p>
+    <textarea id="imp-json" rows="10" class="w-full rounded-md border-primary/20 bg-base-200 px-4 py-3 text-xs font-mono"
+      placeholder='{"replaceAll":true,"students":[{"studentNo":"2023001","name":"张三","gender":"M","grade":"2023","major":"软件工程","majorCluster":"信息类","specialNeed":"NONE","feature":[23.5,7,0,0.6,0.3,null,0.4,0.3,0.5,0.2,0.7],"wantRoommateWith":[]}],"rooms":[{"roomNo":"101","buildingId":"男生1号楼","gender":"M","capacity":4}]}'></textarea>
+    <button onclick="importData()" class="mt-4 nx-btn nx-btn-primary nx-btn-lg">导入</button>
+    <div id="imp-out" class="mt-4 text-sm"></div>`) +
+  card('危险操作', 'warning', `
+    <button onclick="clearData()" class="px-6 py-3 rounded-full bg-error text-white font-bold hover:bg-red-700">清空宿舍域全部数据</button>
+    <p class="text-xs mt-2 nx-muted">只清 dorm_* 表，不影响学工域（用户/假条/公告）。问卷与聊天记录所在的 dorm_psyche_text / dorm_psyche_answer 也会被清空，请先确认。</p>`);
+}
+async function genData() {
+  const body = {
+    students: Number($('g-n').value), seed: Number($('g-seed').value),
+    noise: Number($('g-noise').value), missing: Number($('g-missing').value),
+    tension: Number($('g-tension').value), gradeMix: $('g-grademix').value === 'true',
+    buildingCount: Number($('g-buildings').value), roomCapacity: Number($('g-cap').value)
+  };
+  $('gen-out').innerHTML = '<span class="text-primary">生成中…（万人规模约需数秒）</span>';
+  await guard(async () => {
+    const r = await post('/api/dorm/data/synthesize', body);
+    raw(r);
+    $('gen-out').innerHTML = '<pre class="text-xs bg-primary/5 p-3 rounded-md overflow-auto">' + esc(JSON.stringify(r,null,2)) + '</pre>';
+    toast('已生成 ' + (r.students||0) + ' 名学生 / ' + (r.rooms||0) + ' 间房');
+    await loadSummary();
+  });
+  $('gen-out').innerHTML = $('gen-out').innerHTML.replace('生成中…（万人规模约需数秒）','');
+}
+async function importData() {
+  let obj; try { obj = JSON.parse($('imp-json').value); } catch(e){ toast('JSON 解析失败：'+e.message, true); return; }
+  await guard(async () => {
+    const r = await post('/api/dorm/data/import', obj);
+    raw(r); $('imp-out').innerHTML = '<pre class="text-xs bg-primary/5 p-3 rounded-md overflow-auto">'+esc(JSON.stringify(r,null,2))+'</pre>';
+    toast('导入完成'); await loadSummary();
+  });
+}
+async function clearData() {
+  if (!(await nxConfirm('确定清空宿舍域全部数据？此操作不可撤销。'))) return;
+  await guard(async () => { const r = await post('/api/dorm/data/clear'); raw(r); toast('已清空'); await loadSummary(); });
+}
+
+// ── 一键分配 ────────────────────────────────────────────
+function renderAssign() {
+  $('panel-assign').innerHTML =
+  card('一键分配', 'play_circle', `
+    <p class="text-sm nx-muted mb-4">
+      流程：硬约束校验 → 按「性别 × 楼栋类型(普通/特殊) × 专业大类 × 年级」分块 → 块内
+      <strong>志愿簇预分组 → 最难的人优先贪心构造 → 局部搜索（含木桶守卫）→ 阻塞对修复</strong> → 全局违规复核 → 四维解释预生成。</p>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+      <label class="block md:col-span-2"><span class="text-xs nx-muted">批次名称</span>
+        <input id="a-name" value="工作台分配" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2"/></label>
+      <label class="block"><span class="text-xs nx-muted">时间预算(ms)</span>
+        <input id="a-budget" type="number" value="30000" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2"/></label>
+      <label class="block"><span class="text-xs nx-muted">随机种子</span>
+        <input id="a-seed" type="number" value="20260927" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2"/></label>
+      <label class="block"><span class="text-xs nx-muted">志愿簇预分组</span>
+        <select id="a-seed-pref" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2"><option value="true">开</option><option value="false">关</option></select></label>
+      <label class="block"><span class="text-xs nx-muted">阻塞对修复</span>
+        <select id="a-repair" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2"><option value="true">开</option><option value="false">关</option></select></label>
+      <label class="block"><span class="text-xs nx-muted">局部搜索轮数</span>
+        <input id="a-rounds" type="number" value="12" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2"/></label>
+      <label class="block"><span class="text-xs nx-muted">预生成解释(≤4000人)</span>
+        <select id="a-explain" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2"><option value="true">开</option><option value="false">关</option></select></label>
+    </div>
+    <button onclick="runAssign()" class="nx-btn nx-btn-primary nx-btn-lg">开始分配</button>
+    <div id="assign-out" class="mt-5"></div>`) +
+  card('历史批次', 'inventory_2', '<div id="batch-list">加载中…</div>');
+  loadBatches();
+}
+async function runAssign() {
+  const body = { name: $('a-name').value, withExplanations: $('a-explain').value === 'true',
+    config: { seed: Number($('a-seed').value), timeBudgetMs: Number($('a-budget').value),
+      localSearchRounds: Number($('a-rounds').value),
+      enableBlockingPairRepair: $('a-repair').value === 'true' } };
+  if ($('a-seed-pref').value === 'false') body.config.weights = { sum: 1.0, bucket: 0.0, preference: 0.0 };
+  $('assign-out').innerHTML = '<div class="text-primary text-sm">分配中…（万人规模 30 秒预算内）</div>';
+  await guard(async () => {
+    const t0 = Date.now(); const r = await post('/api/dorm/assign', body); raw(r);
+    CURRENT = r; await loadBatches();
+    $('assign-out').innerHTML = metricsBlock(r) + `<div class="text-xs mt-2 nx-muted">端到端 ${Date.now()-t0} ms（含解释预生成与落库）</div>`;
+    toast('批次 #' + r.batchId + ' 完成');
+    await loadSummary();
+  });
+}
+function metricsBlock(r) {
+  const m = r.metrics || {}; const d = r.diagnostics || {};
+  const warn = r.metricBasisWarning ? `<div class="mb-3 p-3 rounded-md bg-warning/10 text-warning text-sm">${esc(r.metricBasisWarning)}</div>` : '';
+  const violations = m.hardViolations === 0
+    ? '<span class="text-success font-bold">0 ✓</span>'
+    : '<span class="text-error font-bold">' + m.hardViolations + ' ✗</span>';
+  return warn + `
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+    ${statCard('硬约束违规', violations, '必须恒为 0', 'rule')}
+    ${statCard('未分配人数', m.unassigned ?? 0, '应为 0', 'person_off')}
+    ${statCard('均值相容度', num(m.meanCompat,4), '指标基准：'+(m.basis||'—'), 'trending_up')}
+    ${statCard('最差那一对', num(m.worstCompat,4), '木桶效应', 'trending_down')}
+    ${statCard('房内方差', num(m.meanRoomVariance,4), '越小越均匀', 'functions')}
+    ${statCard('志愿满足率', pct(m.preferenceSatisfaction), '互相点名且同住', 'favorite')}
+    ${statCard('阻塞对数', m.blockingPairs ?? 0, '互相想住却没同住', 'block')}
+    ${statCard('运行耗时', (m.runtimeMs||0)+' ms', '求解器 '+esc(m.solver||''), 'timer')}
+  </div>
+  <details class="p-4 rounded-md bg-primary/5 text-sm">
+    <summary class="font-bold cursor-pointer">诊断信息</summary>
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1 mt-3 mono text-xs">
+      <div>batchId: <b>${r.batchId}</b></div>
+      <div>blockCount: ${d.blockCount ?? '—'}</div>
+      <div>maxBlockSize: ${d.maxBlockSize ?? '—'}</div>
+      <div>unallocatedRooms: ${d.unallocatedRooms ?? '—'}</div>
+      <div>rescuedUnassigned: ${d.rescuedUnassigned ?? '—'}</div>
+      <div>localSearchAcceptedMoves: ${d.localSearchAcceptedMoves ?? '—'}</div>
+      <div>blockingRepairsApplied: ${d.blockingRepairsApplied ?? '—'}</div>
+      <div>greedyMsTotal: ${d.greedyMsTotal ?? '—'}</div>
+      <div>localSearchMsTotal: ${d.localSearchMsTotal ?? '—'}</div>
+      <div>smallBlocks: ${d.smallBlocks ?? '—'}</div>
+      <div class="col-span-2">blocksByPool: ${esc(JSON.stringify(d.blocksByPool||{}))}</div>
+      <div class="col-span-2">occupancy: ${esc(JSON.stringify(d.occupancy||{}))}</div>
+    </div>
+    ${(r.warnings||[]).length ? '<div class="mt-3 text-xs text-warning">告警：'+esc((r.warnings||[]).join(' | '))+'</div>' : ''}
+    <div class="mt-2 text-xs nx-muted">解释落库：${r.explanationsStored ?? 0} 条${r.explainSkippedReason ? '（'+esc(r.explainSkippedReason)+'）' : ''}</div>
+  </details>`;
+}
+async function loadBatches() {
+  BATCHES = await api('/api/dorm/batches?limit=20');
+  const el = $('batch-list'); if (!el) return;
+  if (!BATCHES.length) { el.innerHTML = '<p class="text-sm nx-muted">还没有批次。</p>'; return; }
+  el.innerHTML = `<div class="overflow-auto"><table class="grid-table">
+    <thead><tr><th>#</th><th>名称</th><th>状态</th><th>学生</th><th>违规</th><th>未分配</th><th>均值相容</th><th>最差</th><th>阻塞对</th><th>志愿</th><th>耗时</th><th></th></tr></thead>
+    <tbody>${BATCHES.map(b => `<tr>
+      <td class="mono">${b.id}</td><td>${esc(b.name)}</td><td>${esc(b.status||'')}</td>
+      <td class="mono">${b.student_count ?? '—'}</td>
+      <td class="mono ${b.hard_violations ? 'text-error font-bold' : ''}">${b.hard_violations ?? '—'}</td>
+      <td class="mono">${b.unassigned_count ?? '—'}</td>
+      <td class="mono">${num(b.mean_compat,4)}</td><td class="mono">${num(b.worst_compat,4)}</td>
+      <td class="mono">${b.blocking_pairs ?? '—'}</td><td class="mono">${pct(b.preference_rate)}</td>
+      <td class="mono">${b.runtime_ms ?? '—'}</td>
+      <td><button onclick="useBatch(${b.id})" class="text-primary text-xs font-bold">设为当前</button></td>
+    </tr>`).join('')}</tbody></table></div>`;
+}
+async function useBatch(id) {
+  await guard(async () => {
+    CURRENT = await api('/api/dorm/batches/' + id);
+    CURRENT.batchId = id;
+    toast('当前批次已切换到 #' + id);
+    raw(CURRENT);
+  });
+}
+
+// ── 房间视图 ────────────────────────────────────────────
+async function renderRooms() {
+  const id = CURRENT ? CURRENT.batchId : (BATCHES[0] && BATCHES[0].id);
+  if (!id) { $('panel-rooms').innerHTML = card('暂无批次', 'inbox', '<p class="text-sm nx-muted">先跑一次分配。</p>'); return; }
+  const rooms = await api('/api/dorm/batches/' + id + '/rooms');
+  raw(rooms);
+  const rows = (rooms||[]).map(r => {
+    const occ = r.occupants ?? 0;
+    return `<tr>
+      <td class="mono font-bold">${esc(r.room_label || '')}</td>
+      <td>${esc(r.building_id || '')}</td>
+      <td class="mono">${occ}</td>
+      <td class="mono">${r.room_id ?? ''}</td>
+      <td>${esc((r.members || '').split('、').join(' · '))}</td></tr>`;
+  }).join('');
+  $('panel-rooms').innerHTML = card('批次 #' + id + ' 的房间明细（' + (rooms||[]).length + ' 间已入住）', 'meeting_room',
+    `<div class="overflow-auto max-h-[65vh]"><table class="grid-table">
+      <thead><tr><th>房间</th><th>楼栋</th><th>入住</th><th>room_id</th><th>成员</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+     <p class="text-xs mt-3 nx-muted">这里列的是已入住房间。要查单个学生的房间级相容度明细，请到「四维解释」页。</p>`);
+}
+
+// ── 四维解释 ────────────────────────────────────────────
+function renderWhy() {
+  $('panel-why').innerHTML = card('按学生查四维解释', 'help', `
+    <p class="text-sm nx-muted mb-3">批次优先读预生成的结果（分配时就算好落库，查询只读不重算）；找不到则现场计算该学生一人。</p>
+    <div class="flex flex-wrap gap-3 mb-4">
+      <label class="block w-40"><span class="text-xs nx-muted">批次 id</span>
+        <input id="w-batch" type="number" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2"/></label>
+      <label class="block w-40"><span class="text-xs nx-muted">学生 id</span>
+        <input id="w-student" type="number" class="w-full rounded-md border-primary/20 bg-base-200 px-3 py-2"/></label>
+      <button onclick="loadExplain()" class="self-end nx-btn nx-btn-primary">查询</button>
+    </div>
+    <div id="why-out"></div>`);
+  if (CURRENT) $('w-batch').value = CURRENT.batchId;
+}
+async function loadExplain() {
+  const b = $('w-batch').value, s = $('w-student').value;
+  if (!b || !s) { toast('请填写批次与学生 id', true); return; }
+  await guard(async () => {
+    const r = await api('/api/dorm/batches/' + b + '/explain/' + s);
+    raw(r);
+    const src = r.source; const w = r.explanation && r.explanation.explanation ? r.explanation.explanation : r.explanation;
+    if (!w) { $('why-out').innerHTML = '<p class="text-sm nx-muted">没有解释数据。</p>'; return; }
+    const dims = (w.dimensions||[]).map(d => `<tr><td>${esc(d.dimension)}</td><td>${esc(d.otherName)}</td>
+      <td class="mono">${num(d.mine,3)}</td><td class="mono">${num(d.theirs,3)}</td><td class="mono">${num(d.gap,3)}</td>
+      <td class="mono ${d.contribution<0?'text-error':'text-success'}">${d.contribution>0?'+':''}${num(d.contribution,3)}</td>
+      <td>${esc(d.comment)}</td></tr>`).join('');
+    const prefs = (w.preferences||[]).map(p => `<tr><td>${esc(p.kind)}</td><td>${esc(p.otherName)}</td>
+      <td>${p.satisfied?'<span class="text-success">已满足</span>':'<span class="text-warning">未满足</span>'}</td><td>${esc(p.reason||'')}</td></tr>`).join('');
+    const cons = (w.constraints||[]).map(c => `<tr><td>${esc(c.rule)}</td><td>${c.binding?'是':''}</td><td>${esc(c.detail||'')}</td></tr>`).join('');
+    const comp = (w.comparatives||[]).map(c => `<tr><td>${esc(c.comment)}</td>
+      <td class="mono ${c.delta<0?'text-error':'text-success'}">${c.delta>0?'+':''}${num(c.delta,3)}</td></tr>`).join('');
+    $('why-out').innerHTML =
+      `<div class="mb-3 text-xs nx-muted">来源：${esc(src)}（${src==='PRECOMPUTED'?'分配时预生成':'现场计算'}）</div>` +
+      `<div class="p-4 rounded-md bg-primary/5 mb-4 text-sm leading-relaxed">${esc(w.narrative||'')}</div>` +
+      `<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        ${statCard('房间', esc(w.roomLabel||''), esc(w.buildingId||''), 'meeting_room')}
+        ${statCard('房内均值相容', num(w.roomMeanCompat,4), '', 'trending_up')}
+        ${statCard('房内最差对', num(w.roomWorstCompat,4), '', 'trending_down')}
+        ${statCard('学生', esc(w.studentName||''), 'id '+esc(w.studentId||''), 'person')}
+      </div>` +
+      `<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div><h4 class="font-bold mb-2">① 相容度层（逐维度）</h4><table class="grid-table"><thead><tr><th>维度</th><th>室友</th><th>我</th><th>对方</th><th>差异</th><th>贡献</th><th>说明</th></tr></thead><tbody>${dims}</tbody></table></div>
+        <div><h4 class="font-bold mb-2">③ 志愿层</h4><table class="grid-table"><thead><tr><th>类型</th><th>对象</th><th>结果</th><th>原因</th></tr></thead><tbody>${prefs}</tbody></table>
+          <h4 class="font-bold mt-4 mb-2">② 约束层</h4><table class="grid-table"><thead><tr><th>规则</th><th>起作用</th><th>说明</th></tr></thead><tbody>${cons}</tbody></table></div>
+      </div>` +
+      `<h4 class="font-bold mt-6 mb-2">④ 对比层（换一种分法会差多少）</h4><table class="grid-table"><thead><tr><th>替代方案</th><th>差值</th></tr></thead><tbody>${comp}</tbody></table>`;
+  });
+}
+
+// ── 申诉处理 ────────────────────────────────────────────
+async function renderAppeal() {
+  const id = CURRENT ? CURRENT.batchId : (BATCHES[0] && BATCHES[0].id);
+  if (!id) { $('panel-appeal').innerHTML = card('暂无批次', 'inbox', '<p class="text-sm nx-muted">先跑一次分配。</p>'); return; }
+  const list = await api('/api/dorm/batches/' + id + '/appeals');
+  raw(list);
+  const rows = (list||[]).map(a => {
+    const st = a.status || 'PENDING';
+    const tone = st === 'SATISFIED' ? 'text-emerald-600' : st === 'ACCEPTED' ? 'text-primary' : st === 'UNSATISFIABLE' ? 'nx-muted' : 'text-amber-600';
+    const cs = a.cross_state || 'NONE';
+    const csTone = cs === 'DONE' ? 'text-emerald-600' : cs === 'FAILED' ? 'text-red-600' : (cs === 'QUEUED' || cs === 'RUNNING') ? 'text-amber-600' : 'nx-muted';
+    const canCross = cs === 'NONE' || cs === 'FAILED';
+    return `<tr>
+      <td class="mono">${a.id}</td><td class="mono">${a.student_id ?? ''}</td>
+      <td class="mono">${esc(a.target_ids||'')}</td>
+      <td class="${tone} font-bold text-xs">${esc(st)}</td>
+      <td class="text-xs">${esc(a.scope||'')}</td>
+      <td class="mono">${num(a.cost_delta,3)} / ${num(a.cost_budget,3)}</td>
+      <td class="mono">${a.elapsed_ms ?? ''}ms</td>
+      <td class="text-xs max-w-md">${esc(a.message||'')}</td>
+      <td class="${csTone} font-bold text-xs">${esc(cs)}</td>
+      <td class="whitespace-nowrap">${st === 'SATISFIED'
+        ? `<button onclick="applyAppeal(${a.id})" class="px-3 py-1 rounded-full bg-primary text-white text-xs font-bold">采纳</button>`
+        : '<span class="text-xs nx-muted">—</span>'}
+        ${canCross ? `<button onclick="crossTrial(${a.id})" class="ml-1 px-3 py-1 rounded-full border border-primary/30 text-primary text-xs font-bold">跨块试算</button>` : ''}</td>
+      <td><button onclick="showAppeal(${a.id})" class="text-primary text-xs font-bold">详情</button></td>
+    </tr>`;
+  }).join('');
+  $('panel-appeal').innerHTML = card('批次 #' + id + ' 的申诉', 'gavel',
+    `<p class="text-sm nx-muted mb-4">
+      三级结论：<b>SATISFIED</b> 能满足（附具体对调方案）/ <b>UNSATISFIABLE</b> 硬约束下不可能 /
+      <b>NOT_FOUND_IN_SCOPE</b> 在我搜过的范围内没找到（<b>不等于无解</b>，搜索范围会一并给出）。
+      采纳只改动相关学生的房间行，不重跑全局分配。</p>
+     <p class="text-sm nx-muted mb-4">
+      搜索分三级，一级比一级贵：<b>房间级</b>（只动目标房间内部，毫秒）→ <b>块级</b>（你所在的块的内部对调，秒）
+      → <b>跨块级</b>（把你的块和对方所在的块合并后整块重解，可能动几十到上千人）。
+      前两级搜不到时点「跨块试算」：它在后台执行、<b>不改动任何分配</b>，只算出「要放宽哪条政策、要动多少人、目标函数变多少」供你判断。
+      放宽政策不等于可以违反硬约束，试算结果会拿回原始配置再验一遍，违规的方案一律丢弃。</p>
+     <div class="overflow-auto"><table class="grid-table">
+      <thead><tr><th>id</th><th>学生</th><th>想同住</th><th>状态</th><th>搜索范围</th><th>代价/预算</th><th>耗时</th><th>结论</th><th>跨块</th><th>操作</th><th></th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="11" class="nx-muted">这个批次还没有申诉。</td></tr>'}</tbody></table></div>`);
+}
+async function applyAppeal(id) {
+  if (!(await nxConfirm('采纳这条申诉？将按建议的方案对调房间（不改动其他学生）。'))) return;
+  await guard(async () => {
+    const r = await post('/api/dorm/appeals/' + id + '/apply', { handledBy: 'admin' });
+    raw(r); toast('已采纳：' + (r.moves||0) + ' 处调整');
+    const t = document.querySelector('[data-tab=appeal]'); if (t) { await renderAppeal(); }
+  });
+}
+async function crossTrial(appealId) {
+  const id = CURRENT ? CURRENT.batchId : (BATCHES[0] && BATCHES[0].id);
+  if (!id) { toast('先选一个批次', true); return; }
+  if (!(await nxConfirm('跨块试算会把「你所在的块」和「对方所在的块」合并后整块重解，可能改动几十到上千人。\n\n试算本身不改动任何分配，只算出代价供你判断。\n\n提交？'))) return;
+  await guard(async () => {
+    const r = await post('/api/dorm/batches/' + id + '/appeals/' + appealId + '/cross', {});
+    raw(r);
+    const job = r.jobId;
+    toast(r.reused ? '这条申诉已经在试算中，继续等待…' : '已提交跨块试算（后台执行）…');
+    for (let i = 0; i < 240; i++) {
+      await new Promise(s => setTimeout(s, 1500));
+      const j = await api('/api/dorm/appeals/cross/' + job);
+      if (j.state !== 'QUEUED' && j.state !== 'RUNNING') {
+        raw(j);
+        const res = j.result || {};
+        if (j.state === 'DONE') {
+          // 只有 SATISFIED 才有「代价」可言。失败路径后端把目标值/波及人数留成 0，
+          // 直接把 0 打出来会被读成「改动为零」，而事实是「没找到方案」——两者差别很大。
+          const ok = res.status === 'SATISFIED';
+          await nxAlert('跨块试算完成：' + (res.status || '') +
+            '\n\n' + (res.message || '') +
+            '\n\n合并范围：' + (res.mergedStudents ?? '—') + ' 人 / ' + (res.mergedRooms ?? '—') + ' 间房' +
+            (ok
+              ? '\n本次要动：' + (res.moveCount ?? 0) + ' 人' +
+                '\n目标函数：' + num(res.objectiveBefore, 2) + ' → ' + num(res.objectiveAfter, 2) +
+                  '（' + num(res.objectiveDelta, 2) + '）'
+              : '\n本次试算没有产出可采纳的调整方案，因此不报代价、也不报波及人数。') +
+            '\n放宽政策：' + ((res.relaxations || []).map(x => x.label).join('、') || '无'));
+        } else {
+          toast('跨块试算未完成：' + j.state + '，' + (j.note || ''), true);
+        }
+        const t = document.querySelector('[data-tab=appeal]'); if (t) { await renderAppeal(); }
+        return;
+      }
+    }
+    toast('跨块试算仍在进行。点「详情」可看结论，或稍后刷新页面。', true);
+  });
+}
+async function showAppeal(id) {
+  await guard(async () => {
+    const a = await api('/api/dorm/appeals/' + id);
+    raw(a);
+    const p = a.payload || a.payload_json;
+    let sug = '';
+    if (p && p.suggestions) sug = p.suggestions.map(s => `<li>${esc(s.note)} <span class="mono">Δ=${num(s.delta,3)}</span></li>`).join('');
+    const cross = (a.cross_state && a.cross_state !== 'NONE')
+      ? '\n\n── 跨块试算（' + a.cross_state + '，' + (a.cross_elapsed_ms ?? 0) + 'ms）──\n' + (a.cross_note || '（无说明）')
+      : '\n\n── 跨块试算：尚未提交 ──';
+    await nxAlert('状态：' + a.status + '\n\n' + (a.message||'') + '\n\n搜索范围：' + (a.scope||'') +
+      (sug ? '\n\n方案：\n' + (p.suggestions||[]).map(s=>'· '+s.note).join('\n') : '') + cross);
+  });
+}
+
+// ── 公平性审计 ──────────────────────────────────────────
+async function renderAudit() {
+  const id = CURRENT ? CURRENT.batchId : (BATCHES[0] && BATCHES[0].id);
+  if (!id) { $('panel-audit').innerHTML = card('暂无批次', 'inbox', '<p class="text-sm nx-muted">先跑一次分配。</p>'); return; }
+  const a = await api('/api/dorm/batches/' + id + '/audit');
+  raw(a);
+  let html = card('批次 #' + id + ' 的分组满意度', 'balance',
+    '<p class="text-sm nx-muted mb-4">按专业大类与年级分组，看每一组的平均学生满意度。极差越小越公平。只统计人数 ≥5 的组（人太少说明不了问题）。</p>');
+  const byMetric = {};
+  (a||[]).forEach(r => { (byMetric[r.metric] = byMetric[r.metric] || []).push(r); });
+  Object.keys(byMetric).forEach(metric => {
+    const entries = byMetric[metric].slice().sort((x,y) => (y.value||0)-(x.value||0));
+    if (!entries.length) return;
+    const max = Math.max(...entries.map(e => e.value||0));
+    const min = Math.min(...entries.map(e => e.value||0));
+    html += card(metric, 'insights',
+      `<div class="flex gap-4 mb-4 text-sm"><span>最差组 <b class="mono">${num(min,4)}</b></span>
+        <span>最好组 <b class="mono">${num(max,4)}</b></span>
+        <span>极差 <b class="mono ${max-min>0.05?'text-warning':'text-success'}">${num(max-min,4)}</b></span></div>
+       <table class="grid-table"><thead><tr><th>组</th><th>人数</th><th>平均满意度</th><th></th></tr></thead><tbody>
+       ${entries.map(e => { const w = Math.max(0, Math.min(100, ((e.value||0)+1)/2*100));
+         return `<tr><td>${esc(e.group_key)}</td><td class="mono">${e.group_size}</td><td class="mono font-bold">${num(e.value,4)}</td>
+           <td class="w-1/2"><div class="h-2 rounded-full bg-primary/10"><div class="h-2 rounded-full bg-primary" style="width:${w}%"></div></div></td></tr>`; }).join('')}
+       </tbody></table>`);
+  });
+  $('panel-audit').innerHTML = html;
+}
+
+// ── 补采建议（缺失感知 MAA） ────────────────────────────
+async function renderCollect() {
+  const data = await Promise.all([
+    api('/api/dorm/missingness/summary'),
+    api('/api/dorm/missingness/priority?limit=20')
+  ]);
+  const s = data[0], pr = data[1];
+  const gate = s.evaluable
+    ? '<span class="font-bold text-success">● 可评估</span>'
+    : '<span class="font-bold text-warning">▲ 证据不足</span>';
+  const reasons = (s.reasons || []).map(r => '<li>' + esc(r) + '</li>').join('')
+    || '<li>没有阻断性问题</li>';
+  const cells = (s.byCell || []).slice().sort((a, b) => (b.missing || 0) - (a.missing || 0)).slice(0, 6);
+  const cellRows = cells.map(c =>
+    '<tr><td>' + esc(c.label) + '</td><td class="mono">' + c.missing + '</td><td class="mono">' + c.students + '</td></tr>'
+  ).join('');
+  const rows = (pr.rows || []).map(r =>
+    '<tr><td class="mono">' + r.rank + '</td><td>' + esc(r.name) + '</td><td class="mono">' + esc(r.studentNo) +
+    '</td><td>' + esc(r.cellLabel) + '</td><td class="mono font-bold">' + num(r.delta, 4) +
+    '</td><td class="mono">' + r.knownCounterparts + '</td></tr>'
+  ).join('');
+
+  let html = card('这份分配能不能当结论', 'verified', `
+    <div class="flex flex-wrap items-center gap-3 mb-4">${gate}
+      <span class="text-sm nx-muted">批次 ${s.batchId == null ? '—' : '#' + esc(s.batchId)}${s.batchName ? ' · ' + esc(s.batchName) : ''}</span>
+      <span class="text-xs nx-muted">模型 ${esc(s.model || '')}</span></div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+      ${statCard('证据覆盖率 Cov', num(s.cov, 3), '门限 ' + num((s.thresholds || {}).covMin, 2), 'insights')}
+      ${statCard('可评估率 Eval', num(s.evalRatio, 3), '门限 ' + num((s.thresholds || {}).evalMin, 2), 'checklist')}
+      ${statCard('零证据同房对', (s.pairsWithoutEvidence ?? 0) + ' / ' + (s.pairs ?? 0), '一维都不可比的对数', 'link_off')}
+      ${statCard('缺答格子', (s.missingCells ?? 0) + ' / ' + (s.totalCells ?? 0), `${s.students ?? 0} 名学生 · 已答率 ${pct(s.knownRate)}`, 'help')}
+    </div>
+    <ul class="list-disc pl-5 text-sm nx-muted space-y-1">${reasons}</ul>`);
+
+  html += card('哪几道题最缺', 'quiz', `
+    <p class="text-sm nx-muted mb-4">按缺答人数排序。缺的人越多，「未知=中性」承担的不确定性越大。</p>
+    <table class="grid-table"><thead><tr><th>题目</th><th>缺答人数</th></tr></thead><tbody>${cellRows}</tbody></table>`);
+
+  html += card('问卷催填优先级（信息价值 Top-K）', 'priority_high', `
+    <p class="text-sm nx-muted mb-4">对每个学生、每道他没答的题，估算「这一格补上后，他所在房间的期望相容度能提高多少」，按从高到低排。
+      <strong>这是期望值不是保证</strong>：它回答「先问谁、问哪题」，不承诺补了名次就涨。<br>
+      候选室友 ${pr.scored ?? 0} 人次评分 · ${(pr.evaluations ?? 0).toLocaleString()} 次评估${pr.truncated ? ' · <span class="text-warning">已截断（预算上限）</span>' : ''}</p>
+    <div class="overflow-auto max-h-[65vh]"><table class="grid-table">
+      <thead><tr><th>#</th><th>学生</th><th>学号</th><th>建议补采</th><th>期望增益 Δ</th><th>已知对照</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="6" class="nx-muted">没有可建议的格子（都答齐了，或者没人有已知对照）</td></tr>'}</tbody></table></div>
+    <p class="text-xs nx-muted mt-4">${esc(pr.note || '')}</p>`);
+
+  $('panel-collect').innerHTML = html;
+  raw({ summary: s, priority: pr });
+}
+
+// ── 启动 ────────────────────────────────────────────────
+guard(async () => {
+  await loadBatches();
+  await loadSummary();
+  renderData();
+});
+</script>
+  <script defer src="/js/nest-ui.js"></script>
+    <script defer src="/libs/animejs/anime.umd.min.js"></script>
+    <script defer src="/libs/countup/countUp.umd.js"></script>
+    <script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+    <script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+    <script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+</body>
+</html>

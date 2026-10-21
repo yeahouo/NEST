@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.PsycheInstrumentMapper">
+
+    <!-- 学工 P14：量表定义。题本（item_json）与分档阈值（band_json）都是 LONGTEXT/TEXT，平台不解释临床意义。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.PsycheInstrument">
+        <id column="id" property="id"/>
+        <result column="code" property="code"/>
+        <result column="name" property="name"/>
+        <result column="source_note" property="sourceNote"/>
+        <result column="item_json" property="itemJson"/>
+        <result column="band_json" property="bandJson"/>
+        <result column="item_count" property="itemCount"/>
+        <result column="guide_text" property="guideText"/>
+        <result column="active" property="active"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        i.id, i.code, i.name, i.source_note, i.item_json, i.band_json, i.item_count,
+        i.guide_text, i.active, i.created_by, i.created_at, i.updated_at, i.deleted
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.PsycheInstrument"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO psyche_instrument
+            (code, name, source_note, item_json, band_json, item_count, guide_text,
+             active, created_by, created_at, updated_at, deleted)
+        VALUES
+            (#{code}, #{name}, #{sourceNote}, #{itemJson}, #{bandJson}, #{itemCount}, #{guideText},
+             #{active}, #{createdBy}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM psyche_instrument i
+        WHERE i.id = #{id} AND i.deleted = 0
+    </select>
+
+    <select id="findByCode" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM psyche_instrument i
+        WHERE i.code = #{code} AND i.deleted = 0
+        LIMIT 1
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM psyche_instrument i
+        WHERE i.deleted = 0
+        <if test="active != null">AND i.active = #{active}</if>
+        ORDER BY i.id ASC
+    </select>
+
+</mapper>

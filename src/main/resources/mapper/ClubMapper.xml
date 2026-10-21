@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.ClubMapper">
+
+    <!-- 学生社团台账（学工 P17，S25a）。member_count 只统计在册成员（quit_date IS NULL），
+         便于列表直接展示；attach_unit 是「挂靠单位」，勿与 club_rating.business_unit 互换。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.Club">
+        <id column="id" property="id"/>
+        <result column="club_name" property="clubName"/>
+        <result column="category" property="category"/>
+        <result column="attach_unit" property="attachUnit"/>
+        <result column="found_date" property="foundDate"/>
+        <result column="leader_name" property="leaderName"/>
+        <result column="advisor_name" property="advisorName"/>
+        <result column="status" property="status"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="member_count" property="memberCount"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        t.id, t.club_name, t.category, t.attach_unit, t.found_date, t.leader_name, t.advisor_name,
+        t.status, t.created_at, t.updated_at, t.deleted,
+        (SELECT COUNT(*) FROM club_member m
+          WHERE m.club_id = t.id AND m.deleted = 0 AND m.quit_date IS NULL) AS member_count
+    </sql>
+
+    <sql id="Joined_From">
+        FROM club t
+    </sql>
+
+    <sql id="List_Filters">
+        <!-- scope（§6）：社团经 club_member.user_id 关联学生；
+             scopeCounselorId 非空时限定「该辅导员名下有学生是本社团成员」 -->
+        <if test="scopeUserId != null">
+            AND EXISTS (SELECT 1 FROM club_member sm
+                        WHERE sm.club_id = t.id AND sm.user_id = #{scopeUserId}
+                          AND sm.deleted = 0 AND sm.quit_date IS NULL)
+        </if>
+        <if test="scopeCounselorId != null">
+            AND EXISTS (SELECT 1 FROM club_member cm
+                        JOIN student_profile csp ON csp.user_id = cm.user_id AND csp.deleted = 0
+                        WHERE cm.club_id = t.id AND cm.deleted = 0 AND cm.quit_date IS NULL
+                          AND csp.counselor_id = #{scopeCounselorId})
+        </if>
+        <if test="category != null and category != ''">AND t.category = #{category}</if>
+        <if test="attachUnit != null and attachUnit != ''">AND t.attach_unit = #{attachUnit}</if>
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (t.club_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR t.attach_unit LIKE CONCAT('%', #{keyword}, '%')
+                 OR t.leader_name LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.Club"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO club
+            (club_name, category, attach_unit, found_date, leader_name, advisor_name, status,
+             created_at, updated_at, deleted)
+        VALUES
+            (#{clubName}, #{category}, #{attachUnit}, #{foundDate}, #{leaderName}, #{advisorName}, #{status},
+             NOW(), NOW(), 0)
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.id = #{id} AND t.deleted = 0
+    </select>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY t.id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="selectCount" resultType="long">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <!-- 注销 CAS：active → deregistered；已注销影响行数 0 → 400 -->
+    <update id="deregister">
+        UPDATE club
+        SET status = 'deregistered', updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- 增量修改（动态 set）：CAS 前置态由服务层显式给 -->
+    <update id="update">
+        UPDATE club
+        <set>
+            <if test="c.clubName != null">club_name = #{c.clubName},</if>
+            <if test="c.category != null">category = #{c.category},</if>
+            <if test="c.attachUnit != null">attach_unit = #{c.attachUnit},</if>
+            <if test="c.foundDate != null">found_date = #{c.foundDate},</if>
+            <if test="c.leaderName != null">leader_name = #{c.leaderName},</if>
+            <if test="c.advisorName != null">advisor_name = #{c.advisorName},</if>
+            <if test="c.status != null">status = #{c.status},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{c.id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <update id="softDelete">
+        UPDATE club
+        SET deleted = 1, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <select id="countByStatus" resultType="long">
+        SELECT COUNT(*)
+        FROM club t
+        WHERE t.deleted = 0
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+    </select>
+
+    <select id="countGroupByCategory" resultType="java.util.LinkedHashMap">
+        SELECT t.category AS category, COUNT(*) AS total
+        FROM club t
+        WHERE t.deleted = 0
+        GROUP BY t.category
+        ORDER BY t.category
+    </select>
+
+    <select id="countGroupByStatus" resultType="java.util.LinkedHashMap">
+        SELECT t.status AS status, COUNT(*) AS total
+        FROM club t
+        WHERE t.deleted = 0
+        GROUP BY t.status
+        ORDER BY t.status
+    </select>
+
+</mapper>

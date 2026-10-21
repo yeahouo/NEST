@@ -1,0 +1,2769 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="nestlight">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>社区管理 · 管理端 · 学工平台</title>
+  <!--
+    主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
+    daisyUI 的组件颜色跟的是 [data-theme] 属性（不是 .dark 类），两处都必须写，
+    与 nest-ui.js 的 paintTheme() 保持一致。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/nest-art3.css">
+</head>
+
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content">
+
+<header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none border-0 p-0">
+  <div class="navbar mx-auto min-h-0 w-full max-w-7xl gap-3 px-5 py-2 md:px-8">
+    <div class="navbar-start gap-3">
+      <a class="flex items-center gap-3" href="teacher-dashboard.html">
+        <span class="nx-logo">
+          <span class="material-symbols-outlined text-xl">terminal</span>
+        </span>
+        <span class="hidden text-lg font-black uppercase tracking-tight sm:inline">学工平台</span>
+      </a>
+      <span class="hidden h-5 w-px bg-base-300 lg:block"></span>
+      <span class="hidden font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65 lg:block">§ 21 · Staff affairs / Community</span>
+    </div>
+    <div class="navbar-end gap-1.5">
+      <a class="btn btn-ghost btn-sm gap-2 rounded-full" href="teacher-dashboard.html">
+        <span class="material-symbols-outlined text-lg">dashboard</span>
+        <span class="hidden md:inline">工作台</span>
+      </a>
+      <button aria-label="切换深色 / 浅色模式" class="nx-icon-btn" data-nx-theme-toggle title="切换深色 / 浅色模式" type="button">
+        <span class="material-symbols-outlined nx-theme-icon-light text-xl">dark_mode</span>
+        <span class="material-symbols-outlined nx-theme-icon-dark text-xl">light_mode</span>
+      </button>
+      <a class="nx-icon-btn" href="settings.html" title="设置">
+        <span class="material-symbols-outlined text-xl">settings</span>
+      </a>
+      <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="logout-btn" type="button">
+        <span class="material-symbols-outlined text-lg">logout</span>
+        <span class="hidden md:inline">退出登录</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="flex-1 px-5 py-8 md:px-8 md:py-12">
+  <div class="mx-auto w-full max-w-7xl">
+
+    <!-- ── 刊头 ─────────────────────────────────────────────────────── -->
+    <header class="mb-8 border-b border-base-300 pb-6">
+      <p class="nx-kicker">§ 21 · Staff / Community</p>
+      <h1 data-nx-split="1" class="mt-2 font-serif text-3xl leading-tight sm:text-4xl lg:text-5xl">社区管理</h1>
+      <p class="mt-4 max-w-2xl text-sm text-base-content/70">
+        管理端覆盖检查批次与评分项、按楼栋 / 房间录入与 CSV 导入、整改复查、晚归台账与处理、违规台账与条款引用、文明宿舍评比与公示、社区活动管理与报名审核 / 签到、统计与导出。
+        辅导员只看自己名下学生的晚归 / 违规记录（后端按 student_profile.counselor_id 收窄），批次发布、文明宿舍评比与活动管理同样向辅导员开放。
+      </p>
+      <p class="mt-3 text-xs leading-relaxed text-base-content/65">
+        本页只登记事实、依据条文与处理建议；<b>处分决定由学校按《学生违纪处分管理规定》程序作出，本平台只登记与跟踪</b>。
+        晚归判定基准照《厦门大学嘉庚学院学生园区管理规定》第七条：园区正常出入时间为 <b>6:00-23:30</b>，断电时间为 <b>23:30</b>、次日 <b>6:00</b> 恢复供电（断电时间只作制度提示，不参与判定）。
+      </p>
+      <p class="mt-3 text-xs leading-relaxed text-base-content/65" id="role-note">正在确认当前账号权限……</p>
+    </header>
+
+    <div id="manage-message" class="alert hidden mb-6 items-start gap-2"></div>
+
+    <!-- ── 状态发丝格：静态 HTML，JS 只改 textContent ─────────────── -->
+    <section class="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 sm:grid-cols-3 lg:grid-cols-6" id="stat-row">
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">检查批次</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-batches">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">检查记录</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-inspections">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">平均分</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-avg">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">待复查整改</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-rectify">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">晚归 / 夜不归宿</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-lates">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">违规台账</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-violations">—</dd>
+      </div>
+    </section>
+
+    <!-- ── 页签 ─────────────────────────────────────────────────────── -->
+    <section class="mb-8 flex flex-wrap items-center gap-2 rounded-box border border-base-300 bg-base-100 p-1.5" id="community-tabs">
+      <button class="tab-btn nx-tab is-active" id="tab-batch" type="button">批次与评分项</button>
+      <button class="tab-btn nx-tab" id="tab-inspection" type="button">检查与复查</button>
+      <button class="tab-btn nx-tab" id="tab-late" type="button">晚归与违规台账</button>
+      <button class="tab-btn nx-tab" id="tab-civil" type="button">文明宿舍评比</button>
+      <button class="tab-btn nx-tab" id="tab-activity" type="button">活动管理与签到</button>
+      <button class="tab-btn nx-tab" id="tab-insight" type="button">统计与导出</button>
+    </section>
+
+    <!-- ══ 面板 1：检查批次与评分项 ═════════════════════════════════ -->
+    <section class="card mb-6 rounded-box border border-base-300 bg-base-200 shadow-xl" id="panel-batch">
+      <div class="p-6 md:p-7">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Batch · 检查批次</p>
+            <h2 class="mt-2 font-serif text-2xl">检查批次与评分项</h2>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button class="btn btn-ghost btn-sm rounded-full" id="batch-refresh" type="button">刷新</button>
+            <button class="btn btn-primary btn-sm gap-2 rounded-full" id="batch-new" type="button">
+              <span class="material-symbols-outlined text-lg">add</span><span>新建批次</span>
+            </button>
+          </div>
+        </div>
+        <p class="mt-4 text-xs leading-relaxed text-base-content/60">
+          批次状态机：草稿 draft → 检查中 checking → 已评分 scored；<b>已公布 published / 已结束 finished</b> 后学生端可见（学生端只看到已公布批次的记录）。
+          评分项由学校在批次里录入；平台自带一套<b>演示评分项（用电安全 / 消防通道 / 内务卫生 / 财物与家具 / 文明行为，各 20 分），非学校发布口径</b>，正式评分表以学校发布为准。
+        </p>
+
+        <div class="mt-5 flex flex-wrap items-end gap-3">
+          <label class="form-control w-48">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</span>
+            <select class="select select-bordered select-sm" id="batch-status">
+              <option value="">全部状态</option>
+              <option value="draft">草稿 draft</option>
+              <option value="checking">检查中 checking</option>
+              <option value="scored">已评分 scored</option>
+              <option value="published">已公布 published</option>
+              <option value="finished">已结束 finished</option>
+            </select>
+          </label>
+          <label class="form-control w-44">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学期</span>
+            <input class="input input-bordered input-sm" id="batch-term" placeholder="如 2025-2026-1" type="text"/>
+          </label>
+          <label class="form-control w-52">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关键词</span>
+            <input class="input input-bordered input-sm" id="batch-keyword" placeholder="批次名称 / 楼栋" type="text"/>
+          </label>
+          <button class="btn btn-primary btn-sm rounded-full" id="batch-search" type="button">查询</button>
+        </div>
+
+        <div class="mt-5 overflow-x-auto">
+          <table class="w-full border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-base-300">
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">批次</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学期 / 类型</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">范围 / 起止</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">记录 / 均分</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">操作</th>
+              </tr>
+            </thead>
+            <tbody id="batch-list"></tbody>
+          </table>
+        </div>
+        <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="batch-empty">还没有检查批次：点「新建批次」创建本学期的检查任务。</p>
+
+        <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div class="rounded-box border border-base-300 bg-base-100 p-5">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <p class="text-sm font-semibold">评分项与批次统计</p>
+              <span class="badge badge-ghost badge-sm font-mono" id="batch-pick">未选择批次</span>
+            </div>
+            <div class="mt-4 grid grid-cols-1 gap-3" id="criteria-list"></div>
+            <p class="hidden rounded-box border border-dashed border-base-300 p-6 text-center text-sm text-base-content/60" id="criteria-empty">在批次列表点「评分项」查看该批次的评分项定义。</p>
+          </div>
+          <div class="rounded-box border border-base-300 bg-base-100 p-5">
+            <p class="text-sm font-semibold">批次统计 <span class="font-mono text-[11px] text-base-content/60" id="batch-stats-label">未选择批次</span></p>
+            <div class="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 sm:grid-cols-3">
+              <div class="flex flex-col gap-1 bg-base-100 p-4">
+                <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">记录数</dt>
+                <dd class="mt-1 font-serif text-xl" id="bs-total">—</dd>
+              </div>
+              <div class="flex flex-col gap-1 bg-base-100 p-4">
+                <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">平均分</dt>
+                <dd class="mt-1 font-serif text-xl" id="bs-avg">—</dd>
+              </div>
+              <div class="flex flex-col gap-1 bg-base-100 p-4">
+                <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">最低 / 最高</dt>
+                <dd class="mt-1 font-mono text-sm" id="bs-range">—</dd>
+              </div>
+              <div class="flex flex-col gap-1 bg-base-100 p-4">
+                <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">优秀 / 良好</dt>
+                <dd class="mt-1 font-mono text-sm" id="bs-good">—</dd>
+              </div>
+              <div class="flex flex-col gap-1 bg-base-100 p-4">
+                <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">合格 / 不合格</dt>
+                <dd class="mt-1 font-mono text-sm" id="bs-fail">—</dd>
+              </div>
+              <div class="flex flex-col gap-1 bg-base-100 p-4">
+                <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">待整改 / 已提交</dt>
+                <dd class="mt-1 font-mono text-sm" id="bs-rectify">—</dd>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 面板 2：检查记录与整改复查 ═══════════════════════════════ -->
+    <section class="card mb-6 hidden rounded-box border border-base-300 bg-base-200 shadow-xl" id="panel-inspection">
+      <div class="p-6 md:p-7">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Inspection · 检查记录</p>
+            <h2 class="mt-2 font-serif text-2xl">按楼栋 / 房间录入与 CSV 导入</h2>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button class="btn btn-ghost btn-sm rounded-full" id="inspection-refresh" type="button">刷新</button>
+            <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="inspection-import" type="button">
+              <span class="material-symbols-outlined text-lg">upload</span><span>CSV 导入</span>
+            </button>
+            <button class="btn btn-primary btn-sm gap-2 rounded-full" id="inspection-new" type="button">
+              <span class="material-symbols-outlined text-lg">add</span><span>录入检查</span>
+            </button>
+          </div>
+        </div>
+        <p class="mt-4 text-xs leading-relaxed text-base-content/60">
+          录入按「批次 + 楼栋 + 房号」逐条评分；CSV 导入的表头与批次评分项 key 对齐（building / roomNo 必填，评分子项按批次 criteria 的 key 给分）。
+          平台没有门禁硬件，<b>刷卡时间由园区门禁系统导出后导入</b>；人工录入与 CSV 导入的 source 分别记为 manual / csv。
+        </p>
+
+        <div class="mt-5 flex flex-wrap items-end gap-3">
+          <label class="form-control w-52">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">批次</span>
+            <select class="select select-bordered select-sm" id="filter-batch"><option value="">全部批次</option></select>
+          </label>
+          <label class="form-control w-36">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">楼栋</span>
+            <input class="input input-bordered input-sm" id="filter-building" placeholder="如 A 栋" type="text"/>
+          </label>
+          <label class="form-control w-36">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">房号</span>
+            <input class="input input-bordered input-sm" id="filter-room" placeholder="如 A-412" type="text"/>
+          </label>
+          <label class="form-control w-40">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">整改状态</span>
+            <select class="select select-bordered select-sm" id="filter-rectify">
+              <option value="">全部</option>
+              <option value="none">无需整改 none</option>
+              <option value="pending">待整改 pending</option>
+              <option value="submitted">已提交说明 submitted</option>
+              <option value="accepted">复查通过 accepted</option>
+              <option value="rejected">复查未通过 rejected</option>
+            </select>
+          </label>
+          <label class="form-control w-40">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">来源</span>
+            <select class="select select-bordered select-sm" id="filter-source">
+              <option value="">全部来源</option>
+              <option value="manual">人工录入 manual</option>
+              <option value="csv">CSV 导入 csv</option>
+            </select>
+          </label>
+          <button class="btn btn-primary btn-sm rounded-full" id="inspection-search" type="button">查询</button>
+        </div>
+
+        <div class="mt-5 overflow-x-auto">
+          <table class="w-full border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-base-300">
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">批次 / 房间</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">检查日期</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">总分 / 等级</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">问题</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">整改</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">来源</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">操作</th>
+              </tr>
+            </thead>
+            <tbody id="inspection-list"></tbody>
+          </table>
+        </div>
+        <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="inspection-empty">当前筛选条件下没有检查记录。</p>
+        <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+          <p class="font-mono text-xs text-base-content/65" id="insp-total"></p>
+          <div class="flex items-center gap-2">
+            <button class="btn btn-ghost btn-sm rounded-full" id="insp-prev" type="button">上一页</button>
+            <span class="font-mono text-xs" id="insp-page">1 / 1</span>
+            <button class="btn btn-ghost btn-sm rounded-full" id="insp-next" type="button">下一页</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 面板 3：晚归台账与违规台账 ═══════════════════════════════ -->
+    <section class="card mb-6 hidden rounded-box border border-base-300 bg-base-200 shadow-xl" id="panel-late">
+      <div class="p-6 md:p-7">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Late · 晚归台账</p>
+            <h2 class="mt-2 font-serif text-2xl">晚归与夜不归宿台账</h2>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button class="btn btn-ghost btn-sm rounded-full" id="late-refresh" type="button">刷新</button>
+            <button class="btn btn-primary btn-sm gap-2 rounded-full" id="late-new" type="button">
+              <span class="material-symbols-outlined text-lg">add</span><span>登记记录</span>
+            </button>
+          </div>
+        </div>
+        <p class="mt-4 text-xs leading-relaxed text-base-content/60">
+          判定基准 <b>6:00-23:30</b>（第七条）：在该时段之外出入属晚归，整夜未归为夜不归宿；断电时间 23:30 / 次日 6:00 只作制度提示，不参与判定。
+          来源 source：门禁刷卡 card（由园区门禁系统导出后导入）、查房 check、上报 report。处理只能到批评教育 / 通报批评 / 记录备查或建议等级，<b>正式处分走学校程序，本平台只登记与跟踪</b>。
+          辅导员账号只能看到自己名下学生的记录（后端按 counselor_id 收窄）。
+        </p>
+
+        <div class="mt-5 flex flex-wrap items-end gap-3">
+          <label class="form-control w-36">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">类型</span>
+            <select class="select select-bordered select-sm" id="late-type">
+              <option value="">全部类型</option>
+              <option value="late">晚归 late</option>
+              <option value="absent">夜不归宿 absent</option>
+            </select>
+          </label>
+          <label class="form-control w-40">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">处理状态</span>
+            <select class="select select-bordered select-sm" id="late-handling">
+              <option value="">全部状态</option>
+              <option value="pending">待处理 pending</option>
+              <option value="contacted">已联系 contacted</option>
+              <option value="closed">已了结 closed</option>
+            </select>
+          </label>
+          <label class="form-control w-32">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">是否核实</span>
+            <select class="select select-bordered select-sm" id="late-confirmed">
+              <option value="">全部</option>
+              <option value="1">已核实</option>
+              <option value="0">未核实</option>
+            </select>
+          </label>
+          <label class="form-control w-36">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">楼栋</span>
+            <input class="input input-bordered input-sm" id="late-building" placeholder="如 A 栋" type="text"/>
+          </label>
+          <label class="form-control w-44">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">起始日期</span>
+            <input class="input input-bordered input-sm" id="late-start" type="date"/>
+          </label>
+          <label class="form-control w-44">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">截止日期</span>
+            <input class="input input-bordered input-sm" id="late-end" type="date"/>
+          </label>
+          <label class="form-control w-52">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关键词</span>
+            <input class="input input-bordered input-sm" id="late-keyword" placeholder="姓名 / 学号 / 房号" type="text"/>
+          </label>
+          <button class="btn btn-primary btn-sm rounded-full" id="late-search" type="button">查询</button>
+        </div>
+
+        <div class="mt-5 overflow-x-auto">
+          <table class="w-full border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-base-300">
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">日期 / 类型</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">出 / 回</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">来源 / 核实</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生说明</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">处理</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">操作</th>
+              </tr>
+            </thead>
+            <tbody id="late-list"></tbody>
+          </table>
+        </div>
+        <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="late-empty">当前筛选条件下没有晚归记录。</p>
+        <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+          <p class="font-mono text-xs text-base-content/65" id="late-total"></p>
+          <div class="flex items-center gap-2">
+            <button class="btn btn-ghost btn-sm rounded-full" id="late-prev" type="button">上一页</button>
+            <span class="font-mono text-xs" id="late-page">1 / 1</span>
+            <button class="btn btn-ghost btn-sm rounded-full" id="late-next" type="button">下一页</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card mb-6 hidden rounded-box border border-base-300 bg-base-200 shadow-xl" id="panel-violation">
+      <div class="p-6 md:p-7">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Violation · 违规台账</p>
+            <h2 class="mt-2 font-serif text-2xl">违规台账与条款引用</h2>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button class="btn btn-ghost btn-sm rounded-full" id="violation-refresh" type="button">刷新</button>
+            <button class="btn btn-primary btn-sm gap-2 rounded-full" id="violation-new" type="button">
+              <span class="material-symbols-outlined text-lg">add</span><span>登记违规</span>
+            </button>
+          </div>
+        </div>
+        <p class="mt-4 text-xs leading-relaxed text-base-content/60">
+          违规类型对齐《学生违纪处分管理规定》第四十一条园区违规十三类与第四十二条消防条款；每条必须引用依据条文（ruleRef），
+          处理建议只到批评教育 education / 通报批评 circulated / 警告 warning / 严重警告 serious_warning / 记录备查 recorded，
+          <b>处分决定由学校按《学生违纪处分管理规定》程序作出，本平台只登记与跟踪</b>。辅导员只能看自己名下学生的台账。
+        </p>
+
+        <div class="mt-5 flex flex-wrap items-end gap-3">
+          <label class="form-control w-40">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">类型</span>
+            <select class="select select-bordered select-sm" id="violation-type">
+              <option value="">全部类型</option>
+              <option value="late">晚归 late</option>
+              <option value="absence">夜不归宿 absence</option>
+              <option value="appliance">违规电器 appliance</option>
+              <option value="fire">消防隐患 fire</option>
+              <option value="pet">饲养宠物 pet</option>
+              <option value="rent">出租床位 rent</option>
+              <option value="climb">攀爬进入 climb</option>
+              <option value="noise">噪音扰民 noise</option>
+              <option value="other">其他 other</option>
+            </select>
+          </label>
+          <label class="form-control w-40">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">处理建议</span>
+            <select class="select select-bordered select-sm" id="violation-advice">
+              <option value="">全部建议</option>
+              <option value="education">批评教育 education</option>
+              <option value="circulated">通报批评 circulated</option>
+              <option value="warning">警告 warning</option>
+              <option value="serious_warning">严重警告 serious_warning</option>
+              <option value="recorded">记录备查 recorded</option>
+            </select>
+          </label>
+          <label class="form-control w-40">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">处理状态</span>
+            <select class="select select-bordered select-sm" id="violation-handling">
+              <option value="">全部状态</option>
+              <option value="pending">待处理 pending</option>
+              <option value="notified">已告知 notified</option>
+              <option value="closed">已了结 closed</option>
+            </select>
+          </label>
+          <label class="form-control w-52">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关键词</span>
+            <input class="input input-bordered input-sm" id="violation-keyword" placeholder="姓名 / 学号 / 事实" type="text"/>
+          </label>
+          <button class="btn btn-primary btn-sm rounded-full" id="violation-search" type="button">查询</button>
+        </div>
+
+        <div class="mt-5 overflow-x-auto">
+          <table class="w-full border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-base-300">
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">发生时间 / 类型</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">事实</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">依据条文</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">建议</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">操作</th>
+              </tr>
+            </thead>
+            <tbody id="violation-list"></tbody>
+          </table>
+        </div>
+        <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="violation-empty">当前筛选条件下没有违规登记。</p>
+        <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+          <p class="font-mono text-xs text-base-content/65" id="violation-total"></p>
+          <div class="flex items-center gap-2">
+            <button class="btn btn-ghost btn-sm rounded-full" id="violation-prev" type="button">上一页</button>
+            <span class="font-mono text-xs" id="violation-page">1 / 1</span>
+            <button class="btn btn-ghost btn-sm rounded-full" id="violation-next" type="button">下一页</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 面板 4：文明宿舍评比与公示 ═══════════════════════════════ -->
+    <section class="card mb-6 hidden rounded-box border border-base-300 bg-base-200 shadow-xl" id="panel-civil">
+      <div class="p-6 md:p-7">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Civil · 文明宿舍</p>
+            <h2 class="mt-2 font-serif text-2xl">文明宿舍评比与公示</h2>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button class="btn btn-ghost btn-sm rounded-full" id="civil-refresh" type="button">刷新</button>
+            <button class="btn btn-primary btn-sm gap-2 rounded-full" id="civil-compute" type="button">
+              <span class="material-symbols-outlined text-lg">calculate</span><span>按学期计算</span>
+            </button>
+          </div>
+        </div>
+        <p class="mt-4 text-xs leading-relaxed text-base-content/60">
+          按《厦门大学嘉庚学院学生园区管理规定》第十七条「定期组织对宿舍内务进行检查和评分，并及时在全校公布；学校每学期开展一次校级「文明宿舍」评比」：
+          计算按学期汇总<b>已公布批次</b>的均分、给出楼栋内排名；名额与比例学校未公布，系统<b>不自动截断名额</b>，获奖由管理员人工确认。
+          公示对学生与教职工<b>登录可见</b>，只露楼栋 / 房号 / 均分 / 等级，不含姓名与学号。
+        </p>
+
+        <div class="mt-5 flex flex-wrap items-end gap-3">
+          <label class="form-control w-44">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学期</span>
+            <input class="input input-bordered input-sm" id="civil-term" placeholder="如 2025-2026-1" type="text"/>
+          </label>
+          <label class="form-control w-36">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">楼栋</span>
+            <input class="input input-bordered input-sm" id="civil-building" placeholder="如 A 栋" type="text"/>
+          </label>
+          <label class="form-control w-40">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">获奖</span>
+            <select class="select select-bordered select-sm" id="civil-awarded">
+              <option value="">全部</option>
+              <option value="1">已获评</option>
+              <option value="0">未获评</option>
+            </select>
+          </label>
+          <button class="btn btn-primary btn-sm rounded-full" id="civil-search" type="button">查询</button>
+        </div>
+
+        <div class="mt-5 overflow-x-auto">
+          <table class="w-full border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-base-300">
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">楼栋 / 房号</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学期</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">人数</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">均分 / 最低</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">楼栋排名</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">获奖 / 公示</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">操作</th>
+              </tr>
+            </thead>
+            <tbody id="civil-list"></tbody>
+          </table>
+        </div>
+        <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="civil-empty">当前筛选条件下还没有文明宿舍记录：点「按学期计算」从已公布批次汇总。</p>
+      </div>
+    </section>
+
+    <!-- ══ 面板 5：活动管理与报名审核 / 签到 ═══════════════════════ -->
+    <section class="card mb-6 hidden rounded-box border border-base-300 bg-base-200 shadow-xl" id="panel-activity">
+      <div class="p-6 md:p-7">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Activity · 社区活动</p>
+            <h2 class="mt-2 font-serif text-2xl">社区活动管理与报名审核 / 签到</h2>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button class="btn btn-ghost btn-sm rounded-full" id="activity-refresh" type="button">刷新</button>
+            <button class="btn btn-primary btn-sm gap-2 rounded-full" id="activity-new" type="button">
+              <span class="material-symbols-outlined text-lg">add</span><span>新建活动</span>
+            </button>
+          </div>
+        </div>
+        <p class="mt-4 text-xs leading-relaxed text-base-content/60">
+          活动类型对齐学校实际举办的赛事（园区文化节、宿舍风采大赛、宿舍吉尼斯挑战赛、设计大赛、志愿服务等）；学校办赛为「第一轮探访 → 决赛」两阶段，
+          平台体现为活动说明与报名 → 审核 → 签到（已报名 signed → 已通过 approved → 已参加 attended / 未参加 absent）。
+          同一活动同一学生只允许报名一次（唯一约束），获奖等级与积分只由管理员登记；草稿活动学生端不可见。
+        </p>
+
+        <div class="mt-5 flex flex-wrap items-end gap-3">
+          <label class="form-control w-44">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">类型</span>
+            <select class="select select-bordered select-sm" id="activity-type">
+              <option value="">全部类型</option>
+              <option value="culture_festival">园区文化节</option>
+              <option value="room_contest">宿舍风采大赛</option>
+              <option value="room_olympic">宿舍吉尼斯</option>
+              <option value="design_contest">设计大赛</option>
+              <option value="volunteer">志愿服务</option>
+              <option value="other">其他</option>
+            </select>
+          </label>
+          <label class="form-control w-40">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</span>
+            <select class="select select-bordered select-sm" id="activity-status">
+              <option value="">全部状态</option>
+              <option value="draft">草稿 draft</option>
+              <option value="signup">报名中 signup</option>
+              <option value="ongoing">进行中 ongoing</option>
+              <option value="finished">已结束 finished</option>
+              <option value="cancelled">已取消 cancelled</option>
+            </select>
+          </label>
+          <label class="form-control w-52">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关键词</span>
+            <input class="input input-bordered input-sm" id="activity-keyword" placeholder="活动名称 / 地点" type="text"/>
+          </label>
+          <button class="btn btn-primary btn-sm rounded-full" id="activity-search" type="button">查询</button>
+        </div>
+
+        <div class="mt-5 overflow-x-auto">
+          <table class="w-full border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-base-300">
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">活动</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">类型 / 级别</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">时间 / 地点</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">报名截止 / 名额</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">报名数</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">操作</th>
+              </tr>
+            </thead>
+            <tbody id="activity-list"></tbody>
+          </table>
+        </div>
+        <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="activity-empty">当前筛选条件下没有活动。</p>
+
+        <div class="mt-8 border-t border-base-300 pt-6">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Signup · 报名审核与签到</p>
+              <h3 class="mt-2 font-serif text-xl">报名审核与签到</h3>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="badge badge-ghost badge-sm font-mono" id="signup-pick">未选择活动</span>
+              <a class="btn btn-ghost btn-sm rounded-full" href="/api/community/export?type=civil-rooms">文明宿舍导出</a>
+            </div>
+          </div>
+          <div class="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 lg:grid-cols-4">
+            <div class="flex flex-col gap-1 bg-base-100 p-4">
+              <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">所选活动</dt>
+              <dd class="mt-1 font-serif text-lg" id="ss-title">—</dd>
+            </div>
+            <div class="flex flex-col gap-1 bg-base-100 p-4">
+              <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">报名数 / 名额</dt>
+              <dd class="mt-1 font-mono text-sm" id="ss-signup">—</dd>
+            </div>
+            <div class="flex flex-col gap-1 bg-base-100 p-4">
+              <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">报名截止</dt>
+              <dd class="mt-1 font-mono text-sm" id="ss-deadline">—</dd>
+            </div>
+            <div class="flex flex-col gap-1 bg-base-100 p-4">
+              <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">活动状态</dt>
+              <dd class="mt-1 font-mono text-sm" id="ss-status">—</dd>
+            </div>
+          </div>
+
+          <p class="mt-4 rounded-box border border-warning/40 bg-warning/10 p-3 text-xs leading-relaxed text-base-content/75">
+            口径说明（如实记录后端现状）：P15 后端<b>没有「按活动读取报名明细 / 报名统计」的路由</b>。`/api/community/activities/{id}/signup` 是<b>学生本人报名接口</b>，辅导员调用返回 403「仅学生本人可报名活动（未找到你的学生档案）」；`signupStats` 只是服务层内部方法，仅被 review / attendance 复用，没有独立路由。因此本面板不再展示「按活动的报名统计」，改为：<b>活动列表里的报名数（signupCount）与名额（quota）</b>＋<b>按 signupId / studentId 提交审核与签到</b>。报名 id 从学生端「我的活动」或辅导员线下报名台账取得，平台暂不提供只读查询入口。
+          </p>
+
+          <div class="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <div class="rounded-box border border-base-300 bg-base-100 p-5">
+              <h4 class="font-serif text-lg">报名审核（signed → approved / rejected）</h4>
+              <label class="form-control mt-3">
+                <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">报名 signupId 或学生 studentId（逗号 / 空格分隔，可多条）</span>
+                <input class="input input-bordered input-sm" id="review-ids" placeholder="如 9504 或 6" type="text"/>
+              </label>
+              <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label class="form-control">
+                  <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">审核动作</span>
+                  <select class="select select-bordered select-sm" id="review-action-inline">
+                    <option value="approve">approve · 通过</option>
+                    <option value="reject">reject · 驳回</option>
+                  </select>
+                </label>
+                <label class="form-control">
+                  <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">驳回原因（reject 时填写）</span>
+                  <input class="input input-bordered input-sm" id="review-reason-inline" placeholder="如：不符合参赛宿舍条件" type="text"/>
+                </label>
+              </div>
+              <div class="mt-4 flex items-center justify-end">
+                <button class="btn btn-primary btn-sm rounded-full" id="review-submit" type="button">提交审核</button>
+              </div>
+            </div>
+
+            <div class="rounded-box border border-base-300 bg-base-100 p-5">
+              <h4 class="font-serif text-lg">签到置位（attended / absent，可登记奖项）</h4>
+              <label class="form-control mt-3">
+                <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">报名 signupId 或学生 studentId（逗号 / 空格分隔，可多条）</span>
+                <input class="input input-bordered input-sm" id="attend-ids" placeholder="如 9504 或 6" type="text"/>
+              </label>
+              <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <label class="form-control">
+                  <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">签到状态</span>
+                  <select class="select select-bordered select-sm" id="attend-status">
+                    <option value="attended">attended · 已参加</option>
+                    <option value="absent">absent · 未参加</option>
+                  </select>
+                </label>
+                <label class="form-control">
+                  <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">奖项 award</span>
+                  <select class="select select-bordered select-sm" id="attend-award">
+                    <option value="">不登记</option>
+                    <option value="none">none</option>
+                    <option value="first">first · 一等奖</option>
+                    <option value="second">second · 二等奖</option>
+                    <option value="third">third · 三等奖</option>
+                    <option value="excellent">excellent · 优秀奖</option>
+                  </select>
+                </label>
+                <label class="form-control">
+                  <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">积分 score</span>
+                  <input class="input input-bordered input-sm" id="attend-score" min="0" placeholder="可留空" type="number"/>
+                </label>
+              </div>
+              <div class="mt-4 flex items-center justify-end">
+                <button class="btn btn-primary btn-sm rounded-full" id="attend-submit" type="button">提交签到</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-5 overflow-x-auto">
+            <table class="w-full border-collapse text-sm">
+              <thead>
+                <tr class="border-b border-base-300">
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">最近一次处理结果</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">报名 id / 学生</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">宿舍</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">获奖 / 积分</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">备注</th>
+                </tr>
+              </thead>
+              <tbody id="signup-list"></tbody>
+            </table>
+          </div>
+          <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="signup-empty">先在上方活动列表点「审核报名 / 签到」选择活动；提交审核或签到后这里显示后端返回的处理结果。</p>
+          <div id="signup-message" class="alert hidden mt-4 items-start gap-2"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 面板 6：统计与导出 ═══════════════════════════════════════ -->
+    <section class="card mb-6 hidden rounded-box border border-base-300 bg-base-200 shadow-xl" id="panel-insight">
+      <div class="p-6 md:p-7">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Insight · 统计与导出</p>
+            <h2 class="mt-2 font-serif text-2xl">统计与导出</h2>
+          </div>
+          <button class="btn btn-ghost btn-sm rounded-full" id="insight-refresh" type="button">刷新统计</button>
+        </div>
+        <div class="mt-5 flex flex-wrap items-end gap-3">
+          <label class="form-control w-44">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学期</span>
+            <input class="input input-bordered input-sm" id="insight-term" placeholder="如 2025-2026-1" type="text"/>
+          </label>
+          <label class="form-control w-44">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">起始日期</span>
+            <input class="input input-bordered input-sm" id="insight-start" type="date"/>
+          </label>
+          <label class="form-control w-44">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">截止日期</span>
+            <input class="input input-bordered input-sm" id="insight-end" type="date"/>
+          </label>
+          <button class="btn btn-primary btn-sm rounded-full" id="insight-apply" type="button">应用筛选</button>
+        </div>
+
+        <div class="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div class="rounded-box border border-base-300 bg-base-100 p-5">
+            <p class="text-sm font-semibold">检查批次与记录</p>
+            <div class="mt-4 grid grid-cols-2 gap-3 text-xs" id="insight-batch"></div>
+          </div>
+          <div class="rounded-box border border-base-300 bg-base-100 p-5">
+            <p class="text-sm font-semibold">整改闭环</p>
+            <div class="mt-4 grid grid-cols-2 gap-3 text-xs" id="insight-rectify"></div>
+          </div>
+          <div class="rounded-box border border-base-300 bg-base-100 p-5">
+            <p class="text-sm font-semibold">晚归与违规</p>
+            <div class="mt-4 grid grid-cols-2 gap-3 text-xs" id="insight-late"></div>
+          </div>
+          <div class="rounded-box border border-base-300 bg-base-100 p-5">
+            <p class="text-sm font-semibold">活动与文明宿舍</p>
+            <div class="mt-4 grid grid-cols-2 gap-3 text-xs" id="insight-more"></div>
+          </div>
+        </div>
+
+        <div class="mt-8 border-t border-base-300 pt-6">
+          <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Export · CSV 导出</p>
+          <p class="mt-3 text-xs leading-relaxed text-base-content/60">
+            导出为 UTF-8 带 BOM 的 CSV（Excel 直接双击可读）；导出按当前筛选条件过滤，未登录会跳转登录页。
+          </p>
+          <div class="mt-4 flex flex-wrap items-end gap-3">
+            <label class="form-control w-48">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">导出内容</span>
+              <select class="select select-bordered select-sm" id="export-type">
+                <option value="inspections">检查记录 inspections</option>
+                <option value="lates">晚归台账 lates</option>
+                <option value="violations">违规台账 violations</option>
+                <option value="civil-rooms">文明宿舍 civil-rooms</option>
+              </select>
+            </label>
+            <label class="form-control w-36">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">楼栋</span>
+              <input class="input input-bordered input-sm" id="export-building" placeholder="如 A 栋" type="text"/>
+            </label>
+            <label class="form-control w-36">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学期</span>
+              <input class="input input-bordered input-sm" id="export-term" placeholder="如 2025-2026-1" type="text"/>
+            </label>
+            <button class="btn btn-primary btn-sm gap-2 rounded-full" id="export-run" type="button">
+              <span class="material-symbols-outlined text-lg">download</span><span>导出 CSV</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer class="nx-hairline-t border-base-300 px-5 py-6 md:px-8">
+  <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
+    <p class="font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65">学工平台 · Community · Staff</p>
+    <p class="text-xs text-base-content/60">处分决定由学校按《学生违纪处分管理规定》程序作出，本平台只登记与跟踪。</p>
+  </div>
+</footer>
+
+<!-- ── 弹窗：新建 / 编辑批次 ─────────────────────────────────────── -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="batch-dialog">
+  <div class="card nx-dialog w-full max-w-2xl p-6">
+    <h2 class="font-serif text-2xl" id="batch-dialog-title">新建检查批次</h2>
+    <p class="mt-2 text-xs text-base-content/65">批次名称、学期与检查类型必填；评分项留空则由后端使用演示评分项。</p>
+    <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">批次名称</span>
+        <input class="input input-bordered input-sm" id="batch-name" placeholder="如 2025-2026 学年第一学期宿舍卫生检查" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学期</span>
+        <input class="input input-bordered input-sm" id="batch-form-term" placeholder="2025-2026-1" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">检查类型</span>
+        <select class="select select-bordered select-sm" id="batch-checktype">
+          <option value="hygiene">内务卫生 hygiene</option>
+          <option value="safety">安全检查 safety</option>
+          <option value="joint">联合检查 joint</option>
+          <option value="other">其他 other</option>
+        </select>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">检查范围（楼栋）</span>
+        <input class="input input-bordered input-sm" id="batch-scope" placeholder="如 A 栋（留空为全部）" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">开始日期</span>
+        <input class="input input-bordered input-sm" id="batch-start" type="date"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">结束日期</span>
+        <input class="input input-bordered input-sm" id="batch-end" type="date"/>
+      </label>
+    </div>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">备注</span>
+      <input class="input input-bordered input-sm" id="batch-note" placeholder="批次说明；后端会在使用演示评分项时追加提示" type="text"/>
+    </label>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">评分项 JSON（留空用演示评分项）</span>
+      <textarea class="textarea textarea-bordered font-mono text-xs" id="batch-criteria" placeholder='[{"key":"power","name":"用电安全","max":20,"ruleRef":"园区管理规定第十条"}]' rows="4"></textarea>
+    </label>
+    <div id="batch-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="batch-cancel" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="batch-save" type="button">保存批次</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 弹窗：录入检查记录 ───────────────────────────────────────── -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="inspection-dialog">
+  <div class="card nx-dialog max-h-[90vh] w-full max-w-2xl overflow-y-auto p-6">
+    <h2 class="font-serif text-2xl">录入检查记录</h2>
+    <p class="mt-2 text-xs text-base-content/65">按「批次 + 楼栋 + 房号」录入；分项按批次评分项的 key 给分，总分由后端按评分项求和。</p>
+    <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">批次</span>
+        <select class="select select-bordered select-sm" id="insp-batch"><option value="">请选择批次</option></select>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">检查日期</span>
+        <input class="input input-bordered input-sm" id="insp-date" type="date"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">楼栋</span>
+        <input class="input input-bordered input-sm" id="insp-building" placeholder="如 A 栋" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">房号</span>
+        <input class="input input-bordered input-sm" id="insp-room" placeholder="如 A-412" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">宿舍长学号（可选）</span>
+        <input class="input input-bordered input-sm" id="insp-leader" placeholder="留空则后端按房号推断" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">是否需要整改</span>
+        <select class="select select-bordered select-sm" id="insp-rectify">
+          <option value="">按等级自动（不合格自动要求整改）</option>
+          <option value="1">需要整改</option>
+          <option value="0">不需要整改</option>
+        </select>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">整改截止日期</span>
+        <input class="input input-bordered input-sm" id="insp-deadline" type="date"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">来源</span>
+        <select class="select select-bordered select-sm" id="insp-source">
+          <option value="manual">人工录入 manual</option>
+          <option value="csv">CSV 导入 csv</option>
+        </select>
+      </label>
+    </div>
+    <div class="mt-5">
+      <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">分项得分（按批次评分项）</p>
+      <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2" id="insp-item-list"></div>
+      <p class="mt-3 text-xs text-base-content/60" id="insp-item-note">选择批次后显示该批次的评分项；留空的评分项不计入总分。</p>
+    </div>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">问题描述</span>
+      <textarea class="textarea textarea-bordered" id="insp-problems" placeholder="如：桌面物品摆放较乱" rows="3"></textarea>
+    </label>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">备注</span>
+      <input class="input input-bordered input-sm" id="insp-note" type="text"/>
+    </label>
+    <div id="inspection-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="inspection-cancel" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="inspection-save" type="button">保存记录</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 弹窗：CSV 导入 ───────────────────────────────────────────── -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="import-dialog">
+  <div class="card nx-dialog max-h-[90vh] w-full max-w-2xl overflow-y-auto p-6">
+    <h2 class="font-serif text-2xl">CSV 导入检查记录</h2>
+    <p class="mt-2 text-xs leading-relaxed text-base-content/65">
+      表头需含 building、roomNo（可加 checkDate、leaderStudentId、problems、rectifyRequired、rectifyDeadline 与批次评分项 key）；
+      平台没有门禁硬件，<b>刷卡时间由园区门禁系统导出后导入</b>，本处导入的是检查评分行。
+    </p>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">批次</span>
+      <select class="select select-bordered select-sm" id="import-batch"><option value="">请选择批次</option></select>
+    </label>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">CSV 原文（含表头行）</span>
+      <textarea class="textarea textarea-bordered font-mono text-xs" id="import-csv" placeholder="building,roomNo,checkDate,power,fire,hygiene,property,conduct,problems&#10;A 栋,A-412,2026-09-18,16,17,17,16,16,桌面物品摆放较乱" rows="8"></textarea>
+    </label>
+    <div id="import-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="import-cancel" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="import-save" type="button">开始导入</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 弹窗：整改复查 ───────────────────────────────────────────── -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="recheck-dialog">
+  <div class="card nx-dialog w-full max-w-lg p-6">
+    <h2 class="font-serif text-2xl">整改复查</h2>
+    <p class="mt-2 text-xs text-base-content/65" id="recheck-target">—</p>
+    <p class="mt-3 text-xs leading-relaxed text-base-content/70" id="recheck-note">—</p>
+    <label class="form-control mt-5">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">复查结论</span>
+      <select class="select select-bordered select-sm" id="recheck-result">
+        <option value="pass">复查通过 pass（整改完成）</option>
+        <option value="fail">复查未通过 fail（学生可再次提交）</option>
+      </select>
+    </label>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">复查备注</span>
+      <textarea class="textarea textarea-bordered" id="recheck-remark" placeholder="如：已现场复查，桌面与用电均符合要求" rows="3"></textarea>
+    </label>
+    <div id="recheck-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="recheck-cancel" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="recheck-save" type="button">提交复查</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 弹窗：晚归登记 / 处理 ─────────────────────────────────────── -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="late-dialog">
+  <div class="card nx-dialog max-h-[90vh] w-full max-w-2xl overflow-y-auto p-6">
+    <h2 class="font-serif text-2xl" id="late-dialog-title">登记晚归 / 夜不归宿</h2>
+    <p class="mt-2 text-xs text-base-content/65">判定基准 6:00-23:30（第七条）；门禁刷卡时间由园区门禁系统导出后导入，查房与上报由辅导员登记。</p>
+    <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生学号</span>
+        <input class="input input-bordered input-sm" id="late-student-no" placeholder="如 2024001" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生 ID（与学号二选一）</span>
+        <input class="input input-bordered input-sm" id="late-student-id" placeholder="students.id" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">发生日期</span>
+        <input class="input input-bordered input-sm" id="late-date" type="date"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">类型</span>
+        <select class="select select-bordered select-sm" id="late-kind">
+          <option value="late">晚归 late</option>
+          <option value="absent">夜不归宿 absent</option>
+        </select>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">出时间</span>
+        <input class="input input-bordered input-sm" id="late-out" type="time"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">回时间</span>
+        <input class="input input-bordered input-sm" id="late-in" type="time"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">来源</span>
+        <select class="select select-bordered select-sm" id="late-source">
+          <option value="card">门禁刷卡 card</option>
+          <option value="check">查房 check</option>
+          <option value="report">上报 report</option>
+        </select>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">原因</span>
+        <select class="select select-bordered select-sm" id="late-reason">
+          <option value="late_return">晚归 late_return</option>
+          <option value="night_out">夜不归宿 night_out</option>
+          <option value="other">其他 other</option>
+        </select>
+      </label>
+    </div>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">情况说明</span>
+      <textarea class="textarea textarea-bordered" id="late-reason-note" rows="2"></textarea>
+    </label>
+    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">是否核实</span>
+        <select class="select select-bordered select-sm" id="late-confirm">
+          <option value="0">未核实</option>
+          <option value="1">已核实</option>
+        </select>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">处理状态</span>
+        <select class="select select-bordered select-sm" id="late-handle">
+          <option value="pending">待处理 pending</option>
+          <option value="contacted">已联系 contacted</option>
+          <option value="closed">已了结 closed</option>
+        </select>
+      </label>
+    </div>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">处理备注（学生可见处理状态，不展示本备注）</span>
+      <textarea class="textarea textarea-bordered" id="late-handle-note" rows="2"></textarea>
+    </label>
+    <div id="late-dialog-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="late-dialog-cancel" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="late-dialog-save" type="button">保存记录</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 弹窗：违规登记 ───────────────────────────────────────────── -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="violation-dialog">
+  <div class="card nx-dialog max-h-[90vh] w-full max-w-2xl overflow-y-auto p-6">
+    <h2 class="font-serif text-2xl">登记园区违规</h2>
+    <p class="mt-2 text-xs leading-relaxed text-base-content/65">
+      类型对齐第四十一条园区违规十三类与第四十二条消防条款，必须填依据条文；建议只到批评教育 / 通报批评 / 记录备查或警告等级建议。
+    </p>
+    <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生学号</span>
+        <input class="input input-bordered input-sm" id="vio-student-no" placeholder="如 2024001" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生 ID（与学号二选一）</span>
+        <input class="input input-bordered input-sm" id="vio-student-id" placeholder="students.id" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">楼栋</span>
+        <input class="input input-bordered input-sm" id="vio-building" placeholder="如 A 栋" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">房号</span>
+        <input class="input input-bordered input-sm" id="vio-room" placeholder="如 A-412" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">类型</span>
+        <select class="select select-bordered select-sm" id="vio-type">
+          <option value="late">晚归 late</option>
+          <option value="absence">夜不归宿 absence</option>
+          <option value="appliance">违规电器 appliance</option>
+          <option value="fire">消防隐患 fire</option>
+          <option value="pet">饲养宠物 pet</option>
+          <option value="rent">出租床位 rent</option>
+          <option value="climb">攀爬进入 climb</option>
+          <option value="noise">噪音扰民 noise</option>
+          <option value="other">其他 other</option>
+        </select>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">发生时间</span>
+        <input class="input input-bordered input-sm" id="vio-occurred" type="datetime-local"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关联检查记录 ID（可选）</span>
+        <input class="input input-bordered input-sm" id="vio-inspection" placeholder="community_inspection.id" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关联晚归记录 ID（可选）</span>
+        <input class="input input-bordered input-sm" id="vio-late" placeholder="community_late.id" type="text"/>
+      </label>
+    </div>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">违规事实（必填）</span>
+      <textarea class="textarea textarea-bordered" id="vio-detail" placeholder="如：插排串联使用且灭火器被杂物遮挡，存在消防隐患" rows="2"></textarea>
+    </label>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">依据条文 ruleRef（必填）</span>
+      <input class="input input-bordered input-sm" id="vio-rule" placeholder="如：学生宿舍消防安全管理规定第五条" type="text"/>
+    </label>
+    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">处理建议</span>
+        <select class="select select-bordered select-sm" id="vio-advice">
+          <option value="education">批评教育 education</option>
+          <option value="circulated">通报批评 circulated</option>
+          <option value="warning">警告 warning</option>
+          <option value="serious_warning">严重警告 serious_warning</option>
+          <option value="recorded">记录备查 recorded</option>
+        </select>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">处理状态</span>
+        <select class="select select-bordered select-sm" id="vio-handling">
+          <option value="pending">待处理 pending</option>
+          <option value="notified">已告知 notified</option>
+          <option value="closed">已了结 closed</option>
+        </select>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">处理结果说明</span>
+        <input class="input input-bordered input-sm" id="vio-result" type="text"/>
+      </label>
+    </div>
+    <div id="violation-dialog-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="violation-cancel" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="violation-save" type="button">保存登记</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 弹窗：文明宿舍获奖登记 ───────────────────────────────────── -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="award-dialog">
+  <div class="card nx-dialog w-full max-w-lg p-6">
+    <h2 class="font-serif text-2xl">获奖登记与公示发布</h2>
+    <p class="mt-2 text-xs text-base-content/65" id="award-target">—</p>
+    <p class="mt-3 text-xs leading-relaxed text-base-content/70">
+      名额与比例学校未公布，系统不自动截断名额；获奖由管理员人工确认，公示只露楼栋 / 房号 / 均分 / 等级，不含姓名与学号。
+    </p>
+    <label class="form-control mt-5">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">获奖等级</span>
+      <select class="select select-bordered select-sm" id="award-level">
+        <option value="">未获评</option>
+        <option value="school">校级文明宿舍 school</option>
+        <option value="college">院系级文明宿舍 college</option>
+      </select>
+    </label>
+    <div id="award-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="award-cancel" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="award-save" type="button">保存并发布公示</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 弹窗：新建活动 ───────────────────────────────────────────── -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="activity-dialog">
+  <div class="card nx-dialog max-h-[90vh] w-full max-w-2xl overflow-y-auto p-6">
+    <h2 class="font-serif text-2xl">新建 / 编辑社区活动</h2>
+    <p class="mt-2 text-xs text-base-content/65">草稿活动学生端不可见；报名截止前状态为「报名中」时学生才可报名，同一活动同一学生只允许报名一次。</p>
+    <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <label class="form-control sm:col-span-2">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">活动名称</span>
+        <input class="input input-bordered input-sm" id="act-title" placeholder="如 宿舍风采大赛" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">类型</span>
+        <select class="select select-bordered select-sm" id="act-type">
+          <option value="culture_festival">园区文化节</option>
+          <option value="room_contest">宿舍风采大赛</option>
+          <option value="room_olympic">宿舍吉尼斯</option>
+          <option value="design_contest">设计大赛</option>
+          <option value="volunteer">志愿服务</option>
+          <option value="other">其他</option>
+        </select>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">级别</span>
+        <select class="select select-bordered select-sm" id="act-level">
+          <option value="school">校级 school</option>
+          <option value="college">院系级 college</option>
+          <option value="community">园区级 community</option>
+        </select>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学期</span>
+        <input class="input input-bordered input-sm" id="act-term" placeholder="2025-2026-1" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</span>
+        <select class="select select-bordered select-sm" id="act-status">
+          <option value="draft">草稿 draft</option>
+          <option value="signup">报名中 signup</option>
+          <option value="ongoing">进行中 ongoing</option>
+          <option value="finished">已结束 finished</option>
+          <option value="cancelled">已取消 cancelled</option>
+        </select>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">开始时间</span>
+        <input class="input input-bordered input-sm" id="act-start" type="datetime-local"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">结束时间</span>
+        <input class="input input-bordered input-sm" id="act-end" type="datetime-local"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">报名截止</span>
+        <input class="input input-bordered input-sm" id="act-deadline" type="datetime-local"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">名额（0 为不限）</span>
+        <input class="input input-bordered input-sm" id="act-quota" placeholder="如 2" type="number"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">地点</span>
+        <input class="input input-bordered input-sm" id="act-location" placeholder="如 园区中心广场" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">主办单位</span>
+        <input class="input input-bordered input-sm" id="act-host" placeholder="如 学生工作部" type="text"/>
+      </label>
+      <label class="form-control sm:col-span-2">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">活动通知链接（可选）</span>
+        <input class="input input-bordered input-sm" id="act-notice" placeholder="/notice/xxx.html" type="text"/>
+      </label>
+    </div>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">活动内容</span>
+      <textarea class="textarea textarea-bordered" id="act-content" placeholder="含赛制说明（如第一轮探访、决赛）与参赛要求" rows="3"></textarea>
+    </label>
+    <div id="activity-dialog-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="activity-cancel" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="activity-save" type="button">保存活动</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 弹窗：报名审核 / 签到改由活动面板内联表单提交（后端无报名明细路由）── -->
+
+<script>
+(async function () {
+  'use strict';
+
+  // ── 通用工具（与 psyche-review.html 保持同一套写法） ─────────────
+  function escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  async function callApi(url, options) {
+    const config = options || {};
+    config.credentials = 'same-origin';
+    const response = await fetch(url, config);
+    let result = null;
+    try { result = await response.json(); } catch (error) { result = { code: response.status, message: '服务没有返回可解析的内容' }; }
+    if (result && result.code === 401) { window.location.href = 'login.html'; return { code: 401, message: '登录状态已失效', data: null }; }
+    return result;
+  }
+
+  async function apiSend(url, method, body) {
+    return await callApi(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    });
+  }
+
+  function showMessage(message, type) {
+    const box = document.getElementById('manage-message');
+    const toneCls = type === 'success' ? 'alert-success' : 'alert-error';
+    const icon = type === 'success' ? 'check_circle' : 'error';
+    box.classList.remove('hidden');
+    box.className = 'alert mb-6 items-start gap-2 ' + toneCls;
+    box.innerHTML = '<span class="material-symbols-outlined text-lg">' + icon + '</span><span class="text-sm">' + escapeHtml(message) + '</span>';
+  }
+
+  function showBoxMessage(hostId, message, type) {
+    const box = document.getElementById(hostId);
+    if (!box) { return; }
+    box.classList.remove('hidden');
+    box.className = 'alert mt-4 items-start gap-2 ' + (type === 'success' ? 'alert-success' : 'alert-error');
+    box.innerHTML = '<span class="text-sm">' + escapeHtml(message) + '</span>';
+  }
+
+  function clearMessage() { document.getElementById('manage-message').classList.add('hidden'); }
+
+  function text(value) {
+    if (value === null || value === undefined || value === '') { return '—'; }
+    return String(value);
+  }
+
+  function formatTime(value) {
+    if (!value) { return '—'; }
+    return String(value).replace('T', ' ').slice(0, 16);
+  }
+
+  function formatDay(value) {
+    if (!value) { return '—'; }
+    return String(value).replace('T', ' ').slice(0, 10);
+  }
+
+  function toBackendTime(value) {
+    if (!value) { return null; }
+    const raw = String(value).trim().replace(' ', 'T');
+    return raw.length === 16 ? (raw + ':00') : raw;
+  }
+
+  function toLocalInput(value) {
+    if (!value) { return ''; }
+    return String(value).replace(' ', 'T').slice(0, 16);
+  }
+
+  function openDialog(id) {
+    const d = document.getElementById(id);
+    d.classList.remove('hidden');
+    d.classList.add('flex');
+  }
+
+  function closeDialog(id) {
+    const d = document.getElementById(id);
+    d.classList.add('hidden');
+    d.classList.remove('flex');
+  }
+
+  function setText(id, value) {
+    const host = document.getElementById(id);
+    if (!host) { console.warn('缺少元素 #' + id); return; }
+    host.textContent = (value === null || value === undefined || value === '') ? '—' : String(value);
+  }
+
+  function statusOf(value, table) {
+    const key = String(value === null || value === undefined ? '' : value);
+    return table[key] || { label: key || '—', cls: 'badge-ghost' };
+  }
+
+  function badge(table, value) {
+    const toneCls = statusOf(value, table);
+    return '<span class="badge badge-sm ' + toneCls.cls + '">' + escapeHtml(toneCls.label) + '</span>';
+  }
+
+  function parseJsonArray(value) {
+    if (Array.isArray(value)) { return value; }
+    if (typeof value === 'string' && value.replace(/\s/g, '').length) {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (err) { return []; }
+    }
+    return [];
+  }
+
+  // 评分项：criteria_json 是数组（key/name/max/ruleRef）；item_json 是 key→分数 的对象（字符串形式）。
+  function parseCriteria(value) {
+    return parseJsonArray(value).map(function (item) {
+      if (!item || typeof item !== 'object') { return null; }
+      return {
+        key: String(item.key === null || item.key === undefined ? '' : item.key),
+        name: String(item.name || item.key || '评分项'),
+        max: item.max === null || item.max === undefined ? null : Number(item.max),
+        ruleRef: item.ruleRef ? String(item.ruleRef) : ''
+      };
+    }).filter(Boolean);
+  }
+
+  function parseItems(value) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) { return value; }
+    if (typeof value === 'string' && value.replace(/\s/g, '').length) {
+      try {
+        const parsed = JSON.parse(value);
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+      } catch (err) { return {}; }
+    }
+    return {};
+  }
+
+  function infoRow(label, value) {
+    return '<div class="flex items-center justify-between gap-2 rounded-box border border-base-300 bg-base-200 px-3 py-2">'
+        + '<span class="text-base-content/65">' + escapeHtml(label) + '</span>'
+        + '<span class="font-mono">' + escapeHtml(value === null || value === undefined ? '—' : String(value)) + '</span></div>';
+  }
+
+  // ── 口径映射 ────────────────────────────────────────────────────
+  const GRADE = {
+    excellent: { label: '优秀', cls: 'badge-success' },
+    good: { label: '良好', cls: 'badge-primary' },
+    pass: { label: '合格', cls: 'badge-ghost' },
+    fail: { label: '不合格', cls: 'badge-error' }
+  };
+  const RECTIFY = {
+    none: { label: '无需整改', cls: 'badge-ghost' },
+    pending: { label: '待整改', cls: 'badge-warning' },
+    submitted: { label: '已提交说明', cls: 'badge-primary' },
+    accepted: { label: '复查通过', cls: 'badge-success' },
+    rejected: { label: '复查未通过', cls: 'badge-error' }
+  };
+  const RECHECK = { pass: '复查通过', fail: '复查未通过' };
+  const BATCH_STATUS = {
+    draft: { label: '草稿', cls: 'badge-ghost' },
+    checking: { label: '检查中', cls: 'badge-warning' },
+    scored: { label: '已评分', cls: 'badge-primary' },
+    published: { label: '已公布', cls: 'badge-success' },
+    finished: { label: '已结束', cls: 'badge-ghost' },
+    cancelled: { label: '已取消', cls: 'badge-ghost' }
+  };
+  const CHECK_TYPE = { hygiene: '内务卫生', safety: '安全检查', joint: '联合检查', other: '其他' };
+  const LATE_TYPE = {
+    late: { label: '晚归', cls: 'badge-warning' },
+    absent: { label: '夜不归宿', cls: 'badge-error' }
+  };
+  const LATE_SOURCE = { card: '刷卡 card', check: '查房 check', report: '上报 report' };
+  const HANDLING = {
+    pending: { label: '待处理', cls: 'badge-warning' },
+    contacted: { label: '已联系', cls: 'badge-primary' },
+    closed: { label: '已了结', cls: 'badge-ghost' }
+  };
+  const CONFIRM_FLAG = { 0: { label: '未核实', cls: 'badge-warning' }, 1: { label: '已核实', cls: 'badge-success' } };
+  const VIOLATION_TYPE = {
+    late: '晚归', absence: '夜不归宿', appliance: '违规电器', fire: '消防隐患',
+    pet: '饲养宠物', rent: '出租床位', climb: '攀爬进入', noise: '噪音扰民', other: '其他'
+  };
+  const VIOLATION_HANDLING = {
+    pending: { label: '待处理', cls: 'badge-warning' },
+    notified: { label: '已告知', cls: 'badge-primary' },
+    closed: { label: '已了结', cls: 'badge-ghost' }
+  };
+  const ADVICE = {
+    education: { label: '批评教育', cls: 'badge-ghost' },
+    circulated: { label: '通报批评', cls: 'badge-warning' },
+    warning: { label: '警告（建议）', cls: 'badge-warning' },
+    serious_warning: { label: '严重警告（建议）', cls: 'badge-error' },
+    recorded: { label: '记录备查', cls: 'badge-ghost' }
+  };
+  const ACTIVITY_TYPE = {
+    culture_festival: '园区文化节', room_contest: '宿舍风采大赛', room_olympic: '宿舍吉尼斯',
+    design_contest: '设计大赛', volunteer: '志愿服务', other: '其他'
+  };
+  const ACTIVITY_LEVEL = { school: '校级', college: '院系级', community: '园区级' };
+  const ACTIVITY_STATUS = {
+    draft: { label: '草稿', cls: 'badge-ghost' },
+    signup: { label: '报名中', cls: 'badge-primary' },
+    ongoing: { label: '进行中', cls: 'badge-warning' },
+    finished: { label: '已结束', cls: 'badge-ghost' },
+    cancelled: { label: '已取消', cls: 'badge-ghost' }
+  };
+  const SIGNUP_STATUS = {
+    signed: { label: '已报名', cls: 'badge-primary' },
+    approved: { label: '已通过', cls: 'badge-success' },
+    rejected: { label: '已驳回', cls: 'badge-error' },
+    attended: { label: '已参加', cls: 'badge-success' },
+    absent: { label: '未参加', cls: 'badge-warning' }
+  };
+  const AWARD = { none: '—', first: '一等奖', second: '二等奖', third: '三等奖', excellent: '优秀奖' };
+  const AWARD_LEVEL = { school: '校级文明宿舍', college: '院系级文明宿舍' };
+
+  const PAGE_SIZE = 10;
+  const PAGE = { inspection: 1, late: 1, violation: 1 };
+  const TOTAL = { inspection: 0, late: 0, violation: 0 };
+  const PANELS = {
+    batch: 'panel-batch',
+    inspection: 'panel-inspection',
+    late: 'panel-late',
+    civil: 'panel-civil',
+    activity: 'panel-activity',
+    insight: 'panel-insight'
+  };
+  const TABS = {
+    batch: 'tab-batch',
+    inspection: 'tab-inspection',
+    late: 'tab-late',
+    civil: 'tab-civil',
+    activity: 'tab-activity',
+    insight: 'tab-insight'
+  };
+
+  let ROLE = '';
+  let batches = [];
+  let inspections = [];
+  let lates = [];
+  let violations = [];
+  let civilRooms = [];
+  let activities = [];
+  let lastSignupRows = [];
+  let lastSignupLabel = '';
+  let criteria = [];
+  let editingBatchId = null;
+  let activeInspection = null;
+  let activeLate = null;
+  let activeViolation = null;
+  let activeCivil = null;
+  let editingActivityId = null;
+  let activeSignupActivity = null;
+
+  function findById(list, id) {
+    for (let i = 0; i < list.length; i += 1) {
+      if (String(list[i].id) === String(id)) { return list[i]; }
+    }
+    return null;
+  }
+
+  function pagesOf(kind) { return Math.max(1, Math.ceil((TOTAL[kind] || 0) / PAGE_SIZE)); }
+
+  // 分页控件 id 前缀与面板命名不完全一致（检查面板用 insp- ）
+  const PAGER_PREFIX = { inspection: 'insp', late: 'late', violation: 'violation' };
+
+  function renderPager(kind) {
+    const prefix = PAGER_PREFIX[kind] || kind;
+    setText(prefix + '-page', PAGE[kind] + ' / ' + pagesOf(kind));
+    setText(prefix + '-total', TOTAL[kind] ? ('共 ' + TOTAL[kind] + ' 条') : '');
+  }
+
+  function intOrNull(value) {
+    const raw = String(value === null || value === undefined ? '' : value).trim();
+    if (!raw) { return null; }
+    const num = Number(raw);
+    return isNaN(num) ? null : num;
+  }
+
+  function optParam(label, value) {
+    const raw = String(value === null || value === undefined ? '' : value).trim();
+    return raw ? (label + '=' + encodeURIComponent(raw)) : '';
+  }
+
+  function buildQuery(parts) {
+    const kept = parts.filter(Boolean);
+    return kept.length ? ('?' + kept.join('&')) : '';
+  }
+
+  // ── 面板 1：批次 ────────────────────────────────────────────────
+  function renderBatches() {
+    const host = document.getElementById('batch-list');
+    const empty = document.getElementById('batch-empty');
+    if (!batches.length) {
+      host.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    host.innerHTML = batches.map(function (row) {
+      const actions = [
+        '<button class="btn btn-ghost btn-xs rounded-full" data-criteria="' + escapeHtml(row.id) + '" type="button">评分项</button>',
+        '<button class="btn btn-ghost btn-xs rounded-full" data-edit="' + escapeHtml(row.id) + '" type="button">编辑</button>'
+      ];
+      if (row.status === 'draft' || row.status === 'checking' || row.status === 'scored') {
+        actions.push('<button class="btn btn-primary btn-xs rounded-full" data-publish="' + escapeHtml(row.id) + '" type="button">公布</button>');
+      }
+      if (row.status === 'published' || row.status === 'scored') {
+        actions.push('<button class="btn btn-ghost btn-xs rounded-full" data-close="' + escapeHtml(row.id) + '" type="button">结束</button>');
+      }
+      return '<tr class="border-b border-base-300">'
+          + '<td class="py-2 pr-4"><span class="block font-semibold">' + escapeHtml(text(row.batchName)) + '</span>'
+          + '<span class="block font-mono text-[10px] text-base-content/60">#' + escapeHtml(row.id) + ' · ' + escapeHtml(text(row.createdByName)) + (row.note ? (' · ' + escapeHtml(row.note)) : '') + '</span></td>'
+          + '<td class="py-2 pr-4 text-xs">' + escapeHtml(text(row.term)) + '<span class="mt-1 block text-[11px] text-base-content/60">' + escapeHtml(CHECK_TYPE[row.checkType] || text(row.checkType)) + '</span></td>'
+          + '<td class="py-2 pr-4 text-xs">' + escapeHtml(text(row.scopeBuilding || '全部楼栋')) + '<span class="mt-1 block font-mono text-[11px] text-base-content/60">' + escapeHtml(formatDay(row.startDate)) + ' ~ ' + escapeHtml(formatDay(row.endDate)) + '</span></td>'
+          + '<td class="py-2 pr-4 font-mono text-xs">' + escapeHtml(text(row.inspectionCount)) + ' 条<span class="mt-1 block text-[11px] text-base-content/60">均分 ' + escapeHtml(text(row.avgScore)) + '</span></td>'
+          + '<td class="py-2 pr-4">' + badge(BATCH_STATUS, row.status) + '</td>'
+          + '<td class="py-2 pr-4"><div class="flex flex-wrap items-center gap-1">' + actions.join('') + '</div></td>'
+          + '</tr>';
+    }).join('');
+
+    host.querySelectorAll('[data-criteria]').forEach(function (button) {
+      button.addEventListener('click', function () { loadCriteria(this.getAttribute('data-criteria')); });
+    });
+    host.querySelectorAll('[data-edit]').forEach(function (button) {
+      button.addEventListener('click', function () { openBatch(this.getAttribute('data-edit')); });
+    });
+    host.querySelectorAll('[data-publish]').forEach(function (button) {
+      button.addEventListener('click', function () { publishBatch(this.getAttribute('data-publish')); });
+    });
+    host.querySelectorAll('[data-close]').forEach(function (button) {
+      button.addEventListener('click', function () { closeBatch(this.getAttribute('data-close')); });
+    });
+  }
+
+  function renderBatchOptions() {
+    const options = batches.map(function (row) {
+      return '<option value="' + escapeHtml(row.id) + '">#' + escapeHtml(row.id) + ' ' + escapeHtml(text(row.batchName)) + '（' + escapeHtml(text(row.term)) + ' · ' + escapeHtml((BATCH_STATUS[row.status] || {}).label || text(row.status)) + '）</option>';
+    }).join('');
+    ['filter-batch', 'insp-batch', 'import-batch'].forEach(function (id) {
+      const select = document.getElementById(id);
+      const current = select.value;
+      select.innerHTML = (id === 'filter-batch' ? '<option value="">全部批次</option>' : '<option value="">请选择批次</option>') + options;
+      if (current) { select.value = current; }
+    });
+  }
+
+  async function loadBatches() {
+    const query = buildQuery([
+      optParam('status', document.getElementById('batch-status').value),
+      optParam('term', document.getElementById('batch-term').value),
+      optParam('keyword', document.getElementById('batch-keyword').value)
+    ]);
+    const result = await callApi('/api/community/batches' + query);
+    if (!result || result.code !== 200) {
+      showMessage((result && result.message) || '批次列表加载失败，请稍后再试。', 'error');
+      return;
+    }
+    batches = Array.isArray(result.data) ? result.data : [];
+    renderBatches();
+    renderBatchOptions();
+  }
+
+  function openBatch(id) {
+    editingBatchId = id || null;
+    const row = id ? findById(batches, id) : null;
+    document.getElementById('batch-dialog-title').textContent = row ? '编辑检查批次' : '新建检查批次';
+    document.getElementById('batch-name').value = row ? (row.batchName || '') : '';
+    document.getElementById('batch-form-term').value = row ? (row.term || '') : (document.getElementById('batch-term').value || '');
+    document.getElementById('batch-checktype').value = row && row.checkType ? row.checkType : 'hygiene';
+    document.getElementById('batch-scope').value = row && row.scopeBuilding ? row.scopeBuilding : '';
+    document.getElementById('batch-start').value = row && row.startDate ? String(row.startDate).slice(0, 10) : '';
+    document.getElementById('batch-end').value = row && row.endDate ? String(row.endDate).slice(0, 10) : '';
+    document.getElementById('batch-note').value = row && row.note ? row.note : '';
+    document.getElementById('batch-criteria').value = row && row.criteriaJson ? String(row.criteriaJson) : '';
+    document.getElementById('batch-message').classList.add('hidden');
+    openDialog('batch-dialog');
+  }
+
+  async function saveBatch() {
+    const name = document.getElementById('batch-name').value.trim();
+    const term = document.getElementById('batch-form-term').value.trim();
+    if (!name) { showBoxMessage('batch-message', '请填写批次名称', 'error'); return; }
+    if (!term) { showBoxMessage('batch-message', '请填写学期', 'error'); return; }
+    const criteriaRaw = document.getElementById('batch-criteria').value.trim();
+    if (criteriaRaw) {
+      try { JSON.parse(criteriaRaw); } catch (err) { showBoxMessage('batch-message', '评分项 JSON 无法解析：' + err.message, 'error'); return; }
+    }
+    const body = {
+      batchName: name,
+      term: term,
+      checkType: document.getElementById('batch-checktype').value,
+      scopeBuilding: document.getElementById('batch-scope').value.trim() || null,
+      startDate: document.getElementById('batch-start').value || null,
+      endDate: document.getElementById('batch-end').value || null,
+      note: document.getElementById('batch-note').value.trim() || null,
+      criteriaJson: criteriaRaw || null
+    };
+    const result = editingBatchId
+        ? await apiSend('/api/community/batches/' + encodeURIComponent(editingBatchId), 'PUT', body)
+        : await apiSend('/api/community/batches', 'POST', body);
+    if (!result || result.code !== 200) {
+      showBoxMessage('batch-message', (result && result.message) || '保存失败，请稍后再试。', 'error');
+      return;
+    }
+    closeDialog('batch-dialog');
+    showMessage(result.message || (editingBatchId ? '批次已更新。' : '批次已创建。'), 'success');
+    editingBatchId = null;
+    await loadBatches();
+    await loadStats();
+  }
+
+  async function publishBatch(id) {
+    const result = await apiSend('/api/community/batches/' + encodeURIComponent(id) + '/publish', 'POST', {});
+    if (!result || result.code !== 200) { showMessage((result && result.message) || '公布失败，请稍后再试。', 'error'); return; }
+    showMessage(result.message || '批次已公布，学生端现在可以看到本批次的检查记录。', 'success');
+    await loadBatches();
+  }
+
+  async function closeBatch(id) {
+    const result = await apiSend('/api/community/batches/' + encodeURIComponent(id) + '/close', 'POST', {});
+    if (!result || result.code !== 200) { showMessage((result && result.message) || '结束批次失败，请稍后再试。', 'error'); return; }
+    showMessage(result.message || '批次已结束。', 'success');
+    await loadBatches();
+  }
+
+  async function loadCriteria(id) {
+    document.getElementById('batch-pick').textContent = '#' + id;
+    const batch = findById(batches, id);
+    document.getElementById('batch-stats-label').textContent = batch ? ('#' + id + ' ' + text(batch.batchName)) : ('#' + id);
+    criteria = batch ? parseCriteria(batch.criteriaJson) : [];
+    const host = document.getElementById('criteria-list');
+    const empty = document.getElementById('criteria-empty');
+    if (!criteria.length) {
+      host.innerHTML = '';
+      empty.classList.remove('hidden');
+      empty.textContent = '该批次没有可解析的评分项定义（可能使用了演示评分项或评分表尚未录入），请在编辑批次里补评分项 JSON。';
+    } else {
+      empty.classList.add('hidden');
+      host.innerHTML = criteria.map(function (item) {
+        return '<div class="rounded-box border border-base-300 bg-base-200 p-3">'
+            + '<div class="flex items-start justify-between gap-2">'
+            + '<p class="text-sm font-semibold">' + escapeHtml(item.name) + '</p>'
+            + '<span class="font-mono text-xs">' + escapeHtml(text(item.max)) + ' 分</span>'
+            + '</div>'
+            + '<p class="mt-1 font-mono text-[10px] text-base-content/60">key=' + escapeHtml(item.key) + (item.ruleRef ? (' · ' + escapeHtml(item.ruleRef)) : '') + '</p>'
+            + '</div>';
+      }).join('');
+    }
+    if (batch && batch.note && batch.note.indexOf('演示评分项') >= 0) {
+      showMessage('该批次备注含「演示评分项，非学校发布口径」提示：正式评分表以学校发布为准。', 'error');
+    }
+    await loadBatchStats(id);
+  }
+
+  async function loadBatchStats(id) {
+    const result = await callApi('/api/community/batches/' + encodeURIComponent(id) + '/stats');
+    if (!result || result.code !== 200) {
+      showMessage((result && result.message) || '批次统计加载失败，请稍后再试。', 'error');
+      ['bs-total', 'bs-avg', 'bs-range', 'bs-good', 'bs-fail', 'bs-rectify'].forEach(function (key) { setText(key, '—'); });
+      return;
+    }
+    const data = result.data || {};
+    const summary = data.summary || data.inspections || data;
+    setText('bs-total', summary.total);
+    setText('bs-avg', summary.avg_score === undefined ? summary.avgScore : summary.avg_score);
+    setText('bs-range', text(summary.min_score === undefined ? summary.minScore : summary.min_score) + ' / ' + text(summary.max_score === undefined ? summary.maxScore : summary.max_score));
+    setText('bs-good', text(summary.excellent) + ' / ' + text(summary.good));
+    setText('bs-fail', text(summary.pass) + ' / ' + text(summary.fail));
+    setText('bs-rectify', text(summary.rectify_pending === undefined ? summary.rectifyPending : summary.rectify_pending) + ' / ' + text(summary.rectify_submitted === undefined ? summary.rectifySubmitted : summary.rectify_submitted));
+  }
+
+  // ── 面板 2：检查记录 ────────────────────────────────────────────
+  function renderInspections() {
+    const host = document.getElementById('inspection-list');
+    const empty = document.getElementById('inspection-empty');
+    if (!inspections.length) {
+      host.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    host.innerHTML = inspections.map(function (row) {
+      const rectifyState = String(row.rectifyStatus || 'none');
+      const showRecheck = rectifyState === 'submitted' || rectifyState === 'rejected' || rectifyState === 'pending';
+      const actions = [
+        '<button class="btn btn-ghost btn-xs rounded-full" data-items="' + escapeHtml(row.id) + '" type="button">逐项</button>'
+      ];
+      if (showRecheck) {
+        actions.push('<button class="btn ' + (rectifyState === 'submitted' ? 'btn-primary' : 'btn-ghost') + ' btn-xs rounded-full" data-recheck="' + escapeHtml(row.id) + '" type="button">整改复查</button>');
+      }
+      actions.push('<button class="btn btn-ghost btn-xs rounded-full" data-violate="' + escapeHtml(row.id) + '" type="button">登记违规</button>');
+      return '<tr class="border-b border-base-300">'
+          + '<td class="py-2 pr-4"><span class="block font-semibold">' + escapeHtml(text(row.building)) + ' ' + escapeHtml(text(row.roomNo)) + '</span>'
+          + '<span class="block font-mono text-[10px] text-base-content/60">#' + escapeHtml(row.id) + ' · ' + escapeHtml(text(row.batchName)) + ' · ' + escapeHtml(text(row.batchStatus)) + '</span></td>'
+          + '<td class="py-2 pr-4 font-mono text-[11px]">' + escapeHtml(formatDay(row.checkDate)) + '<span class="mt-1 block text-[11px] text-base-content/60">' + escapeHtml(text(row.inspectorName)) + '</span></td>'
+          + '<td class="py-2 pr-4 font-mono text-xs">' + escapeHtml(text(row.score)) + ' · ' + escapeHtml((GRADE[row.grade] || {}).label || text(row.grade)) + '</td>'
+          + '<td class="py-2 pr-4 text-xs">' + escapeHtml(text(row.problems)) + '</td>'
+          + '<td class="py-2 pr-4">' + badge(RECTIFY, row.rectifyStatus) + '<span class="mt-1 block font-mono text-[10px] text-base-content/60">' + escapeHtml(formatDay(row.rectifyDeadline)) + '</span></td>'
+          + '<td class="py-2 pr-4 text-xs">' + escapeHtml(row.source === 'csv' ? 'CSV 导入' : '人工录入') + '</td>'
+          + '<td class="py-2 pr-4"><div class="flex flex-wrap items-center gap-1">' + actions.join('') + '</div></td>'
+          + '</tr>';
+    }).join('');
+
+    host.querySelectorAll('[data-items]').forEach(function (button) {
+      button.addEventListener('click', function () { showItems(this.getAttribute('data-items')); });
+    });
+    host.querySelectorAll('[data-recheck]').forEach(function (button) {
+      button.addEventListener('click', function () { openRecheck(this.getAttribute('data-recheck')); });
+    });
+    host.querySelectorAll('[data-violate]').forEach(function (button) {
+      button.addEventListener('click', function () { openViolation(null, this.getAttribute('data-violate')); });
+    });
+  }
+
+  function inspectionQuery() {
+    return buildQuery([
+      optParam('batchId', document.getElementById('filter-batch').value),
+      optParam('building', document.getElementById('filter-building').value),
+      optParam('roomNo', document.getElementById('filter-room').value),
+      optParam('rectifyStatus', document.getElementById('filter-rectify').value),
+      optParam('source', document.getElementById('filter-source').value),
+      'page=' + PAGE.inspection,
+      'size=' + PAGE_SIZE
+    ]);
+  }
+
+  async function loadInspections() {
+    const result = await callApi('/api/community/inspections' + inspectionQuery());
+    if (!result || result.code !== 200) {
+      showMessage((result && result.message) || '检查记录加载失败，请稍后再试。', 'error');
+      return;
+    }
+    const data = result.data || {};
+    inspections = Array.isArray(data.list) ? data.list : (Array.isArray(data) ? data : []);
+    TOTAL.inspection = Number(data.total) || inspections.length;
+    if (PAGE.inspection > pagesOf('inspection')) { PAGE.inspection = pagesOf('inspection'); }
+    renderInspections();
+    renderPager('inspection');
+  }
+
+  function showItems(id) {
+    const row = findById(inspections, id);
+    const items = row ? parseItems(row.itemJson) : {};
+    const batch = row ? findById(batches, row.batchId) : null;
+    const defs = batch ? parseCriteria(batch.criteriaJson) : [];
+    const defMap = {};
+    defs.forEach(function (item) { defMap[item.key] = item; });
+    const keys = Object.keys(items);
+    const lines = keys.map(function (key) {
+      const value = items[key];
+      const def = defMap[key] || {};
+      const label = def.name || key;
+      const max = def.max === null || def.max === undefined ? 20 : def.max;
+      const score = value && typeof value === 'object' ? value.score : value;
+      return '<div class="rounded-box border border-base-300 bg-base-200 p-3">'
+          + '<div class="flex items-start justify-between gap-2"><p class="text-sm font-semibold">' + escapeHtml(label) + '</p>'
+          + '<span class="font-mono text-xs">' + escapeHtml(text(score)) + ' / ' + escapeHtml(text(max)) + '</span></div>'
+          + (def.ruleRef ? '<p class="mt-1 text-[10px] text-base-content/60">依据：' + escapeHtml(def.ruleRef) + '</p>' : '')
+          + '</div>';
+    }).join('');
+    if (!keys.length) {
+      showMessage('记录 #' + id + ' 没有逐项得分（录入时只填了总分 ' + text(row ? row.score : '') + '），无法展开分项。', 'error');
+      return;
+    }
+    showMessage('记录 #' + id + ' 逐项得分：' + keys.map(function (key) {
+      const def = defMap[key] || {};
+      const value = items[key];
+      return (def.name || key) + ' ' + (value && typeof value === 'object' ? value.score : value);
+    }).join('；') + '（在该行「逐项」按钮展开，此处给出可复制的文本对照）', 'success');
+    const host = document.getElementById('criteria-list');
+    host.innerHTML = '<div class="grid grid-cols-1 gap-3">' + lines + '</div>';
+  }
+
+  function openRecheck(id) {
+    activeInspection = findById(inspections, id);
+    document.getElementById('recheck-target').textContent = activeInspection
+      ? (text(activeInspection.building) + ' ' + text(activeInspection.roomNo) + ' · ' + text(activeInspection.batchName) + ' · 总分 ' + text(activeInspection.score))
+      : ('检查记录 #' + id);
+    document.getElementById('recheck-note').textContent = activeInspection
+      ? ('学生整改说明：' + text(activeInspection.rectifyNote) + '　提交时间：' + formatTime(activeInspection.rectifyAt))
+      : '—';
+    document.getElementById('recheck-result').value = 'pass';
+    document.getElementById('recheck-remark').value = '';
+    document.getElementById('recheck-message').classList.add('hidden');
+    openDialog('recheck-dialog');
+  }
+
+  async function doRecheck() {
+    if (!activeInspection) { return; }
+    const result = await apiSend('/api/community/inspections/' + encodeURIComponent(activeInspection.id) + '/recheck', 'POST', {
+      result: document.getElementById('recheck-result').value,
+      remark: document.getElementById('recheck-remark').value.trim() || null
+    });
+    if (!result || result.code !== 200) {
+      showBoxMessage('recheck-message', (result && result.message) || '复查提交失败，请稍后再试。', 'error');
+      return;
+    }
+    closeDialog('recheck-dialog');
+    activeInspection = null;
+    showMessage(result.message || '复查结论已提交。', 'success');
+    await loadInspections();
+    await loadStats();
+  }
+
+  // 录入弹窗：按批次评分项动态生成输入框
+  function renderItemInputs() {
+    const host = document.getElementById('insp-item-list');
+    const batchId = document.getElementById('insp-batch').value;
+    const batch = findById(batches, batchId);
+    criteria = batch ? parseCriteria(batch.criteriaJson) : [];
+    if (!criteria.length) {
+      host.innerHTML = '';
+      document.getElementById('insp-item-note').textContent = batch
+        ? '该批次没有评分项定义，可只填总分场景不适用：请给批次补评分项 JSON 后再录入分项。'
+        : '选择批次后显示该批次的评分项；留空的评分项不计入总分。';
+      return;
+    }
+    document.getElementById('insp-item-note').textContent = '按批次评分项给分（留空不计入总分）；满分见各项右侧。';
+    host.innerHTML = criteria.map(function (item, index) {
+      return '<label class="form-control">'
+          + '<span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">' + escapeHtml(item.name) + (item.max === null ? '' : ('（满分 ' + escapeHtml(String(item.max)) + '）')) + '</span>'
+          + '<input class="input input-bordered input-sm" data-item-key="' + escapeHtml(item.key) + '" id="insp-item-' + index + '" max="' + escapeHtml(item.max === null ? '' : String(item.max)) + '" min="0" placeholder="0" type="number"/>'
+          + '</label>';
+    }).join('');
+  }
+
+  function openInspection() {
+    document.getElementById('insp-batch').value = document.getElementById('filter-batch').value || '';
+    document.getElementById('insp-date').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('insp-building').value = document.getElementById('filter-building').value || '';
+    document.getElementById('insp-room').value = document.getElementById('filter-room').value || '';
+    document.getElementById('insp-leader').value = '';
+    document.getElementById('insp-rectify').value = '';
+    document.getElementById('insp-deadline').value = '';
+    document.getElementById('insp-source').value = 'manual';
+    document.getElementById('insp-problems').value = '';
+    document.getElementById('insp-note').value = '';
+    document.getElementById('inspection-message').classList.add('hidden');
+    renderItemInputs();
+    openDialog('inspection-dialog');
+  }
+
+  async function saveInspection() {
+    const batchId = intOrNull(document.getElementById('insp-batch').value);
+    const building = document.getElementById('insp-building').value.trim();
+    const roomNo = document.getElementById('insp-room').value.trim();
+    if (!batchId) { showBoxMessage('inspection-message', '请选择批次', 'error'); return; }
+    if (!building) { showBoxMessage('inspection-message', '请填写楼栋', 'error'); return; }
+    if (!roomNo) { showBoxMessage('inspection-message', '请填写房号', 'error'); return; }
+    const items = {};
+    document.querySelectorAll('[data-item-key]').forEach(function (input) {
+      const raw = input.value.trim();
+      if (raw === '') { return; }
+      items[input.getAttribute('data-item-key')] = Number(raw);
+    });
+    if (!Object.keys(items).length) { showBoxMessage('inspection-message', '请至少填写一个评分项（否则无法计算总分）', 'error'); return; }
+    const body = {
+      batchId: batchId,
+      building: building,
+      roomNo: roomNo,
+      checkDate: document.getElementById('insp-date').value || null,
+      leaderStudentId: intOrNull(document.getElementById('insp-leader').value),
+      itemJson: JSON.stringify(items),
+      problems: document.getElementById('insp-problems').value.trim() || null,
+      rectifyRequired: document.getElementById('insp-rectify').value === '' ? null : (document.getElementById('insp-rectify').value === '1'),
+      rectifyDeadline: document.getElementById('insp-deadline').value || null,
+      source: document.getElementById('insp-source').value,
+      note: document.getElementById('insp-note').value.trim() || null
+    };
+    const result = await apiSend('/api/community/inspections', 'POST', body);
+    if (!result || result.code !== 200) {
+      showBoxMessage('inspection-message', (result && result.message) || '保存失败，请稍后再试。', 'error');
+      return;
+    }
+    closeDialog('inspection-dialog');
+    showMessage(result.message || '检查记录已录入。', 'success');
+    await loadInspections();
+    await loadBatches();
+    await loadStats();
+  }
+
+  async function doImport() {
+    const batchId = intOrNull(document.getElementById('import-batch').value);
+    const csv = document.getElementById('import-csv').value;
+    if (!batchId) { showBoxMessage('import-message', '请选择批次', 'error'); return; }
+    if (!csv || !csv.trim()) { showBoxMessage('import-message', '请粘贴 CSV 原文（含表头行）', 'error'); return; }
+    const result = await apiSend('/api/community/inspections/import', 'POST', { batchId: batchId, csv: csv });
+    if (!result || result.code !== 200) {
+      showBoxMessage('import-message', (result && result.message) || '导入失败，请核对表头与行数据。', 'error');
+      return;
+    }
+    const data = result.data || {};
+    closeDialog('import-dialog');
+    showMessage(result.message || ('导入完成：成功 ' + text(data.success) + ' 条，失败 ' + text(data.failed) + ' 条。'), 'success');
+    await loadInspections();
+    await loadBatches();
+    await loadStats();
+  }
+
+  // ── 面板 3：晚归 ────────────────────────────────────────────────
+  function renderLates() {
+    const host = document.getElementById('late-list');
+    const empty = document.getElementById('late-empty');
+    if (!lates.length) {
+      host.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    host.innerHTML = lates.map(function (row) {
+      const confirmed = row.confirmed === 1 || row.confirmed === true || row.confirmed === '1' ? 1 : 0;
+      return '<tr class="border-b border-base-300">'
+          + '<td class="py-2 pr-4"><span class="block font-semibold">' + escapeHtml(text(row.studentName)) + '</span>'
+          + '<span class="block font-mono text-[10px] text-base-content/60">' + escapeHtml(text(row.studentNo)) + ' · ' + escapeHtml(text(row.className)) + ' · ' + escapeHtml(text(row.building)) + ' ' + escapeHtml(text(row.roomNo)) + '</span></td>'
+          + '<td class="py-2 pr-4 font-mono text-[11px]">' + escapeHtml(formatDay(row.occurDate)) + '<span class="mt-1 block">' + badge(LATE_TYPE, row.type) + '</span></td>'
+          + '<td class="py-2 pr-4 font-mono text-[11px]">' + escapeHtml(text(row.outTime)) + ' / ' + escapeHtml(text(row.inTime)) + '</td>'
+          + '<td class="py-2 pr-4 text-xs">' + escapeHtml(LATE_SOURCE[row.source] || text(row.source)) + '<span class="mt-1 block">' + badge(CONFIRM_FLAG, confirmed) + '</span></td>'
+          + '<td class="py-2 pr-4 text-xs">' + escapeHtml(text(row.studentNote)) + '</td>'
+          + '<td class="py-2 pr-4">' + badge(HANDLING, row.handling) + '<span class="mt-1 block text-[10px] text-base-content/60">' + escapeHtml(text(row.handlingNote)) + '</span></td>'
+          + '<td class="py-2 pr-4"><button class="btn btn-ghost btn-xs rounded-full" data-late="' + escapeHtml(row.id) + '" type="button">处理</button></td>'
+          + '</tr>';
+    }).join('');
+    host.querySelectorAll('[data-late]').forEach(function (button) {
+      button.addEventListener('click', function () { openLate(this.getAttribute('data-late')); });
+    });
+  }
+
+  function lateQuery() {
+    const confirmed = document.getElementById('late-confirmed').value;
+    return buildQuery([
+      optParam('type', document.getElementById('late-type').value),
+      optParam('handling', document.getElementById('late-handling').value),
+      confirmed === '' ? '' : ('confirmed=' + confirmed),
+      optParam('building', document.getElementById('late-building').value),
+      optParam('keyword', document.getElementById('late-keyword').value),
+      optParam('startDate', document.getElementById('late-start').value),
+      optParam('endDate', document.getElementById('late-end').value),
+      'page=' + PAGE.late,
+      'size=' + PAGE_SIZE
+    ]);
+  }
+
+  async function loadLates() {
+    const result = await callApi('/api/community/lates' + lateQuery());
+    if (!result || result.code !== 200) {
+      showMessage((result && result.message) || '晚归台账加载失败，请稍后再试。', 'error');
+      return;
+    }
+    const data = result.data || {};
+    lates = Array.isArray(data.list) ? data.list : [];
+    TOTAL.late = Number(data.total) || lates.length;
+    if (PAGE.late > pagesOf('late')) { PAGE.late = pagesOf('late'); }
+    renderLates();
+    renderPager('late');
+  }
+
+  function openLate(id) {
+    activeLate = id ? findById(lates, id) : null;
+    document.getElementById('late-dialog-title').textContent = activeLate ? '处理晚归记录' : '登记晚归 / 夜不归宿';
+    document.getElementById('late-student-no').value = activeLate ? (activeLate.studentNo || '') : '';
+    document.getElementById('late-student-id').value = activeLate ? (activeLate.studentId || '') : '';
+    document.getElementById('late-date').value = activeLate && activeLate.occurDate ? String(activeLate.occurDate).slice(0, 10) : new Date().toISOString().slice(0, 10);
+    document.getElementById('late-kind').value = activeLate && activeLate.type ? activeLate.type : 'late';
+    document.getElementById('late-out').value = activeLate && activeLate.outTime ? String(activeLate.outTime).slice(0, 5) : '';
+    document.getElementById('late-in').value = activeLate && activeLate.inTime ? String(activeLate.inTime).slice(0, 5) : '';
+    document.getElementById('late-source').value = activeLate && activeLate.source ? activeLate.source : 'card';
+    document.getElementById('late-reason').value = activeLate && activeLate.reason ? activeLate.reason : 'late_return';
+    document.getElementById('late-reason-note').value = activeLate && activeLate.reasonNote ? activeLate.reasonNote : '';
+    document.getElementById('late-confirm').value = activeLate && (activeLate.confirmed === 1 || activeLate.confirmed === true) ? '1' : '0';
+    document.getElementById('late-handle').value = activeLate && activeLate.handling ? activeLate.handling : 'pending';
+    document.getElementById('late-handle-note').value = activeLate && activeLate.handlingNote ? activeLate.handlingNote : '';
+    document.getElementById('late-dialog-message').classList.add('hidden');
+    openDialog('late-dialog');
+  }
+
+  async function saveLate() {
+    const studentNo = document.getElementById('late-student-no').value.trim();
+    const studentId = intOrNull(document.getElementById('late-student-id').value);
+    const body = {
+      installStudentId: studentId,
+      studentNo: studentNo || null,
+      occurDate: document.getElementById('late-date').value || null,
+      type: document.getElementById('late-kind').value,
+      outTime: document.getElementById('late-out').value ? (document.getElementById('late-out').value + ':00') : null,
+      inTime: document.getElementById('late-in').value ? (document.getElementById('late-in').value + ':00') : null,
+      source: document.getElementById('late-source').value,
+      reason: document.getElementById('late-reason').value,
+      reasonNote: document.getElementById('late-reason-note').value.trim() || null,
+      confirmed: document.getElementById('late-confirm').value === '1',
+      handling: document.getElementById('late-handle').value,
+      handlingNote: document.getElementById('late-handle-note').value.trim() || null
+    };
+    const result = activeLate
+        ? await apiSend('/api/community/lates/' + encodeURIComponent(activeLate.id), 'PUT', body)
+        : await apiSend('/api/community/lates', 'POST', body);
+    if (!result || result.code !== 200) {
+      showBoxMessage('late-dialog-message', (result && result.message) || '保存失败，请稍后再试。', 'error');
+      return;
+    }
+    closeDialog('late-dialog');
+    showMessage(result.message || (activeLate ? '晚归记录已更新。' : '晚归记录已登记。'), 'success');
+    activeLate = null;
+    await loadLates();
+    await loadStats();
+  }
+
+  // ── 面板 3：违规 ────────────────────────────────────────────────
+  function renderViolations() {
+    const host = document.getElementById('violation-list');
+    const empty = document.getElementById('violation-empty');
+    if (!violations.length) {
+      host.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    host.innerHTML = violations.map(function (row) {
+      return '<tr class="border-b border-base-300">'
+          + '<td class="py-2 pr-4"><span class="block font-semibold">' + escapeHtml(text(row.studentName)) + '</span>'
+          + '<span class="block font-mono text-[10px] text-base-content/60">' + escapeHtml(text(row.studentNo)) + ' · ' + escapeHtml(text(row.className)) + '</span></td>'
+          + '<td class="py-2 pr-4 font-mono text-[11px]">' + escapeHtml(formatTime(row.occurredAt)) + '<span class="mt-1 block text-[11px]">' + escapeHtml(VIOLATION_TYPE[row.type] || text(row.type)) + '</span></td>'
+          + '<td class="py-2 pr-4 text-xs">' + escapeHtml(text(row.detail)) + '</td>'
+          + '<td class="py-2 pr-4 text-xs">' + escapeHtml(text(row.ruleRef)) + '</td>'
+          + '<td class="py-2 pr-4">' + badge(ADVICE, row.advice) + '</td>'
+          + '<td class="py-2 pr-4">' + badge(VIOLATION_HANDLING, row.handling) + '</td>'
+          + '<td class="py-2 pr-4"><button class="btn btn-ghost btn-xs rounded-full" data-violation="' + escapeHtml(row.id) + '" type="button">处理</button></td>'
+          + '</tr>';
+    }).join('');
+    host.querySelectorAll('[data-violation]').forEach(function (button) {
+      button.addEventListener('click', function () { openViolation(this.getAttribute('data-violation'), null); });
+    });
+  }
+
+  function violationQuery() {
+    return buildQuery([
+      optParam('type', document.getElementById('violation-type').value),
+      optParam('advice', document.getElementById('violation-advice').value),
+      optParam('handling', document.getElementById('violation-handling').value),
+      optParam('keyword', document.getElementById('violation-keyword').value),
+      'page=' + PAGE.violation,
+      'size=' + PAGE_SIZE
+    ]);
+  }
+
+  async function loadViolations() {
+    const result = await callApi('/api/community/violations' + violationQuery());
+    if (!result || result.code !== 200) {
+      showMessage((result && result.message) || '违规台账加载失败，请稍后再试。', 'error');
+      return;
+    }
+    const data = result.data || {};
+    violations = Array.isArray(data.list) ? data.list : [];
+    TOTAL.violation = Number(data.total) || violations.length;
+    if (PAGE.violation > pagesOf('violation')) { PAGE.violation = pagesOf('violation'); }
+    renderViolations();
+    renderPager('violation');
+  }
+
+  function openViolation(id, inspectionId) {
+    activeViolation = id ? findById(violations, id) : null;
+    const inspection = inspectionId ? findById(inspections, inspectionId) : null;
+    document.getElementById('vio-student-no').value = activeViolation ? (activeViolation.studentNo || '') : '';
+    document.getElementById('vio-student-id').value = activeViolation ? (activeViolation.studentId || '') : '';
+    document.getElementById('vio-building').value = activeViolation ? (activeViolation.building || '') : (inspection ? (inspection.building || '') : '');
+    document.getElementById('vio-room').value = activeViolation ? (activeViolation.roomNo || '') : (inspection ? (inspection.roomNo || '') : '');
+    document.getElementById('vio-type').value = activeViolation && activeViolation.type ? activeViolation.type : 'fire';
+    document.getElementById('vio-occurred').value = activeViolation && activeViolation.occurredAt ? toLocalInput(activeViolation.occurredAt) : toLocalInput(formatTime(new Date()));
+    document.getElementById('vio-inspection').value = activeViolation && activeViolation.inspectionId ? activeViolation.inspectionId : (inspectionId || '');
+    document.getElementById('vio-late').value = activeViolation && activeViolation.lateId ? activeViolation.lateId : '';
+    document.getElementById('vio-detail').value = activeViolation && activeViolation.detail ? activeViolation.detail : '';
+    document.getElementById('vio-rule').value = activeViolation && activeViolation.ruleRef ? activeViolation.ruleRef : '';
+    document.getElementById('vio-advice').value = activeViolation && activeViolation.advice ? activeViolation.advice : 'education';
+    document.getElementById('vio-handling').value = activeViolation && activeViolation.handling ? activeViolation.handling : 'pending';
+    document.getElementById('vio-result').value = activeViolation && activeViolation.resultNote ? activeViolation.resultNote : '';
+    document.getElementById('violation-dialog-message').classList.add('hidden');
+    openDialog('violation-dialog');
+  }
+
+  async function saveViolation() {
+    const detail = document.getElementById('vio-detail').value.trim();
+    const ruleRef = document.getElementById('vio-rule').value.trim();
+    if (!detail) { showBoxMessage('violation-dialog-message', '请填写违规事实', 'error'); return; }
+    if (!ruleRef) { showBoxMessage('violation-dialog-message', '请填写依据条文（ruleRef）：处理建议必须挂在具体条款上', 'error'); return; }
+    const body = {
+      studentId: intOrNull(document.getElementById('vio-student-id').value),
+      studentNo: document.getElementById('vio-student-no').value.trim() || null,
+      building: document.getElementById('vio-building').value.trim() || null,
+      roomNo: document.getElementById('vio-room').value.trim() || null,
+      inspectionId: intOrNull(document.getElementById('vio-inspection').value),
+      lateId: intOrNull(document.getElementById('vio-late').value),
+      type: document.getElementById('vio-type').value,
+      occurredAt: toBackendTime(document.getElementById('vio-occurred').value),
+      detail: detail,
+      ruleRef: ruleRef,
+      advice: document.getElementById('vio-advice').value,
+      handling: document.getElementById('vio-handling').value,
+      resultNote: document.getElementById('vio-result').value.trim() || null
+    };
+    const result = activeViolation
+        ? await apiSend('/api/community/violations/' + encodeURIComponent(activeViolation.id), 'PUT', body)
+        : await apiSend('/api/community/violations', 'POST', body);
+    if (!result || result.code !== 200) {
+      showBoxMessage('violation-dialog-message', (result && result.message) || '保存失败，请稍后再试。', 'error');
+      return;
+    }
+    closeDialog('violation-dialog');
+    showMessage(result.message || (activeViolation ? '违规登记已更新。' : '违规已登记。'), 'success');
+    activeViolation = null;
+    await loadViolations();
+    await loadStats();
+  }
+
+  // ── 面板 4：文明宿舍 ────────────────────────────────────────────
+  function renderCivil() {
+    const host = document.getElementById('civil-list');
+    const empty = document.getElementById('civil-empty');
+    if (!civilRooms.length) {
+      host.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    host.innerHTML = civilRooms.map(function (row) {
+      const awarded = row.awarded === 1 || row.awarded === true || row.awarded === '1';
+      return '<tr class="border-b border-base-300">'
+          + '<td class="py-2 pr-4 font-semibold">' + escapeHtml(text(row.building)) + ' ' + escapeHtml(text(row.roomNo)) + '</td>'
+          + '<td class="py-2 pr-4 font-mono text-[11px]">' + escapeHtml(text(row.term)) + '</td>'
+          + '<td class="py-2 pr-4 font-mono text-xs">' + escapeHtml(text(row.memberCount)) + '</td>'
+          + '<td class="py-2 pr-4 font-mono text-xs">' + escapeHtml(text(row.avgScore)) + ' / ' + escapeHtml(text(row.minScore)) + '</td>'
+          + '<td class="py-2 pr-4 font-mono text-xs">' + escapeHtml(text(row.rankInBuilding)) + '</td>'
+          + '<td class="py-2 pr-4">' + (awarded
+              ? '<span class="badge badge-sm badge-success">' + escapeHtml(AWARD_LEVEL[row.awardLevel] || '已获评') + '</span>'
+              : '<span class="badge badge-sm badge-ghost">未获评</span>')
+          + '<span class="mt-1 block font-mono text-[10px] text-base-content/60">' + escapeHtml(row.publishedAt ? ('公示 ' + formatTime(row.publishedAt)) : '未公示') + '</span></td>'
+          + '<td class="py-2 pr-4"><div class="flex flex-wrap items-center gap-1">'
+          + '<button class="btn btn-ghost btn-xs rounded-full" data-publishroom="' + escapeHtml(row.id) + '" type="button">发布公示</button>'
+          + '<button class="btn btn-primary btn-xs rounded-full" data-award="' + escapeHtml(row.id) + '" type="button">获奖登记</button>'
+          + '</div></td>'
+          + '</tr>';
+    }).join('');
+    host.querySelectorAll('[data-publishroom]').forEach(function (button) {
+      button.addEventListener('click', function () { publishCivilRoom(this.getAttribute('data-publishroom')); });
+    });
+    host.querySelectorAll('[data-award]').forEach(function (button) {
+      button.addEventListener('click', function () { openAward(this.getAttribute('data-award')); });
+    });
+  }
+
+  function civilQuery() {
+    const awarded = document.getElementById('civil-awarded').value;
+    return buildQuery([
+      optParam('term', document.getElementById('civil-term').value),
+      optParam('building', document.getElementById('civil-building').value),
+      awarded === '' ? '' : ('awarded=' + awarded)
+    ]);
+  }
+
+  async function loadCivil() {
+    const result = await callApi('/api/community/civil-rooms' + civilQuery());
+    if (!result || result.code !== 200) {
+      showMessage((result && result.message) || '文明宿舍列表加载失败，请稍后再试。', 'error');
+      return;
+    }
+    civilRooms = Array.isArray(result.data) ? result.data : [];
+    renderCivil();
+  }
+
+  async function computeCivil() {
+    const term = document.getElementById('civil-term').value.trim();
+    if (!term) { showMessage('请先填写学期（如 2025-2026-1），计算按学期汇总已公布批次的均分。', 'error'); return; }
+    const result = await apiSend('/api/community/civil-rooms/compute', 'POST', { term: term });
+    if (!result || result.code !== 200) { showMessage((result && result.message) || '计算失败，请稍后再试。', 'error'); return; }
+    showMessage(result.message || '已按学期汇总已公布批次的均分与楼栋内排名。', 'success');
+    await loadCivil();
+    await loadStats();
+  }
+
+  async function publishCivilRoom(id) {
+    const result = await apiSend('/api/community/civil-rooms/' + encodeURIComponent(id) + '/publish', 'POST', {});
+    if (!result || result.code !== 200) { showMessage((result && result.message) || '发布公示失败，请稍后再试。', 'error'); return; }
+    showMessage(result.message || '已发布公示（学生端只看到楼栋 / 房号 / 均分 / 等级）。', 'success');
+    await loadCivil();
+  }
+
+  function openAward(id) {
+    activeCivil = findById(civilRooms, id);
+    document.getElementById('award-target').textContent = activeCivil
+      ? (text(activeCivil.building) + ' ' + text(activeCivil.roomNo) + ' · 学期 ' + text(activeCivil.term) + ' · 均分 ' + text(activeCivil.avgScore) + ' · 楼栋排名 ' + text(activeCivil.rankInBuilding))
+      : ('文明宿舍 #' + id);
+    document.getElementById('award-level').value = activeCivil && activeCivil.awardLevel ? activeCivil.awardLevel : '';
+    document.getElementById('award-message').classList.add('hidden');
+    openDialog('award-dialog');
+  }
+
+  async function saveAward() {
+    if (!activeCivil) { return; }
+    const level = document.getElementById('award-level').value;
+    const body = { awarded: level ? true : false, awardLevel: level || null };
+    const result = await apiSend('/api/community/civil-rooms/' + encodeURIComponent(activeCivil.id) + '/publish', 'POST', body);
+    if (!result || result.code !== 200) {
+      showBoxMessage('award-message', (result && result.message) || '保存失败，请稍后再试。', 'error');
+      return;
+    }
+    closeDialog('award-dialog');
+    showMessage(result.message || (level ? '已登记获奖并发布公示。' : '已取消获奖并发布公示。'), 'success');
+    activeCivil = null;
+    await loadCivil();
+  }
+
+  // ── 面板 5：活动 ────────────────────────────────────────────────
+  function renderActivities() {
+    const host = document.getElementById('activity-list');
+    const empty = document.getElementById('activity-empty');
+    if (!activities.length) {
+      host.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    host.innerHTML = activities.map(function (row) {
+      return '<tr class="border-b border-base-300">'
+          + '<td class="py-2 pr-4"><span class="block font-semibold">' + escapeHtml(text(row.title)) + '</span>'
+          + '<span class="block font-mono text-[10px] text-base-content/60">#' + escapeHtml(row.id) + ' · ' + escapeHtml(text(row.host)) + ' · ' + escapeHtml(text(row.term)) + '</span></td>'
+          + '<td class="py-2 pr-4 text-xs">' + escapeHtml(ACTIVITY_TYPE[row.activityType] || text(row.activityType)) + ' / ' + escapeHtml(ACTIVITY_LEVEL[row.level] || text(row.level)) + '</td>'
+          + '<td class="py-2 pr-4 text-xs">' + escapeHtml(formatTime(row.startAt)) + ' ~ ' + escapeHtml(formatTime(row.endAt)) + '<span class="mt-1 block text-[11px] text-base-content/60">' + escapeHtml(text(row.location)) + '</span></td>'
+          + '<td class="py-2 pr-4 font-mono text-[11px]">' + escapeHtml(formatTime(row.signupDeadline)) + '<span class="mt-1 block text-base-content/60">' + escapeHtml(Number(row.quota) > 0 ? String(row.quota) : '不限') + '</span></td>'
+          + '<td class="py-2 pr-4">' + badge(ACTIVITY_STATUS, row.status) + '</td>'
+          + '<td class="py-2 pr-4 font-mono text-xs">' + escapeHtml(text(row.signupCount)) + '</td>'
+          + '<td class="py-2 pr-4"><div class="flex flex-wrap items-center gap-1">'
+          + '<button class="btn btn-ghost btn-xs rounded-full" data-signups="' + escapeHtml(row.id) + '" type="button">审核报名 / 签到</button>'
+          + '<button class="btn btn-ghost btn-xs rounded-full" data-editact="' + escapeHtml(row.id) + '" type="button">编辑</button>'
+          + '</div></td>'
+          + '</tr>';
+    }).join('');
+    host.querySelectorAll('[data-signups]').forEach(function (button) {
+      button.addEventListener('click', function () { loadSignups(this.getAttribute('data-signups')); });
+    });
+    host.querySelectorAll('[data-editact]').forEach(function (button) {
+      button.addEventListener('click', function () { openActivity(this.getAttribute('data-editact')); });
+    });
+  }
+
+  function activityQuery() {
+    return buildQuery([
+      optParam('activityType', document.getElementById('activity-type').value),
+      optParam('status', document.getElementById('activity-status').value),
+      optParam('keyword', document.getElementById('activity-keyword').value)
+    ]);
+  }
+
+  async function loadActivities() {
+    const result = await callApi('/api/community/activities' + activityQuery());
+    if (!result || result.code !== 200) {
+      showMessage((result && result.message) || '活动列表加载失败，请稍后再试。', 'error');
+      return;
+    }
+    activities = Array.isArray(result.data) ? result.data : [];
+    renderActivities();
+  }
+
+  function openActivity(id) {
+    editingActivityId = id || null;
+    const row = id ? findById(activities, id) : null;
+    document.getElementById('act-title').value = row ? (row.title || '') : '';
+    document.getElementById('act-type').value = row && row.activityType ? row.activityType : 'culture_festival';
+    document.getElementById('act-level').value = row && row.level ? row.level : 'school';
+    document.getElementById('act-term').value = row ? (row.term || '') : (document.getElementById('batch-term').value || '');
+    document.getElementById('act-status').value = row && row.status ? row.status : 'draft';
+    document.getElementById('act-start').value = row ? toLocalInput(row.startAt) : '';
+    document.getElementById('act-end').value = row ? toLocalInput(row.endAt) : '';
+    document.getElementById('act-deadline').value = row ? toLocalInput(row.signupDeadline) : '';
+    document.getElementById('act-quota').value = row && row.quota !== null && row.quota !== undefined ? row.quota : '';
+    document.getElementById('act-location').value = row ? (row.location || '') : '';
+    document.getElementById('act-host').value = row ? (row.host || '') : '';
+    document.getElementById('act-notice').value = row ? (row.noticeUrl || '') : '';
+    document.getElementById('act-content').value = row ? (row.content || '') : '';
+    document.getElementById('activity-dialog-message').classList.add('hidden');
+    openDialog('activity-dialog');
+  }
+
+  async function saveActivity() {
+    const title = document.getElementById('act-title').value.trim();
+    if (!title) { showBoxMessage('activity-dialog-message', '请填写活动名称', 'error'); return; }
+    const body = {
+      title: title,
+      activityType: document.getElementById('act-type').value,
+      level: document.getElementById('act-level').value,
+      term: document.getElementById('act-term').value.trim() || null,
+      status: document.getElementById('act-status').value,
+      startAt: toBackendTime(document.getElementById('act-start').value),
+      endAt: toBackendTime(document.getElementById('act-end').value),
+      signupDeadline: toBackendTime(document.getElementById('act-deadline').value),
+      quota: intOrNull(document.getElementById('act-quota').value),
+      location: document.getElementById('act-location').value.trim() || null,
+      host: document.getElementById('act-host').value.trim() || null,
+      noticeUrl: document.getElementById('act-notice').value.trim() || null,
+      content: document.getElementById('act-content').value.trim() || null
+    };
+    const result = editingActivityId
+        ? await apiSend('/api/community/activities/' + encodeURIComponent(editingActivityId), 'PUT', body)
+        : await apiSend('/api/community/activities', 'POST', body);
+    if (!result || result.code !== 200) {
+      showBoxMessage('activity-dialog-message', (result && result.message) || '保存失败，请稍后再试。', 'error');
+      return;
+    }
+    closeDialog('activity-dialog');
+    showMessage(result.message || (editingActivityId ? '活动已更新。' : '活动已创建。'), 'success');
+    editingActivityId = null;
+    await loadActivities();
+    await loadStats();
+  }
+
+  // ── 报名审核 / 签到（后端只有 POST 统计与按 id 处理，没有明细列表路由）──
+  function parseIdList(raw) {
+    return String(raw || '').split(/[,\s，、;；]+/).map(function (one) {
+      return Number(String(one).trim());
+    }).filter(function (num) {
+      return !isNaN(num) && num > 0;
+    });
+  }
+
+  function renderSignupResult() {
+    const host = document.getElementById('signup-list');
+    const empty = document.getElementById('signup-empty');
+    if (!lastSignupRows.length) {
+      host.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    host.innerHTML = lastSignupRows.map(function (row) {
+      const notes = [];
+      if (row.rejectReason) { notes.push('驳回原因：' + escapeHtml(row.rejectReason)); }
+      if (row.note) { notes.push('备注：' + escapeHtml(row.note)); }
+      return '<tr class="border-b border-base-300">'
+          + '<td class="py-2 pr-4 text-xs">' + escapeHtml(lastSignupLabel || '—') + '</td>'
+          + '<td class="py-2 pr-4"><span class="block font-mono text-[11px]">#' + escapeHtml(text(row.id)) + '</span>'
+          + '<span class="block text-[11px]">' + escapeHtml(text(row.studentName)) + ' · ' + escapeHtml(text(row.studentNo)) + '</span></td>'
+          + '<td class="py-2 pr-4 text-xs">' + escapeHtml(text(row.building)) + ' ' + escapeHtml(text(row.roomNo)) + '</td>'
+          + '<td class="py-2 pr-4">' + badge(SIGNUP_STATUS, row.status) + '</td>'
+          + '<td class="py-2 pr-4 text-xs">' + escapeHtml(AWARD[row.award] || text(row.award)) + (row.score === null || row.score === undefined ? '' : (' · ' + escapeHtml(row.score) + ' 分')) + '</td>'
+          + '<td class="py-2 pr-4 text-xs">' + (notes.length ? notes.join('<br>') : '—') + '</td>'
+          + '</tr>';
+    }).join('');
+  }
+
+  // 名额口径：后端只对 quota > 0 判「名额已满」，null / 0 视为不限（见 CommunityActivityService.signupActivity）。
+  function quotaText(quota) {
+    if (quota === null || quota === undefined || Number(quota) <= 0) { return '不限'; }
+    return String(quota);
+  }
+
+  function loadSignups(activityId) {
+    activeSignupActivity = findById(activities, activityId) || { id: activityId };
+    lastSignupRows = [];
+    lastSignupLabel = '';
+    renderSignupResult();
+    const row = activeSignupActivity;
+    document.getElementById('signup-pick').textContent = '#' + activityId + ' ' + (row.title ? row.title : '');
+    setText('ss-title', row.title);
+    const quota = quotaText(row.quota);
+    setText('ss-signup', text(row.signupCount) + ' / ' + quota);
+    setText('ss-deadline', row.signupDeadline ? formatTime(row.signupDeadline) : null);
+    setText('ss-status', (ACTIVITY_STATUS[row.status] || {}).label || row.status);
+    showBoxMessage('signup-message', '已选择活动 #' + activityId + ' ' + text(row.title) + '；填写报名 signupId / 学生 studentId 后提交审核或签到。', 'success');
+  }
+
+  async function submitReview() {
+    if (!activeSignupActivity) {
+      showBoxMessage('signup-message', '请先在活动列表点「审核报名 / 签到」选择活动。', 'error');
+      return;
+    }
+    const ids = parseIdList(document.getElementById('review-ids').value);
+    if (!ids.length) {
+      showBoxMessage('signup-message', '请填写至少一个报名 signupId / 学生 studentId', 'error');
+      return;
+    }
+    const action = document.getElementById('review-action-inline').value;
+    const reason = document.getElementById('review-reason-inline').value.trim();
+    if (action === 'reject' && !reason) {
+      showBoxMessage('signup-message', 'reject 驳回必须填写驳回原因', 'error');
+      return;
+    }
+    const result = await apiSend('/api/community/activities/' + encodeURIComponent(activeSignupActivity.id) + '/review', 'POST', {
+      action: action,
+      rejectReason: reason || null,
+      items: ids.map(function (id) { return { signupId: id }; })
+    });
+    if (!result || result.code !== 200) {
+      showBoxMessage('signup-message', (result && result.message) || '提交审核失败，请稍后再试。', 'error');
+      return;
+    }
+    finishSignupAction(result, '报名审核');
+  }
+
+  async function submitAttendance() {
+    if (!activeSignupActivity) {
+      showBoxMessage('signup-message', '请先在活动列表点「审核报名 / 签到」选择活动。', 'error');
+      return;
+    }
+    const ids = parseIdList(document.getElementById('attend-ids').value);
+    if (!ids.length) {
+      showBoxMessage('signup-message', '请填写至少一个报名 signupId / 学生 studentId', 'error');
+      return;
+    }
+    const award = document.getElementById('attend-award').value;
+    const scoreRaw = document.getElementById('attend-score').value.trim();
+    const result = await apiSend('/api/community/activities/' + encodeURIComponent(activeSignupActivity.id) + '/attendance', 'POST', {
+      status: document.getElementById('attend-status').value,
+      award: award || null,
+      score: scoreRaw === '' ? null : Number(scoreRaw),
+      items: ids.map(function (id) { return { signupId: id }; })
+    });
+    if (!result || result.code !== 200) {
+      showBoxMessage('signup-message', (result && result.message) || '提交签到失败，请稍后再试。', 'error');
+      return;
+    }
+    finishSignupAction(result, '签到置位');
+  }
+
+  async function finishSignupAction(result, label) {
+    const data = result.data || {};
+    lastSignupLabel = label + '：成功 ' + text(data.updated) + ' 条 / 失败 ' + text(data.failed) + ' 条';
+    lastSignupRows = Array.isArray(data.items) ? data.items : [];
+    const errors = Array.isArray(data.errors) ? data.errors : [];
+    renderSignupResult();
+    const summary = (result.message || (label + '完成')) + (errors.length ? ('；失败明细：' + errors.map(function (one) {
+      return text(one.id) + ' ' + text(one.message || one.error || one.reason);
+    }).join('；')) : '');
+    showBoxMessage('signup-message', summary, errors.length ? 'error' : 'success');
+    showMessage(result.message || (label + '完成。'), errors.length ? 'error' : 'success');
+    await loadActivities();
+    if (activeSignupActivity) {
+      const fresh = findById(activities, activeSignupActivity.id);
+      if (fresh) {
+        activeSignupActivity = fresh;
+        const quota = quotaText(fresh.quota);
+        setText('ss-signup', text(fresh.signupCount) + ' / ' + quota);
+        setText('ss-status', (ACTIVITY_STATUS[fresh.status] || {}).label || fresh.status);
+      }
+    }
+  }
+
+  // ── 面板 6：统计与导出 ──────────────────────────────────────────
+  function statOf(source, key) {
+    if (!source || typeof source !== 'object') { return '—'; }
+    if (source[key] !== undefined) { return source[key]; }
+    const camel = key.replace(/_([a-z])/g, function (all, ch) { return ch.toUpperCase(); });
+    return source[camel];
+  }
+
+  function fillGrid(hostId, pairs) {
+    document.getElementById(hostId).innerHTML = pairs.map(function (pair) {
+      return '<div class="flex items-center justify-between gap-2 rounded-box border border-base-300 bg-base-200 px-3 py-2">'
+          + '<span class="text-base-content/65">' + escapeHtml(pair[0]) + '</span>'
+          + '<span class="font-mono">' + escapeHtml(text(pair[1])) + '</span></div>';
+    }).join('');
+  }
+
+  async function loadStats() {
+    const query = buildQuery([
+      optParam('term', document.getElementById('insight-term').value),
+      optParam('startDate', document.getElementById('insight-start').value),
+      optParam('endDate', document.getElementById('insight-end').value)
+    ]);
+    const result = await callApi('/api/community/stats' + query);
+    if (!result || result.code !== 200) {
+      showMessage((result && result.message) || '统计加载失败，请稍后再试。', 'error');
+      return;
+    }
+    const data = result.data || {};
+    const batch = data.batches || {};
+    const inspection = data.inspections || {};
+    const late = data.lates || {};
+    const violation = data.violations || {};
+    const activity = data.activities || {};
+    const civil = data.civilRooms || {};
+
+    setText('stat-batches', batch.total);
+    setText('stat-inspections', inspection.total);
+    setText('stat-avg', inspection.avg_score === undefined ? inspection.avgScore : inspection.avg_score);
+    setText('stat-rectify', statOf(inspection, 'rectify_pending'));
+    setText('stat-lates', late.total);
+    setText('stat-violations', violation.total);
+
+    fillGrid('insight-batch', [
+      ['学期', data.term], ['起止', text(data.startDate) + ' ~ ' + text(data.endDate)],
+      ['批次总数', batch.total], ['草稿 / 检查中', text(batch.draft) + ' / ' + text(batch.checking)],
+      ['已评分 / 已公布', text(batch.scored) + ' / ' + text(batch.published)], ['已结束', batch.finished],
+      ['检查记录', inspection.total], ['平均分', inspection.avg_score === undefined ? inspection.avgScore : inspection.avg_score],
+      ['最低 / 最高', text(inspection.min_score === undefined ? inspection.minScore : inspection.min_score) + ' / ' + text(inspection.max_score === undefined ? inspection.maxScore : inspection.max_score)],
+      ['优秀 / 良好', text(inspection.excellent) + ' / ' + text(inspection.good)]
+    ]);
+    fillGrid('insight-rectify', [
+      ['无需整改', '—'], ['待整改', statOf(inspection, 'rectify_pending')],
+      ['已提交说明', statOf(inspection, 'rectify_submitted')], ['复查通过', statOf(inspection, 'rectify_accepted')],
+      ['复查未通过', statOf(inspection, 'rectify_rejected')], ['合格 / 不合格', text(inspection.pass) + ' / ' + text(inspection.fail)]
+    ]);
+    fillGrid('insight-late', [
+      ['晚归总数', late.total], ['晚归 / 夜不归宿', text(late.late_count === undefined ? late.lateCount : late.late_count) + ' / ' + text(late.absent_count === undefined ? late.absentCount : late.absent_count)],
+      ['未核实', late.unconfirmed], ['待处理 / 已联系 / 已了结', text(late.pending) + ' / ' + text(late.contacted) + ' / ' + text(late.closed)],
+      ['违规总数', violation.total], ['待处理 / 已告知 / 已了结', text(violation.pending) + ' / ' + text(violation.notified) + ' / ' + text(violation.closed)],
+      ['批评教育 / 通报批评', text(violation.education) + ' / ' + text(violation.circulated)], ['警告 / 严重警告 / 记录在案', text(violation.warning) + ' / ' + text(violation.serious_warning === undefined ? violation.seriousWarning : violation.serious_warning) + ' / ' + text(violation.recorded)]
+    ]);
+    fillGrid('insight-more', [
+      ['活动总数', activity.total], ['报名中', activity.signup_open === undefined ? activity.signupOpen : activity.signup_open],
+      ['报名人次', activity.signup_total === undefined ? activity.signupTotal : activity.signup_total], ['已参加人次', activity.attended_total === undefined ? activity.attendedTotal : activity.attended_total],
+      ['获奖人次', activity.award_total === undefined ? activity.awardTotal : activity.award_total], ['文明宿舍记录', civil.total],
+      ['已公示 / 已获奖', text(civil.published) + ' / ' + text(civil.awarded)], ['最高均分 / 楼栋数', text(civil.best_avg === undefined ? civil.bestAvg : civil.best_avg) + ' / ' + text(civil.buildings)]
+    ]);
+  }
+
+  function exportCsv() {
+    const type = document.getElementById('export-type').value;
+    const parts = ['type=' + encodeURIComponent(type)];
+    const building = document.getElementById('export-building').value.trim();
+    const term = document.getElementById('export-term').value.trim();
+    if (building) { parts.push('building=' + encodeURIComponent(building)); }
+    if (term) { parts.push('term=' + encodeURIComponent(term)); }
+    const url = '/api/community/export?' + parts.join('&');
+    fetch(url, { credentials: 'same-origin' }).then(function (response) {
+      const contentType = String(response.headers.get('Content-Type') || '');
+      if (contentType.indexOf('json') >= 0) {
+        return response.json().then(function (body) {
+          if (body && body.code === 401) { window.location.href = 'login.html'; return; }
+          showMessage((body && body.message) || '导出失败。', 'error');
+        });
+      }
+      if (contentType.indexOf('html') >= 0) {
+        showMessage('导出请求被重定向到登录页：请重新登录后再导出。', 'error');
+        return null;
+      }
+      if (!response.ok) {
+        showMessage('导出失败：服务返回 ' + response.status + '。', 'error');
+        return null;
+      }
+      return response.blob().then(function (blob) {
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = 'community-' + type + '.csv';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 1000);
+        showMessage('已导出 community-' + type + '.csv（UTF-8 带 BOM）。', 'success');
+      });
+    }).catch(function (error) {
+      showMessage('导出失败：' + error.message, 'error');
+    });
+  }
+
+  // ── 页签 ────────────────────────────────────────────────────────
+  async function switchTab(name) {
+    Object.keys(PANELS).forEach(function (key) {
+      const panel = document.getElementById(PANELS[key]);
+      const button = document.getElementById(TABS[key]);
+      const active = key === name;
+      panel.classList.toggle('hidden', !active);
+      button.classList.toggle('is-active', active);
+    });
+    if (name === 'batch') { await loadBatches(); }
+    else if (name === 'inspection') { await loadInspections(); }
+    else if (name === 'late') { await loadLates(); await loadViolations(); }
+    else if (name === 'civil') { await loadCivil(); }
+    else if (name === 'activity') { await loadActivities(); }
+    else if (name === 'insight') { await loadStats(); }
+  }
+
+  // ── 登录态与权限 ────────────────────────────────────────────────
+  async function checkAuth() {
+    try {
+      const result = await callApi('/api/auth/me');
+      if (!result || result.code !== 200) { window.location.href = 'login.html'; return null; }
+      const role = result.data && result.data.role;
+      if (role === 'student') { window.location.href = 'community.html'; return null; }
+      ROLE = role || '';
+      return result.data;
+    } catch (error) {
+      window.location.href = 'login.html';
+      return null;
+    }
+  }
+
+  function applyRole() {
+    const note = document.getElementById('role-note');
+    if (ROLE === 'admin') {
+      note.textContent = '当前账号：管理员 —— 可管理全部批次、全部学生台账、文明宿舍评比与活动，并可导出全部数据。';
+      return;
+    }
+    note.textContent = '当前账号：辅导员 —— 只能看到自己名下学生的晚归 / 违规记录（后端按 counselor_id 收窄）；批次录入、复查、文明宿舍评比与活动管理可用，导出同样按名下学生收窄。';
+  }
+
+  async function logout() {
+    try { await callApi('/api/auth/logout', { method: 'POST' }); } catch (error) { /* 忽略 */ }
+    window.location.href = 'login.html';
+  }
+
+  // ── 绑定 ────────────────────────────────────────────────────────
+  document.getElementById('logout-btn').addEventListener('click', logout);
+  document.getElementById('tab-batch').addEventListener('click', function () { switchTab('batch'); });
+  document.getElementById('tab-inspection').addEventListener('click', function () { switchTab('inspection'); });
+  document.getElementById('tab-late').addEventListener('click', function () { switchTab('late'); });
+  document.getElementById('tab-civil').addEventListener('click', function () { switchTab('civil'); });
+  document.getElementById('tab-activity').addEventListener('click', function () { switchTab('activity'); });
+  document.getElementById('tab-insight').addEventListener('click', function () { switchTab('insight'); });
+  document.getElementById('batch-refresh').addEventListener('click', loadBatches);
+  document.getElementById('batch-search').addEventListener('click', loadBatches);
+  document.getElementById('batch-new').addEventListener('click', function () { openBatch(null); });
+  document.getElementById('batch-save').addEventListener('click', saveBatch);
+  document.getElementById('batch-cancel').addEventListener('click', function () { closeDialog('batch-dialog'); });
+  document.getElementById('inspection-refresh').addEventListener('click', loadInspections);
+  document.getElementById('inspection-search').addEventListener('click', function () { PAGE.inspection = 1; loadInspections(); });
+  document.getElementById('inspection-new').addEventListener('click', openInspection);
+  document.getElementById('inspection-import').addEventListener('click', function () { document.getElementById('import-message').classList.add('hidden'); openDialog('import-dialog'); });
+  document.getElementById('inspection-save').addEventListener('click', saveInspection);
+  document.getElementById('inspection-cancel').addEventListener('click', function () { closeDialog('inspection-dialog'); });
+  document.getElementById('import-save').addEventListener('click', doImport);
+  document.getElementById('import-cancel').addEventListener('click', function () { closeDialog('import-dialog'); });
+  document.getElementById('insp-batch').addEventListener('change', renderItemInputs);
+  document.getElementById('recheck-save').addEventListener('click', doRecheck);
+  document.getElementById('recheck-cancel').addEventListener('click', function () { closeDialog('recheck-dialog'); });
+  document.getElementById('late-refresh').addEventListener('click', loadLates);
+  document.getElementById('late-search').addEventListener('click', function () { PAGE.late = 1; loadLates(); });
+  document.getElementById('late-new').addEventListener('click', function () { openLate(null); });
+  document.getElementById('late-dialog-save').addEventListener('click', saveLate);
+  document.getElementById('late-dialog-cancel').addEventListener('click', function () { closeDialog('late-dialog'); });
+  document.getElementById('violation-refresh').addEventListener('click', loadViolations);
+  document.getElementById('violation-search').addEventListener('click', function () { PAGE.violation = 1; loadViolations(); });
+  document.getElementById('violation-new').addEventListener('click', function () { openViolation(null, null); });
+  document.getElementById('violation-save').addEventListener('click', saveViolation);
+  document.getElementById('violation-cancel').addEventListener('click', function () { closeDialog('violation-dialog'); });
+  document.getElementById('civil-refresh').addEventListener('click', loadCivil);
+  document.getElementById('civil-search').addEventListener('click', loadCivil);
+  document.getElementById('civil-compute').addEventListener('click', computeCivil);
+  document.getElementById('award-save').addEventListener('click', saveAward);
+  document.getElementById('award-cancel').addEventListener('click', function () { closeDialog('award-dialog'); });
+  document.getElementById('activity-refresh').addEventListener('click', loadActivities);
+  document.getElementById('activity-search').addEventListener('click', loadActivities);
+  document.getElementById('activity-new').addEventListener('click', function () { openActivity(null); });
+  document.getElementById('activity-save').addEventListener('click', saveActivity);
+  document.getElementById('activity-cancel').addEventListener('click', function () { closeDialog('activity-dialog'); });
+  document.getElementById('review-submit').addEventListener('click', submitReview);
+  document.getElementById('attend-submit').addEventListener('click', submitAttendance);
+  document.getElementById('insight-apply').addEventListener('click', loadStats);
+  document.getElementById('insight-refresh').addEventListener('click', loadStats);
+  document.getElementById('export-run').addEventListener('click', exportCsv);
+  document.getElementById('insp-prev').addEventListener('click', function () {
+    if (PAGE.inspection > 1) { PAGE.inspection -= 1; loadInspections(); }
+  });
+  document.getElementById('insp-next').addEventListener('click', function () {
+    if (PAGE.inspection < pagesOf('inspection')) { PAGE.inspection += 1; loadInspections(); }
+  });
+  document.getElementById('late-prev').addEventListener('click', function () {
+    if (PAGE.late > 1) { PAGE.late -= 1; loadLates(); }
+  });
+  document.getElementById('late-next').addEventListener('click', function () {
+    if (PAGE.late < pagesOf('late')) { PAGE.late += 1; loadLates(); }
+  });
+  document.getElementById('violation-prev').addEventListener('click', function () {
+    if (PAGE.violation > 1) { PAGE.violation -= 1; loadViolations(); }
+  });
+  document.getElementById('violation-next').addEventListener('click', function () {
+    if (PAGE.violation < pagesOf('violation')) { PAGE.violation += 1; loadViolations(); }
+  });
+
+  clearMessage();
+  const me = await checkAuth();
+  if (me) {
+    applyRole();
+    await loadStats();
+    await switchTab('batch');
+  }
+})();
+</script>
+
+<script defer src="/js/nest-ui.js"></script>
+<script defer src="/libs/animejs/anime.umd.min.js"></script>
+<script defer src="/libs/countup/countUp.umd.js"></script>
+<script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+<script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+<script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+</body>
+</html>

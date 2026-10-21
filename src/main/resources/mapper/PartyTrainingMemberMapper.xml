@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.PartyTrainingMemberMapper">
+
+    <!--
+      党校学员报名与结业（学工 P16）。
+
+      口径：
+        * UNIQUE(training_id, user_id, deleted)：一人一班一条报名。
+        * 状态机 CAS：signed -> approved -> completed；approved -> rejected。
+        * 结业证书「自颁发之日起一年内有效」（校规 S23）⇒ cert_valid_until 由服务层按
+          cert_issue_date + 365 天推算，**传了人工覆盖值就采信传入值**（§11.2-7）。
+        * 无及格线/考核权重来源（§11.1-③）⇒ 只有 complete_result = pass|fail 人工结论，无分数列。
+        * 辅导员范围：LEFT JOIN student_profile 按 counselor_id 过滤（§11.2-5）。
+      本 XML 无裸 '<'。
+    -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.PartyTrainingMember">
+        <id column="id" property="id"/>
+        <result column="training_id" property="trainingId"/>
+        <result column="user_id" property="userId"/>
+        <result column="student_snapshot" property="studentSnapshot"/>
+        <result column="class_snapshot" property="classSnapshot"/>
+        <result column="signup_at" property="signupAt"/>
+        <result column="status" property="status"/>
+        <result column="review_by" property="reviewBy"/>
+        <result column="review_at" property="reviewAt"/>
+        <result column="reject_reason" property="rejectReason"/>
+        <result column="complete_result" property="completeResult"/>
+        <result column="complete_date" property="completeDate"/>
+        <result column="cert_no" property="certNo"/>
+        <result column="cert_issue_date" property="certIssueDate"/>
+        <result column="cert_valid_until" property="certValidUntil"/>
+        <result column="note" property="note"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="user_name" property="userName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="training_name" property="trainingName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        m.id, m.training_id, m.user_id, m.student_snapshot, m.class_snapshot, m.signup_at,
+        m.status, m.review_by, m.review_at, m.reject_reason,
+        m.complete_result, m.complete_date, m.cert_no, m.cert_issue_date, m.cert_valid_until,
+        m.note, m.created_at, m.updated_at, m.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.username) AS user_name,
+        u.student_id AS student_no,
+        t.training_name AS training_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM party_training_member m
+        LEFT JOIN users u ON u.id = m.user_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = m.user_id AND sp.deleted = 0
+        LEFT JOIN party_training t ON t.id = m.training_id AND t.deleted = 0
+    </sql>
+
+    <sql id="List_Filters">
+        <if test="trainingId != null">AND m.training_id = #{trainingId}</if>
+        <if test="userId != null">AND m.user_id = #{userId}</if>
+        <!-- 辅导员范围：只见 student_profile.counselor_id 名下学生（§11.2-5） -->
+        <if test="counselorId != null">AND sp.counselor_id = #{counselorId}</if>
+        <if test="status != null and status != ''">AND m.status = #{status}</if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.PartyTrainingMember" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO party_training_member
+            (training_id, user_id, student_snapshot, class_snapshot, signup_at, status,
+             review_by, review_at, reject_reason,
+             complete_result, complete_date, cert_no, cert_issue_date, cert_valid_until,
+             note, created_at, updated_at, deleted)
+        VALUES
+            (#{trainingId}, #{userId}, #{studentSnapshot}, #{classSnapshot}, #{signupAt}, #{status},
+             #{reviewBy}, #{reviewAt}, #{rejectReason},
+             #{completeResult}, #{completeDate}, #{certNo}, #{certIssueDate}, #{certValidUntil},
+             #{note}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE m.id = #{id} AND m.deleted = 0
+    </select>
+
+    <select id="findByTrainingAndUser" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE m.training_id = #{trainingId} AND m.user_id = #{userId} AND m.deleted = 0
+        ORDER BY m.id DESC
+        LIMIT 1
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE m.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY m.signup_at DESC, m.id DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE m.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <!-- 审核：signed -> approved|rejected（CAS on status） -->
+    <update id="review">
+        UPDATE party_training_member
+        SET status = #{toStatus},
+            review_by = #{reviewBy},
+            review_at = #{reviewAt},
+            reject_reason = #{rejectReason},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- 结业登记：approved -> completed（CAS on status），写结业结论/日期/证书 -->
+    <update id="complete">
+        UPDATE party_training_member
+        SET status = 'completed',
+            complete_result = #{completeResult},
+            complete_date = #{completeDate},
+            cert_no = #{certNo},
+            cert_issue_date = #{certIssueDate},
+            cert_valid_until = #{certValidUntil},
+            note = #{note},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- 证书信息覆盖：只允许已结业（completed） -->
+    <update id="updateCert">
+        UPDATE party_training_member
+        SET cert_no = #{certNo},
+            cert_issue_date = #{certIssueDate},
+            cert_valid_until = #{certValidUntil},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = 'completed'
+    </update>
+
+    <select id="countGroupByStatus" resultType="java.util.LinkedHashMap">
+        SELECT m.status AS status, COUNT(*) AS total
+        FROM party_training_member m
+        WHERE m.deleted = 0
+        <if test="trainingId != null">AND m.training_id = #{trainingId}</if>
+        GROUP BY m.status
+        ORDER BY m.status
+    </select>
+
+    <select id="countGroupByStatusAll" resultType="java.util.LinkedHashMap">
+        SELECT m.status AS status, COUNT(*) AS total
+        FROM party_training_member m
+        WHERE m.deleted = 0
+        GROUP BY m.status
+        ORDER BY m.status
+    </select>
+
+</mapper>

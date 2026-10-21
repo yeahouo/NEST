@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="nestlight">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学生名册 · 学工平台</title>
+  <!--
+    主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
+    daisyUI 的组件颜色跟的是 [data-theme] 属性（不是 .dark 类），两处都必须写，
+    与 nest-ui.js 的 paintTheme() 保持一致。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/nest-art3.css">
+</head>
+
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content">
+
+<header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none border-0 p-0">
+  <div class="navbar mx-auto min-h-0 w-full max-w-7xl gap-3 px-5 py-2 md:px-8">
+    <div class="navbar-start gap-3">
+      <a class="flex items-center gap-3" href="teacher-dashboard.html">
+        <span class="nx-logo">
+          <span class="material-symbols-outlined text-xl">terminal</span>
+        </span>
+        <span class="hidden text-lg font-black uppercase tracking-tight sm:inline">学工平台</span>
+      </a>
+      <span class="hidden h-5 w-px bg-base-300 lg:block"></span>
+      <span class="hidden font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65 lg:block">§ 05 · Staff affairs / Students</span>
+    </div>
+    <div class="navbar-end gap-1.5">
+      <a class="btn btn-ghost btn-sm gap-2 rounded-full" href="leave-review.html">
+        <span class="material-symbols-outlined text-lg">fact_check</span>
+        <span class="hidden md:inline">请假审批</span>
+      </a>
+      <a class="btn btn-ghost btn-sm gap-2 rounded-full" href="teacher-dashboard.html">
+        <span class="material-symbols-outlined text-lg">dashboard</span>
+        <span class="hidden md:inline">工作台</span>
+      </a>
+      <button aria-label="切换深色 / 浅色模式" class="nx-icon-btn" data-nx-theme-toggle title="切换深色 / 浅色模式" type="button">
+        <span class="material-symbols-outlined nx-theme-icon-light text-xl">dark_mode</span>
+        <span class="material-symbols-outlined nx-theme-icon-dark text-xl">light_mode</span>
+      </button>
+      <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="logout-btn" type="button">
+        <span class="material-symbols-outlined text-lg">logout</span>
+        <span class="hidden md:inline">退出登录</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="flex-1 px-5 py-8 md:px-8 md:py-12">
+  <div class="mx-auto w-full max-w-7xl">
+
+    <!-- ── 刊头：等宽小标 + 衬线大标题 + 发丝分隔线 ───────────────────── -->
+    <header class="mb-8 border-b border-base-300 pb-6">
+      <p class="nx-kicker">§ 05 · Staff / Students</p>
+      <h1 data-nx-split="1" class="mt-2 font-serif text-3xl leading-tight sm:text-4xl lg:text-5xl">学生名册</h1>
+      <p class="mt-4 max-w-2xl text-sm text-base-content/70">
+        按班级、学籍状态与关键词查学生，点开即可看到档案与最近的假条，并能就地补全宿舍与家庭信息。
+        辅导员默认只看自己名下的学生；管理员可以查看全校并调整分派。
+      </p>
+    </header>
+
+    <!-- ── 统计发丝格 ─────────────────────────────────────────────── -->
+    <section id="roster-stats" class="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 md:grid-cols-5"></section>
+
+    <!-- ── 筛选条 ─────────────────────────────────────────────────── -->
+    <section class="mb-8 flex flex-wrap items-end gap-3 rounded-box border border-base-300 bg-base-200 p-5">
+      <div class="form-control min-w-[10rem]">
+        <label class="label px-0 pb-1.5" for="roster-class">
+          <span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">班级 / Class</span>
+        </label>
+        <select id="roster-class" class="select select-bordered select-sm"></select>
+      </div>
+      <div class="form-control min-w-[9rem]">
+        <label class="label px-0 pb-1.5" for="roster-status">
+          <span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学籍状态 / Status</span>
+        </label>
+        <select id="roster-status" class="select select-bordered select-sm">
+          <option value="">全部</option>
+          <option value="active">在读</option>
+          <option value="suspended">休学</option>
+          <option value="quit">退学</option>
+          <option value="graduated">毕业</option>
+        </select>
+      </div>
+      <div class="form-control min-w-[12rem] flex-1">
+        <label class="label px-0 pb-1.5" for="roster-keyword">
+          <span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关键词 / Keyword</span>
+        </label>
+        <input id="roster-keyword" type="text" maxlength="32" class="input input-bordered input-sm" placeholder="姓名、账号、学号或专业">
+      </div>
+      <div class="flex flex-wrap items-center gap-1.5 rounded-box border border-base-300 bg-base-100 p-1.5" id="roster-scope">
+        <button type="button" id="roster-scope-mine" onclick="setScope('mine')" class="tab-btn nx-tab is-active">我的学生</button>
+        <button type="button" id="roster-scope-all" onclick="setScope('all')" class="tab-btn nx-tab">全校</button>
+      </div>
+      <button id="roster-search" onclick="applyFilters()" class="btn btn-primary btn-sm rounded-full">查询</button>
+      <button id="roster-sync" onclick="syncMissing()" class="btn btn-ghost btn-sm hidden rounded-full">补建档案</button>
+    </section>
+
+    <!-- ── 名册列表 ───────────────────────────────────────────────── -->
+    <section>
+      <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h2 class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Roster · 名册</h2>
+        <p class="font-mono text-[11px] text-base-content/65" id="roster-total">—</p>
+      </div>
+
+      <div id="roster-list" data-nx-autoanimate="1" class="grid gap-4 md:grid-cols-2"></div>
+
+      <div id="roster-empty" class="hidden rounded-box border border-dashed border-base-300 p-8 text-center">
+        <span class="material-symbols-outlined text-3xl text-base-content/40">groups</span>
+        <p class="mt-3 text-sm text-base-content/70">这个筛选下还没有学生。</p>
+      </div>
+
+      <div class="mt-6 flex items-center justify-center gap-3">
+        <button id="roster-prev" onclick="setPage(-1)" class="btn btn-ghost btn-sm rounded-full">上一页</button>
+        <span class="font-mono text-[11px] text-base-content/65" id="roster-page">第 1 页</span>
+        <button id="roster-next" onclick="setPage(1)" class="btn btn-ghost btn-sm rounded-full">下一页</button>
+      </div>
+
+      <div id="roster-message" class="alert mt-6 hidden items-start gap-2"></div>
+    </section>
+  </div>
+</main>
+
+<!-- ── 学生档案弹窗（遮罩与卡片同层：外层是遮罩） ───────────────────── -->
+<div id="student-dialog" class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4">
+  <div class="card max-h-[90vh] w-full max-w-3xl overflow-auto rounded-box border border-base-300 bg-base-200 shadow-2xl">
+    <div class="card-body gap-5 p-7">
+      <div class="flex flex-wrap items-center gap-3">
+        <h2 class="font-serif text-2xl" id="dialog-title">学生档案</h2>
+        <button type="button" id="dialog-close" onclick="closeDialog()" class="btn btn-ghost btn-xs ml-auto rounded-full">关闭</button>
+      </div>
+
+      <dl id="dialog-record" class="grid grid-cols-2 gap-x-6 gap-y-4"></dl>
+
+      <div>
+        <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Leave · 最近假条</p>
+        <div id="dialog-leave" class="mt-3 flex flex-col gap-2"></div>
+        <p id="dialog-leave-empty" class="mt-3 hidden text-sm text-base-content/65">这个学生还没有假条记录。</p>
+      </div>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div class="form-control">
+          <label class="label px-0 pb-1.5" for="edit-building">
+            <span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">宿舍楼 / Building</span>
+          </label>
+          <input id="edit-building" type="text" maxlength="32" class="input input-bordered input-sm" placeholder="A 栋">
+        </div>
+        <div class="form-control">
+          <label class="label px-0 pb-1.5" for="edit-room">
+            <span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">房间 / Room</span>
+          </label>
+          <input id="edit-room" type="text" maxlength="32" class="input input-bordered input-sm" placeholder="A-305">
+        </div>
+        <div class="form-control">
+          <label class="label px-0 pb-1.5" for="edit-political">
+            <span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">政治面貌 / Political</span>
+          </label>
+          <input id="edit-political" type="text" maxlength="16" class="input input-bordered input-sm" placeholder="共青团员">
+        </div>
+        <div class="form-control">
+          <label class="label px-0 pb-1.5" for="edit-contact">
+            <span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">家庭联系人 / Contact</span>
+          </label>
+          <input id="edit-contact" type="text" maxlength="64" class="input input-bordered input-sm" placeholder="家长手机号">
+        </div>
+        <div class="form-control sm:col-span-2">
+          <label class="label px-0 pb-1.5" for="edit-income">
+            <span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">家庭经济档次 / Income</span>
+          </label>
+          <select id="edit-income" class="select select-bordered select-sm">
+            <option value="">未填写</option>
+            <option value="low">一般困难</option>
+            <option value="medium">困难</option>
+            <option value="high">特别困难</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 仅管理员可见：辅导员分派与学籍状态 -->
+      <div id="edit-admin" class="hidden grid gap-4 rounded-box border border-base-300 bg-base-100 p-4 sm:grid-cols-2">
+        <div class="form-control">
+          <label class="label px-0 pb-1.5" for="edit-counselor">
+            <span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">辅导员分派 / Counselor</span>
+          </label>
+          <select id="edit-counselor" class="select select-bordered select-sm">
+            <option value="">未分派</option>
+          </select>
+        </div>
+        <div class="form-control">
+          <label class="label px-0 pb-1.5" for="edit-status">
+            <span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学籍状态 / Status</span>
+          </label>
+          <select id="edit-status" class="select select-bordered select-sm">
+            <option value="active">在读</option>
+            <option value="suspended">休学</option>
+            <option value="quit">退学</option>
+            <option value="graduated">毕业</option>
+          </select>
+        </div>
+        <p class="text-xs text-base-content/60 sm:col-span-2">学籍状态与辅导员分派只有管理员能改。</p>
+      </div>
+
+      <div class="flex flex-wrap gap-3">
+        <button id="dialog-save" onclick="saveStudent()" class="btn btn-primary flex-1">保存档案</button>
+      </div>
+      <div id="dialog-message" class="alert hidden items-start gap-2"></div>
+    </div>
+  </div>
+</div>
+
+<footer class="nx-hairline-t border-base-300 px-5 py-6 md:px-8">
+  <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
+    <p class="font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65">学工平台 · Student Roster</p>
+    <p class="text-xs text-base-content/60">档案涉及个人信息，仅用于学工事务，请勿外传。</p>
+  </div>
+</footer>
+
+<script>
+  // ─────────────────────────────── 状态 ───────────────────────────────
+  const STATUS_TEXT = { active: '在读', suspended: '休学', quit: '退学', graduated: '毕业' };
+  const STATUS_BADGE = { active: 'badge-success', suspended: 'badge-warning', quit: 'badge-error', graduated: 'badge-ghost' };
+  const INCOME_TEXT = { low: '一般困难', medium: '困难', high: '特别困难' };
+  const LEAVE_TEXT = { pending: '待审批', approved: '已批准', rejected: '已驳回', cancelled: '已撤回', closed: '已销假' };
+
+  let isAdmin = false;
+  let scope = 'mine';
+  let page = 1;
+  let pageSize = 20;
+  let totalCount = 0;
+  let currentId = null;
+  let teachersReady = false;
+
+  function escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  async function callApi(url, options) {
+    const response = await fetch(url, options);
+    return response.json();
+  }
+
+  function showListMessage(text, type) {
+    const box = document.getElementById('roster-message');
+    const tone = type === 'success' ? 'alert-success' : 'alert-error';
+    box.classList.remove('hidden');
+    box.className = 'alert mt-6 items-start gap-2 ' + tone;
+    box.innerHTML = '<span class="material-symbols-outlined text-lg">'
+        + (type === 'success' ? 'check_circle' : 'error') + '</span><span class="text-sm">' + escapeHtml(text) + '</span>';
+  }
+
+  function clearListMessage() {
+    document.getElementById('roster-message').classList.add('hidden');
+  }
+
+  function showDialogMessage(text, type) {
+    const box = document.getElementById('dialog-message');
+    const tone = type === 'success' ? 'alert-success' : 'alert-error';
+    box.classList.remove('hidden');
+    box.className = 'alert items-start gap-2 ' + tone;
+    box.innerHTML = '<span class="material-symbols-outlined text-lg">'
+        + (type === 'success' ? 'check_circle' : 'error') + '</span><span class="text-sm">' + escapeHtml(text) + '</span>';
+  }
+
+  function clearDialogMessage() {
+    document.getElementById('dialog-message').classList.add('hidden');
+  }
+
+  function formatTime(value) {
+    if (!value) { return '-'; }
+    return String(value).replace('T', ' ').slice(0, 16);
+  }
+
+  function field(label, value) {
+    return '<div><dt class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/60">' + escapeHtml(label) + '</dt>'
+        + '<dd class="mt-1 text-sm">' + escapeHtml(value === null || value === undefined || value === '' ? '—' : value) + '</dd></div>';
+  }
+
+  // ─────────────────────────────── 读数据 ─────────────────────────────
+  async function checkAuth() {
+    try {
+      const result = await callApi('/api/auth/me');
+      if (result.code !== 200) { window.location.href = 'login.html'; return null; }
+      return result.data;
+    } catch (error) {
+      window.location.href = 'login.html';
+      return null;
+    }
+  }
+
+  function renderStats(stats) {
+    const host = document.getElementById('roster-stats');
+    const cells = [
+      ['在册学生', stats.total || 0],
+      ['在读', stats.active || 0],
+      ['休学', stats.suspended || 0],
+      ['毕业', stats.graduated || 0],
+      ['未建档（全校）', stats.missing || 0]
+    ];
+    host.innerHTML = cells.map(function (cell) {
+      return '<div class="flex flex-col gap-1 bg-base-100 p-6">'
+          + '<dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">' + escapeHtml(cell[0]) + '</dt>'
+          + '<dd class="mt-1 font-serif text-2xl">' + cell[1] + '</dd></div>';
+    }).join('');
+  }
+
+  function renderClasses(classes) {
+    const host = document.getElementById('roster-class');
+    const current = host.value;
+    const options = ['<option value="">全部班级</option>'].concat((classes || []).map(function (name) {
+      return '<option value="' + escapeHtml(name) + '">' + escapeHtml(name) + '</option>';
+    }));
+    host.innerHTML = options.join('');
+    host.value = current && (classes || []).indexOf(current) >= 0 ? current : '';
+  }
+
+  function roomText(item) {
+    return ((item.dormBuilding || '') + ' ' + (item.dormRoom || '')).trim();
+  }
+
+  function itemHtml(item) {
+    const badge = STATUS_BADGE[item.status] || 'badge-ghost';
+    const cells = [
+      ['学号', item.studentNo],
+      ['班级', item.className],
+      ['专业', item.major],
+      ['宿舍', roomText(item)],
+      ['辅导员', item.counselorName],
+      ['账号', item.username]
+    ].map(function (row) { return field(row[0], row[1]); });
+    return '<article class="rounded-box border border-base-300 bg-base-200 p-5 shadow-sm">'
+        + '<div class="flex flex-wrap items-center gap-3">'
+        + '<span class="font-serif text-lg">' + escapeHtml(item.name || item.username) + '</span>'
+        + '<span class="badge ' + badge + ' badge-sm">' + (STATUS_TEXT[item.status] || item.status || '在读') + '</span>'
+        + '<button type="button" class="btn btn-ghost btn-xs ml-auto rounded-full" onclick="openStudent(' + item.id + ')">档案</button>'
+        + '</div>'
+        + '<dl class="mt-4 grid grid-cols-2 gap-x-4 gap-y-3">' + cells.join('') + '</dl>'
+        + '</article>';
+  }
+
+  async function loadList() {
+    clearListMessage();
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    params.set('size', String(pageSize));
+    if (scope === 'all') { params.set('scope', 'all'); }
+    const classFilter = document.getElementById('roster-class').value;
+    const status = document.getElementById('roster-status').value;
+    const keyword = document.getElementById('roster-keyword').value;
+    if (classFilter) { params.set('className', classFilter); }
+    if (status) { params.set('status', status); }
+    if (keyword) { params.set('keyword', keyword); }
+
+    const result = await callApi('/api/counselor/students?' + params.toString());
+    const host = document.getElementById('roster-list');
+    const empty = document.getElementById('roster-empty');
+    if (result.code !== 200) {
+      host.innerHTML = '';
+      empty.classList.remove('hidden');
+      empty.querySelector('p').textContent = result.message || '加载失败，请刷新重试。';
+      document.getElementById('roster-total').textContent = '—';
+      return;
+    }
+    const data = result.data || {};
+    const items = data.items || [];
+    totalCount = data.total || 0;
+    renderStats(data.stats || {});
+    renderClasses((data.stats && data.stats.classes) || []);
+    host.innerHTML = items.map(itemHtml).join('');
+    empty.classList.toggle('hidden', items.length > 0);
+    const pages = data.pages || 1;
+    document.getElementById('roster-total').textContent = '共 ' + totalCount + ' 人 · 第 ' + page + ' / ' + pages + ' 页';
+    document.getElementById('roster-page').textContent = '第 ' + page + ' 页';
+    document.getElementById('roster-prev').disabled = page <= 1;
+    document.getElementById('roster-next').disabled = page >= pages;
+  }
+
+  async function loadTeachers() {
+    if (teachersReady || !isAdmin) { return; }
+    const result = await callApi('/api/admin/teachers');
+    if (result.code === 200) {
+      const host = document.getElementById('edit-counselor');
+      const options = ['<option value="">未分派</option>'].concat((result.data || []).map(function (teacher) {
+        const label = teacher.nickname || teacher.username;
+        return '<option value="' + teacher.id + '">' + escapeHtml(label) + '</option>';
+      }));
+      host.innerHTML = options.join('');
+      teachersReady = true;
+    }
+  }
+
+  // ─────────────────────────────── 弹窗 ─────────────────────────────
+  async function openStudent(id) {
+    currentId = id;
+    clearDialogMessage();
+    await loadTeachers();
+    const result = await callApi('/api/counselor/students/' + id);
+    if (result.code !== 200) {
+      showListMessage(result.message || '打不开这个学生的档案', 'error');
+      return;
+    }
+    const data = result.data || {};
+    const profile = data.profile || {};
+    document.getElementById('dialog-title').textContent =
+        (profile.name || profile.username || '学生') + (profile.studentNo ? ' · ' + profile.studentNo : '');
+
+    const fields = [
+      ['姓名', profile.name],
+      ['学号', profile.studentNo],
+      ['班级', profile.className],
+      ['专业', profile.major],
+      ['年级', profile.grade],
+      ['辅导员', profile.counselorName || '未分派'],
+      ['宿舍', roomText(profile)],
+      ['学籍状态', STATUS_TEXT[profile.status] || profile.status],
+      ['政治面貌', profile.politicalStatus],
+      ['家庭联系人', profile.familyContact],
+      ['家庭经济档次', INCOME_TEXT[profile.familyIncomeLevel]],
+      ['账号 / 手机', (profile.username || '') + ' · ' + (profile.phone || '')]
+    ];
+    document.getElementById('dialog-record').innerHTML = fields.map(function (row) { return field(row[0], row[1]); }).join('');
+
+    const leaves = data.leaves || [];
+    document.getElementById('dialog-leave').innerHTML = leaves.map(function (item) {
+      const leaveBadge = item.status === 'approved' ? 'badge-success'
+          : (item.status === 'pending' ? 'badge-warning'
+              : (item.status === 'rejected' ? 'badge-error' : 'badge-ghost'));
+      return '<div class="flex flex-wrap items-center gap-3 rounded-box border border-base-300 bg-base-100 px-4 py-3">'
+          + '<span class="badge ' + leaveBadge + ' badge-sm">' + (LEAVE_TEXT[item.status] || item.status) + '</span>'
+          + '<span class="text-xs text-base-content/75">' + escapeHtml(formatTime(item.startAt)) + ' → ' + escapeHtml(formatTime(item.endAt)) + '</span>'
+          + '<span class="ml-auto text-xs text-base-content/65">' + escapeHtml(item.type) + '</span>'
+          + '</div>';
+    }).join('');
+    document.getElementById('dialog-leave-empty').classList.toggle('hidden', leaves.length > 0);
+
+    document.getElementById('edit-building').value = profile.dormBuilding || '';
+    document.getElementById('edit-room').value = profile.dormRoom || '';
+    document.getElementById('edit-political').value = profile.politicalStatus || '';
+    document.getElementById('edit-contact').value = profile.familyContact || '';
+    document.getElementById('edit-income').value = profile.familyIncomeLevel || '';
+    document.getElementById('edit-admin').classList.toggle('hidden', !isAdmin);
+    if (isAdmin) {
+      document.getElementById('edit-counselor').value = profile.counselorId ? String(profile.counselorId) : '';
+      document.getElementById('edit-status').value = profile.status || 'active';
+    }
+
+    const dialog = document.getElementById('student-dialog');
+    dialog.classList.remove('hidden');
+    dialog.classList.add('flex');
+  }
+
+  function closeDialog() {
+    const dialog = document.getElementById('student-dialog');
+    dialog.classList.add('hidden');
+    dialog.classList.remove('flex');
+    currentId = null;
+  }
+
+  async function saveStudent() {
+    if (!currentId) { return; }
+    clearDialogMessage();
+    const body = {
+      dormBuilding: document.getElementById('edit-building').value,
+      dormRoom: document.getElementById('edit-room').value,
+      politicalStatus: document.getElementById('edit-political').value,
+      familyContact: document.getElementById('edit-contact').value,
+      familyIncomeLevel: document.getElementById('edit-income').value
+    };
+    if (isAdmin) {
+      body.counselorId = document.getElementById('edit-counselor').value;
+      body.status = document.getElementById('edit-status').value;
+    }
+    const button = document.getElementById('dialog-save');
+    button.disabled = true;
+    button.textContent = '保存中…';
+    try {
+      const result = await callApi('/api/counselor/students/' + currentId, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (result.code === 200) {
+        showDialogMessage(result.message || '已保存', 'success');
+        await openStudent(currentId);
+        await loadList();
+      } else {
+        showDialogMessage(result.message || '保存失败', 'error');
+      }
+    } catch (error) {
+      console.error('Student save error:', error);
+      showDialogMessage('网络错误，请重试', 'error');
+    } finally {
+      button.disabled = false;
+      button.textContent = '保存档案';
+    }
+  }
+
+  // ─────────────────────────────── 交互 ─────────────────────────────
+  function setScope(value) {
+    scope = value;
+    const mineActive = value === 'mine';
+    const allActive = value === 'all';
+    document.getElementById('roster-scope-mine').classList.toggle('is-active', mineActive);
+    document.getElementById('roster-scope-all').classList.toggle('is-active', allActive);
+    page = 1;
+    loadList();
+  }
+
+  function applyFilters() {
+    page = 1;
+    loadList();
+  }
+
+  function setPage(delta) {
+    const next = page + delta;
+    if (next < 1 || (totalCount > 0 && (next - 1) * pageSize >= totalCount)) { return; }
+    page = next;
+    loadList();
+  }
+
+  async function syncMissing() {
+    if (!window.confirm('给还没建档的在读学生各建一条学工档案？这个操作可以重复执行，不会重复建档。')) { return; }
+    const result = await callApi('/api/counselor/students/sync', { method: 'POST' });
+    if (result.code === 200) {
+      showListMessage(result.message || '已补建', 'success');
+      loadList();
+    } else {
+      showListMessage(result.message || '补建失败', 'error');
+    }
+  }
+
+  function logout() {
+    fetch('/api/auth/logout', { method: 'POST' }).finally(function () { window.location.href = 'login.html'; });
+  }
+
+  document.addEventListener('DOMContentLoaded', async function () {
+    const me = await checkAuth();
+    if (!me) { return; }
+    // 从辅导员工作台跳过来时带 ?keyword=学号，首屏直接筛到这名学生
+    const bootKeyword = new URLSearchParams(window.location.search).get('keyword');
+    if (bootKeyword) { document.getElementById('roster-keyword').value = bootKeyword; }
+
+    const role = me.role || 'student';
+    if (role !== 'teacher' && role !== 'admin') {
+      window.location.href = 'profile.html';
+      return;
+    }
+    isAdmin = role === 'admin';
+    if (isAdmin) {
+      document.getElementById('roster-sync').classList.remove('hidden');
+      document.getElementById('roster-scope-mine').classList.add('hidden');
+      scope = 'all';
+      document.getElementById('roster-scope-all').classList.add('is-active');
+    }
+
+    document.getElementById('logout-btn').addEventListener('click', logout);
+    document.getElementById('roster-search').addEventListener('click', applyFilters);
+    document.getElementById('roster-keyword').addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') { applyFilters(); }
+    });
+    document.getElementById('roster-class').addEventListener('change', applyFilters);
+    document.getElementById('roster-status').addEventListener('change', applyFilters);
+
+    await loadList();
+  });
+</script>
+<script defer src="/js/nest-ui.js"></script>
+<script defer src="/libs/animejs/anime.umd.min.js"></script>
+<script defer src="/libs/countup/countUp.umd.js"></script>
+<script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+<script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+<script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+</body>
+</html>

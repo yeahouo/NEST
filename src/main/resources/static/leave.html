@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="nestlight">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>请假与离校 · 学工平台</title>
+  <!--
+    主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
+    daisyUI 的组件颜色跟的是 [data-theme] 属性（不是 .dark 类），两处都必须写，
+    与 nest-ui.js 的 paintTheme() 保持一致。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <script src="/pwa.js" defer></script>
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/nest-art3.css">
+</head>
+
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content">
+
+<header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none border-0 p-0">
+  <div class="navbar mx-auto min-h-0 w-full max-w-7xl gap-3 px-5 py-2 md:px-8">
+    <div class="navbar-start gap-3">
+      <a class="flex items-center gap-3" href="dashboard.html">
+        <span class="nx-logo">
+          <span class="material-symbols-outlined text-xl">terminal</span>
+        </span>
+        <span class="hidden text-lg font-black uppercase tracking-tight sm:inline">学工平台</span>
+      </a>
+      <span class="hidden h-5 w-px bg-base-300 lg:block"></span>
+      <span class="hidden font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65 lg:block">§ 04 · Student affairs / Leave</span>
+    </div>
+    <div class="navbar-end gap-1.5">
+      <a class="btn btn-ghost btn-sm gap-2 rounded-full" href="dashboard.html">
+        <span class="material-symbols-outlined text-lg">dashboard</span>
+        <span class="hidden md:inline">工作台</span>
+      </a>
+      <button aria-label="切换深色 / 浅色模式" class="nx-icon-btn" data-nx-theme-toggle title="切换深色 / 浅色模式" type="button">
+        <span class="material-symbols-outlined nx-theme-icon-light text-xl">dark_mode</span>
+        <span class="material-symbols-outlined nx-theme-icon-dark text-xl">light_mode</span>
+      </button>
+      <a class="nx-icon-btn" href="settings.html" title="设置">
+        <span class="material-symbols-outlined text-xl">settings</span>
+      </a>
+      <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="logout-btn" type="button">
+        <span class="material-symbols-outlined text-lg">logout</span>
+        <span class="hidden md:inline">退出登录</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="flex-1 px-5 py-8 md:px-8 md:py-12">
+  <div class="mx-auto w-full max-w-7xl">
+
+    <!-- ── 刊头：等宽小标 + 衬线大标题 + 发丝分隔线 ───────────────────── -->
+    <header class="mb-8 border-b border-base-300 pb-6">
+      <p class="nx-kicker">§ 04 · Student / Leave</p>
+      <h1 data-nx-split="1" class="mt-2 font-serif text-3xl leading-tight sm:text-4xl lg:text-5xl">请假 · 离校 · 外出</h1>
+      <p class="mt-4 max-w-2xl text-sm text-base-content/70">
+        提交后进入辅导员待审队列；批准、驳回、撤回都会留下记录。同一时间段不能重复申请，
+        单次申请以 30 天为限（实习可到 180 天），更久的请分次提交。
+      </p>
+    </header>
+
+    <!-- 正在请假中提示（只在已批准且当前处于时段内时显示） -->
+    <div id="leave-current" class="hidden mb-8 rounded-box border border-base-300 bg-base-200 p-5">
+      <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">In progress · 正在请假中</p>
+      <p class="mt-2 text-sm" id="leave-current-text"></p>
+    </div>
+
+    <!-- ── 状态发丝格 ─────────────────────────────────────────────── -->
+    <section id="leave-stats" class="mb-10 grid grid-cols-2 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 md:grid-cols-5"></section>
+
+    <div class="grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
+
+      <!-- ── 左：新建申请 ─────────────────────────────────────────── -->
+      <section class="card rounded-box border border-base-300 bg-base-200 shadow-xl">
+        <div class="card-body gap-5 p-7">
+          <h2 class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">New request · 新建申请</h2>
+
+          <div class="form-control">
+            <label class="label px-0 pb-1.5" for="leave-type">
+              <span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">类型 / Type</span>
+            </label>
+            <select id="leave-type" class="select select-bordered">
+              <option value="personal">事假</option>
+              <option value="sick">病假</option>
+              <option value="leave_school">离校</option>
+              <option value="outing">外出</option>
+              <option value="internship">实习</option>
+            </select>
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div class="form-control">
+              <label class="label px-0 pb-1.5" for="leave-start">
+                <span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">开始 / From</span>
+              </label>
+              <input id="leave-start" type="datetime-local" class="input input-bordered">
+            </div>
+            <div class="form-control">
+              <label class="label px-0 pb-1.5" for="leave-end">
+                <span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">结束 / To</span>
+              </label>
+              <input id="leave-end" type="datetime-local" class="input input-bordered">
+            </div>
+          </div>
+
+          <p class="text-xs text-base-content/65" id="leave-days">合计 0 天</p>
+
+          <div class="form-control">
+            <label class="label px-0 pb-1.5" for="leave-reason">
+              <span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">事由 / Reason</span>
+            </label>
+            <textarea id="leave-reason" rows="3" maxlength="500" class="textarea textarea-bordered" placeholder="写清楚去哪里、做什么、什么时候回（至少 4 个字）"></textarea>
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div class="form-control">
+              <label class="label px-0 pb-1.5" for="leave-place">
+                <span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">去向 / Place</span>
+              </label>
+              <input id="leave-place" type="text" maxlength="128" class="input input-bordered" placeholder="厦门市 · 家中">
+            </div>
+            <div class="form-control">
+              <label class="label px-0 pb-1.5" for="leave-contact">
+                <span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">联系电话 / Contact</span>
+              </label>
+              <input id="leave-contact" type="text" maxlength="64" class="input input-bordered" placeholder="本人手机号">
+            </div>
+          </div>
+
+          <button id="leave-submit" onclick="submitLeave()" class="btn btn-primary btn-block">提交申请</button>
+          <div id="leave-message" class="alert hidden items-start gap-2"></div>
+        </div>
+      </section>
+
+      <!-- ── 右：我的申请 ─────────────────────────────────────────── -->
+      <section>
+        <div class="nx-rise mb-4 flex flex-wrap gap-1.5 rounded-box border border-base-300 bg-base-200 p-1.5" id="leave-filters">
+          <button type="button" data-leave-filter="" onclick="setFilter('')" class="tab-btn nx-tab is-active">全部</button>
+          <button type="button" data-leave-filter="pending" onclick="setFilter('pending')" class="tab-btn nx-tab">待审批</button>
+          <button type="button" data-leave-filter="approved" onclick="setFilter('approved')" class="tab-btn nx-tab">已批准</button>
+          <button type="button" data-leave-filter="closed" onclick="setFilter('closed')" class="tab-btn nx-tab">已销假</button>
+          <button type="button" data-leave-filter="rejected" onclick="setFilter('rejected')" class="tab-btn nx-tab">已驳回</button>
+        </div>
+
+        <div id="leave-list" data-nx-autoanimate="1" class="flex flex-col gap-4"></div>
+
+        <div id="leave-empty" class="hidden rounded-box border border-dashed border-base-300 p-8 text-center">
+          <span class="material-symbols-outlined text-3xl text-base-content/40">event_available</span>
+          <p class="mt-3 text-sm text-base-content/70">这个筛选下还没有申请记录。</p>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</main>
+
+<footer class="nx-hairline-t border-base-300 px-5 py-6 md:px-8">
+  <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
+    <p class="font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65">学工平台 · Leave &amp; Absence</p>
+    <p class="text-xs text-base-content/60">请假记录属于学生事务归档材料，请如实填写。</p>
+  </div>
+</footer>
+
+<script>
+  // ─────────────────────────────── 状态 ───────────────────────────────
+  let leaveFilter = '';
+  const TYPE_TEXT = { personal: '事假', sick: '病假', leave_school: '离校', outing: '外出', internship: '实习' };
+  const STATUS_TEXT = { pending: '待审批', approved: '已批准', rejected: '已驳回', cancelled: '已撤回', closed: '已销假' };
+  const STATUS_BADGE = { pending: 'badge-warning', approved: 'badge-success', rejected: 'badge-error', cancelled: 'badge-ghost', closed: 'badge-neutral' };
+
+  function escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  async function callApi(url, options) {
+    const response = await fetch(url, options);
+    return response.json();
+  }
+
+  function showMessage(text, type) {
+    const box = document.getElementById('leave-message');
+    const tone = type === 'success' ? 'alert-success' : 'alert-error';
+    box.classList.remove('hidden');
+    box.className = 'alert items-start gap-2 ' + tone;
+    box.innerHTML = '<span class="material-symbols-outlined text-lg">'
+        + (type === 'success' ? 'check_circle' : 'error') + '</span><span class="text-sm">' + escapeHtml(text) + '</span>';
+  }
+
+  function clearMessage() {
+    document.getElementById('leave-message').classList.add('hidden');
+  }
+
+  // ─────────────────────────────── 读数据 ─────────────────────────────
+  async function checkAuth() {
+    try {
+      const result = await callApi('/api/auth/me');
+      if (result.code !== 200) { window.location.href = 'login.html'; return null; }
+      return result.data;
+    } catch (error) {
+      window.location.href = 'login.html';
+      return null;
+    }
+  }
+
+  async function loadStats() {
+    const result = await callApi('/api/leave/my/stats');
+    const host = document.getElementById('leave-stats');
+    if (result.code !== 200) { host.innerHTML = ''; return; }
+    const order = ['pending', 'approved', 'closed', 'rejected', 'cancelled'];
+    host.innerHTML = order.map(function (key) {
+      const count = result.data[key] || 0;
+      return '<div class="flex flex-col gap-1 bg-base-100 p-6">'
+          + '<dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">' + STATUS_TEXT[key] + '</dt>'
+          + '<dd class="mt-1 font-serif text-2xl">' + count + '</dd></div>';
+    }).join('');
+  }
+
+  function itemHtml(item) {
+    const badge = STATUS_BADGE[item.status] || 'badge-ghost';
+    const rows = [
+      ['时长', (item.days === null || item.days === undefined ? '-' : item.days) + ' 天'],
+      ['去向', item.place || '未填写'],
+      ['联系电话', item.contact || '-'],
+      ['审批人', item.approverName || '待分派']
+    ];
+    const cells = rows.map(function (row) {
+      return '<div><dt class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/60">' + row[0] + '</dt>'
+          + '<dd class="mt-1 text-sm">' + escapeHtml(row[1]) + '</dd></div>';
+    }).join('');
+    const note = item.approveNote
+        ? '<p class="mt-3 rounded-box border border-base-300 bg-base-100 p-3 text-xs text-base-content/75">审批意见：' + escapeHtml(item.approveNote) + '</p>'
+        : '';
+    const cancel = item.status === 'pending'
+        ? '<button type="button" class="btn btn-ghost btn-xs rounded-full" onclick="cancelLeave(' + item.id + ')">撤回申请</button>'
+        : '';
+    return '<article class="rounded-box border border-base-300 bg-base-200 p-5 shadow-sm">'
+        + '<div class="flex flex-wrap items-center gap-3">'
+        + '<span class="badge ' + badge + ' badge-sm">' + STATUS_TEXT[item.status] + '</span>'
+        + '<span class="font-mono text-[11px] uppercase tracking-[0.16em] text-base-content/65">' + (TYPE_TEXT[item.type] || item.type) + '</span>'
+        + '<span class="ml-auto font-mono text-[11px] text-base-content/65">' + escapeHtml(formatTime(item.startAt)) + ' → ' + escapeHtml(formatTime(item.endAt)) + '</span>'
+        + '</div>'
+        + '<p class="mt-3 text-sm text-base-content/85">' + escapeHtml(item.reason) + '</p>'
+        + '<dl class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">' + cells + '</dl>'
+        + note
+        + (cancel ? '<div class="mt-4 flex justify-end">' + cancel + '</div>' : '')
+        + '</article>';
+  }
+
+  function formatTime(value) {
+    if (!value) { return '-'; }
+    return String(value).replace('T', ' ').slice(0, 16);
+  }
+
+  async function loadMy() {
+    const query = leaveFilter ? '?status=' + encodeURIComponent(leaveFilter) : '';
+    const result = await callApi('/api/leave/my' + query);
+    const host = document.getElementById('leave-list');
+    const empty = document.getElementById('leave-empty');
+    if (result.code !== 200) {
+      host.innerHTML = '';
+      empty.classList.remove('hidden');
+      empty.querySelector('p').textContent = result.message || '加载失败，请刷新重试。';
+      return;
+    }
+    const items = (result.data && result.data.items) || [];
+    host.innerHTML = items.map(itemHtml).join('');
+    empty.classList.toggle('hidden', items.length > 0);
+  }
+
+  async function loadCurrent() {
+    const result = await callApi('/api/leave/my?status=approved&size=20');
+    const box = document.getElementById('leave-current');
+    if (result.code !== 200) { box.classList.add('hidden'); return; }
+    const now = Date.now();
+    const active = ((result.data && result.data.items) || []).find(function (item) {
+      const start = item.startAt ? Date.parse(item.startAt) : NaN;
+      const end = item.endAt ? Date.parse(item.endAt) : NaN;
+      return start <= now && now <= end;
+    });
+    if (!active) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    document.getElementById('leave-current-text').textContent =
+        (TYPE_TEXT[active.type] || active.type) + ' · ' + formatTime(active.startAt) + ' → ' + formatTime(active.endAt)
+        + '（' + (active.place || '未填写去向') + '）已批准，注意按时返校销假。';
+  }
+
+  // ─────────────────────────────── 写数据 ─────────────────────────────
+  function setFilter(value) {
+    leaveFilter = value;
+    document.querySelectorAll('#leave-filters .nx-tab').forEach(function (button) {
+      const key = button.getAttribute('data-leave-filter');
+      button.classList.toggle('is-active', key === value);
+    });
+    loadMy();
+  }
+
+  function updateDays() {
+    const start = document.getElementById('leave-start').value;
+    const end = document.getElementById('leave-end').value;
+    const label = document.getElementById('leave-days');
+    if (!start || !end) { label.textContent = '合计 0 天'; return; }
+    const minutes = (Date.parse(end) - Date.parse(start)) / 60000;
+    label.textContent = minutes > 0 ? '合计 ' + (Math.round(minutes / 144) / 10) + ' 天' : '结束时间必须晚于开始时间';
+  }
+
+  async function submitLeave() {
+    clearMessage();
+    const body = {
+      type: document.getElementById('leave-type').value,
+      startAt: document.getElementById('leave-start').value,
+      endAt: document.getElementById('leave-end').value,
+      reason: document.getElementById('leave-reason').value,
+      place: document.getElementById('leave-place').value,
+      contact: document.getElementById('leave-contact').value
+    };
+    if (!body.startAt || !body.endAt) { showMessage('请选择开始与结束时间', 'error'); return; }
+    const button = document.getElementById('leave-submit');
+    button.disabled = true;
+    button.textContent = '提交中…';
+    try {
+      const result = await callApi('/api/leave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (result.code === 200) {
+        showMessage(result.message || '已提交，等待审批', 'success');
+        document.getElementById('leave-reason').value = '';
+        loadMy();
+        loadStats();
+        loadCurrent();
+      } else {
+        showMessage(result.message || '提交失败', 'error');
+      }
+    } catch (error) {
+      console.error('Leave submit error:', error);
+      showMessage('网络错误，请重试', 'error');
+    } finally {
+      button.disabled = false;
+      button.textContent = '提交申请';
+    }
+  }
+
+  async function cancelLeave(id) {
+    if (!window.confirm('确认撤回这条申请？撤回后需要重新提交。')) { return; }
+    const result = await callApi('/api/leave/' + id + '/cancel', { method: 'POST' });
+    if (result.code === 200) {
+      showMessage('已撤回', 'success');
+    } else {
+      showMessage(result.message || '撤回失败', 'error');
+    }
+    loadMy();
+    loadStats();
+    loadCurrent();
+  }
+
+  function logout() {
+    fetch('/api/auth/logout', { method: 'POST' }).finally(function () { window.location.href = 'login.html'; });
+  }
+
+  document.addEventListener('DOMContentLoaded', async function () {
+    const me = await checkAuth();
+    if (!me) { return; }
+
+    document.getElementById('leave-type').addEventListener('change', updateDays);
+    document.getElementById('leave-start').addEventListener('change', updateDays);
+    document.getElementById('leave-end').addEventListener('change', updateDays);
+    document.getElementById('leave-contact').value = me.phone || '';
+    document.getElementById('logout-btn').addEventListener('click', logout);
+
+    await Promise.all([loadStats(), loadMy(), loadCurrent()]);
+  });
+</script>
+<script defer src="/js/nest-ui.js"></script>
+<script defer src="/libs/animejs/anime.umd.min.js"></script>
+<script defer src="/libs/countup/countUp.umd.js"></script>
+<script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+<script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+<script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+</body>
+</html>

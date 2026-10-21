@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.PartyTrainingMapper">
+
+    <!--
+      党校培训班次（学工 P16）。
+
+      口径：
+        * 培训时长两条标准并存、**平台不替学校选**（§11.2-3）：
+            国标 S24 第十七条 —— 不少于三天（或不少于二十四个学时）
+            校规 S23          —— 五至七天（或不少于四十个学时）
+          days / hours 只是登记值，本 XML 不做任何「够不够」的判断。
+        * 无及格线/考核权重（§11.1-③ 无来源）⇒ 表无分数列。
+        * 状态机 CAS：draft -> signup -> ongoing -> finished；cancelled 可从 draft/signup 进入。
+        * hideDraft=true（学生端）时排除 draft 与 cancelled。
+      本 XML 无裸 '<'（比较一律用 !=）。
+    -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.PartyTraining">
+        <id column="id" property="id"/>
+        <result column="training_name" property="trainingName"/>
+        <result column="term" property="term"/>
+        <result column="start_date" property="startDate"/>
+        <result column="end_date" property="endDate"/>
+        <result column="days" property="days"/>
+        <result column="hours" property="hours"/>
+        <result column="location" property="location"/>
+        <result column="organizer" property="organizer"/>
+        <result column="quota" property="quota"/>
+        <result column="status" property="status"/>
+        <result column="content" property="content"/>
+        <result column="note" property="note"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        t.id, t.training_name, t.term, t.start_date, t.end_date, t.days, t.hours,
+        t.location, t.organizer, t.quota, t.status, t.content, t.note,
+        t.created_by, t.created_at, t.updated_at, t.deleted
+    </sql>
+
+    <sql id="List_Filters">
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+        <if test="term != null and term != ''">AND t.term = #{term}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (t.training_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR t.organizer LIKE CONCAT('%', #{keyword}, '%')
+                 OR t.location LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <!-- 学生端：只看 signup / ongoing / finished -->
+        <if test="hideDraft">
+            AND t.status != 'draft' AND t.status != 'cancelled'
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.PartyTraining" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO party_training
+            (training_name, term, start_date, end_date, days, hours, location, organizer,
+             quota, status, content, note, created_by, created_at, updated_at, deleted)
+        VALUES
+            (#{trainingName}, #{term}, #{startDate}, #{endDate}, #{days}, #{hours}, #{location}, #{organizer},
+             #{quota}, #{status}, #{content}, #{note}, #{createdBy}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM party_training t
+        WHERE t.id = #{id} AND t.deleted = 0
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM party_training t
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY t.start_date DESC, t.id DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(*)
+        FROM party_training t
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <!-- 增量修改 CAS on status -->
+    <update id="update">
+        UPDATE party_training
+        SET training_name = #{training.trainingName},
+            term = #{training.term},
+            start_date = #{training.startDate},
+            end_date = #{training.endDate},
+            days = #{training.days},
+            hours = #{training.hours},
+            location = #{training.location},
+            organizer = #{training.organizer},
+            quota = #{training.quota},
+            status = #{training.status},
+            content = #{training.content},
+            note = #{training.note},
+            updated_at = NOW()
+        WHERE id = #{training.id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <update id="changeStatus">
+        UPDATE party_training
+        SET status = #{toStatus}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- 名额占用数：报名/通过/已结业的学员（驳回与重复报名不占名额） -->
+    <select id="countMembers" resultType="long">
+        SELECT COUNT(*)
+        FROM party_training_member m
+        WHERE m.training_id = #{trainingId} AND m.deleted = 0
+          AND m.status IN ('signed', 'approved', 'completed')
+    </select>
+
+    <!-- 已结业学员数：供班次列表/详情展示「已完成 M / 已报名 N」（P16 复测缺陷补齐） -->
+    <select id="countCompleted" resultType="long">
+        SELECT COUNT(*)
+        FROM party_training_member m
+        WHERE m.training_id = #{trainingId} AND m.deleted = 0
+          AND m.status = 'completed'
+    </select>
+
+    <select id="countGroupByStatus" resultType="java.util.LinkedHashMap">
+        SELECT t.status AS status, COUNT(*) AS total
+        FROM party_training t
+        WHERE t.deleted = 0
+        GROUP BY t.status
+        ORDER BY t.status
+    </select>
+
+</mapper>

@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.CommunityBatchMapper">
+
+    <!-- 社区检查批次（学工 P15）。inspection_count / avg_score 由子查询带出，便于列表直接展示进度。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.CommunityBatch">
+        <id column="id" property="id"/>
+        <result column="batch_name" property="batchName"/>
+        <result column="term" property="term"/>
+        <result column="check_type" property="checkType"/>
+        <result column="scope_building" property="scopeBuilding"/>
+        <result column="start_date" property="startDate"/>
+        <result column="end_date" property="endDate"/>
+        <result column="publish_date" property="publishDate"/>
+        <result column="criteria_json" property="criteriaJson"/>
+        <result column="status" property="status"/>
+        <result column="note" property="note"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="created_by_name" property="createdByName"/>
+        <result column="inspection_count" property="inspectionCount"/>
+        <result column="avg_score" property="avgScore"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        b.id, b.batch_name, b.term, b.check_type, b.scope_building, b.start_date, b.end_date,
+        b.publish_date, b.criteria_json, b.status, b.note, b.created_by, b.created_at, b.updated_at, b.deleted,
+        COALESCE(NULLIF(c.real_name, ''), c.nickname, c.username) AS created_by_name,
+        (SELECT COUNT(*) FROM community_inspection i
+          WHERE i.batch_id = b.id AND i.deleted = 0) AS inspection_count,
+        (SELECT ROUND(AVG(i.score), 2) FROM community_inspection i
+          WHERE i.batch_id = b.id AND i.deleted = 0) AS avg_score
+    </sql>
+
+    <sql id="Joined_From">
+        FROM community_batch b
+        LEFT JOIN users c ON c.id = b.created_by
+    </sql>
+
+    <sql id="List_Filters">
+        <if test="term != null and term != ''">AND b.term = #{term}</if>
+        <if test="checkType != null and checkType != ''">AND b.check_type = #{checkType}</if>
+        <if test="status != null and status != ''">AND b.status = #{status}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (b.batch_name LIKE CONCAT('%', #{keyword}, '%') OR b.note LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <!-- 学生端只看到已公布/已结束的批次：draft 与 checking/scored 都不下发 -->
+        <if test="hideDraft">AND b.status != 'draft'</if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.CommunityBatch" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO community_batch
+            (batch_name, term, check_type, scope_building, start_date, end_date, publish_date,
+             criteria_json, status, note, created_by, created_at, updated_at, deleted)
+        VALUES
+            (#{batchName}, #{term}, #{checkType}, #{scopeBuilding}, #{startDate}, #{endDate}, #{publishDate},
+             #{criteriaJson}, #{status}, #{note}, #{createdBy}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE b.id = #{id} AND b.deleted = 0
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE b.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY b.status ASC, b.start_date DESC, b.id DESC
+    </select>
+
+    <select id="listByTermAndStatuses" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE b.deleted = 0
+          AND b.term = #{term}
+          AND b.status IN
+        <foreach collection="statuses" item="st" open="(" separator="," close=")">#{st}</foreach>
+        ORDER BY b.id ASC
+    </select>
+
+    <!-- CAS：id + deleted + status=fromStatus，三条件缺一不可 -->
+    <update id="update">
+        UPDATE community_batch
+        SET batch_name = #{batch.batchName},
+            term = #{batch.term},
+            check_type = #{batch.checkType},
+            scope_building = #{batch.scopeBuilding},
+            start_date = #{batch.startDate},
+            end_date = #{batch.endDate},
+            criteria_json = #{batch.criteriaJson},
+            status = #{batch.status},
+            note = #{batch.note},
+            publish_date = #{batch.publishDate},
+            updated_at = NOW()
+        WHERE id = #{batch.id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <update id="publish">
+        UPDATE community_batch
+        SET status = 'published', publish_date = #{publishDate}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <update id="finish">
+        UPDATE community_batch
+        SET status = 'finished', updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <select id="countGroupByStatus" resultType="java.util.LinkedHashMap">
+        SELECT b.status AS status, COUNT(*) AS total
+        FROM community_batch b
+        WHERE b.deleted = 0
+        <if test="term != null and term != ''">AND b.term = #{term}</if>
+        GROUP BY b.status
+        ORDER BY b.status
+    </select>
+
+    <select id="summary" resultType="java.util.LinkedHashMap">
+        SELECT COUNT(*) AS total,
+               SUM(CASE WHEN b.status = 'draft' THEN 1 ELSE 0 END) AS draft,
+               SUM(CASE WHEN b.status = 'checking' THEN 1 ELSE 0 END) AS checking,
+               SUM(CASE WHEN b.status = 'scored' THEN 1 ELSE 0 END) AS scored,
+               SUM(CASE WHEN b.status = 'published' THEN 1 ELSE 0 END) AS published,
+               SUM(CASE WHEN b.status = 'finished' THEN 1 ELSE 0 END) AS finished
+        FROM community_batch b
+        WHERE b.deleted = 0
+        <if test="term != null and term != ''">AND b.term = #{term}</if>
+    </select>
+
+</mapper>

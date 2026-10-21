@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.EvalBonusMapper">
+
+    <!-- 加分申报要带学生（users u）与审核人（users r）姓名，学生侧的班级/专业/年级取 student_profile -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.EvalBonus">
+        <id column="id" property="id"/>
+        <result column="student_id" property="studentId"/>
+        <result column="academic_term" property="academicTerm"/>
+        <result column="category" property="category"/>
+        <result column="item_name" property="itemName"/>
+        <result column="points" property="points"/>
+        <result column="evidence" property="evidence"/>
+        <result column="status" property="status"/>
+        <result column="reject_reason" property="rejectReason"/>
+        <result column="reviewer_id" property="reviewerId"/>
+        <result column="reviewed_at" property="reviewedAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="major" property="major"/>
+        <result column="grade" property="grade"/>
+        <result column="reviewer_name" property="reviewerName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        b.id, b.student_id, b.academic_term, b.category, b.item_name, b.points, b.evidence, b.status,
+        b.reject_reason, b.reviewer_id, b.reviewed_at, b.created_at, b.updated_at, b.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(sp.student_no, u.student_id) AS student_no,
+        COALESCE(NULLIF(sp.class_name, ''), '未填班级') AS class_name,
+        sp.major AS major,
+        sp.grade AS grade,
+        COALESCE(NULLIF(r.real_name, ''), r.username) AS reviewer_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM eval_bonus b
+        LEFT JOIN users u ON u.id = b.student_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = b.student_id AND sp.deleted = 0
+        LEFT JOIN users r ON r.id = b.reviewer_id
+    </sql>
+
+    <!-- 审核列表的筛选条件（统计与列表共用，口径一致） -->
+    <sql id="Review_Filters">
+        <if test="academicTerm != null and academicTerm != ''">AND b.academic_term = #{academicTerm}</if>
+        <if test="status != null and status != ''">AND b.status = #{status}</if>
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.nickname LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.student_no LIKE CONCAT('%', #{keyword}, '%')
+                 OR b.item_name LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.EvalBonus"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO eval_bonus
+            (student_id, academic_term, category, item_name, points, evidence, status,
+             reject_reason, reviewer_id, reviewed_at, created_at, updated_at, deleted)
+        VALUES
+            (#{studentId}, #{academicTerm}, #{category}, #{itemName}, #{points}, #{evidence}, #{status},
+             #{rejectReason}, #{reviewerId}, #{reviewedAt}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE b.id = #{id} AND b.deleted = 0
+    </select>
+
+    <select id="listMine" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE b.student_id = #{studentId} AND b.deleted = 0
+        <if test="academicTerm != null and academicTerm != ''">AND b.academic_term = #{academicTerm}</if>
+        ORDER BY b.academic_term DESC, b.id DESC
+    </select>
+
+    <select id="listReview" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE b.deleted = 0
+        <include refid="Review_Filters"/>
+        ORDER BY b.status = 'submitted' DESC, b.created_at ASC, b.id ASC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countReview" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE b.deleted = 0
+        <include refid="Review_Filters"/>
+    </select>
+
+    <!-- C 的原料：只取已通过的行，不做任何聚合（分类封顶与总封顶 8 分只在 EvalBonusService 一处实现） -->
+    <select id="listApprovedByTerm" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE b.deleted = 0
+          AND b.academic_term = #{academicTerm}
+          AND b.status = 'counselor_approved'
+        ORDER BY b.student_id, b.category, b.id
+    </select>
+
+    <select id="countSubmittedByTerm" resultType="int">
+        SELECT COUNT(*)
+        FROM eval_bonus
+        WHERE deleted = 0 AND academic_term = #{academicTerm} AND status = 'submitted'
+    </select>
+
+    <!-- 学生改稿/重提：CAS 用 status = fromStatus，同时锁死 student_id（只能改自己的单子）；
+         重提回到 submitted 并清空上一次的驳回原因 -->
+    <update id="updateMine">
+        UPDATE eval_bonus
+        SET academic_term = #{bonus.academicTerm},
+            category = #{bonus.category},
+            item_name = #{bonus.itemName},
+            points = #{bonus.points},
+            evidence = #{bonus.evidence},
+            status = 'submitted',
+            reject_reason = NULL,
+            reviewer_id = NULL,
+            reviewed_at = NULL,
+            updated_at = NOW()
+        WHERE id = #{bonus.id}
+          AND student_id = #{bonus.studentId}
+          AND deleted = 0
+          AND status = #{fromStatus}
+    </update>
+
+    <!-- 撤回：submitted → draft（CAS + 本人） -->
+    <update id="withdraw">
+        UPDATE eval_bonus
+        SET status = 'draft', updated_at = NOW()
+        WHERE id = #{id} AND student_id = #{studentId} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- 审核：CAS。reject 时把审核意见写进 reject_reason 供学生端直接看到 -->
+    <update id="review">
+        UPDATE eval_bonus
+        SET status = #{toStatus},
+            reject_reason = #{rejectReason},
+            reviewer_id = #{reviewerId},
+            reviewed_at = NOW(),
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+</mapper>

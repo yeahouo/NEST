@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.ClubPublicityMapper">
+
+    <!-- 社团公示（学工 P17，S25a / S25b）。open 公示全站可见（§6），故本表不按学生/辅导员过滤；
+         scopeUserId / scopeCounselorId 两个参数保留在签名里（服务层透传），SQL 侧刻意不生效。
+         items[] 明细由服务层装配，不落库。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.ClubPublicity">
+        <id column="id" property="id"/>
+        <result column="publicity_type" property="publicityType"/>
+        <result column="title" property="title"/>
+        <result column="content" property="content"/>
+        <result column="start_date" property="startDate"/>
+        <result column="end_date" property="endDate"/>
+        <result column="contact_email" property="contactEmail"/>
+        <result column="status" property="status"/>
+        <result column="publish_user_id" property="publishUserId"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="publish_user_name" property="publishUserName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        t.id, t.publicity_type, t.title, t.content, t.start_date, t.end_date,
+        t.contact_email, t.status, t.publish_user_id,
+        t.created_at, t.updated_at, t.deleted,
+        COALESCE(NULLIF(pu.real_name, ''), pu.nickname, pu.username) AS publish_user_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM club_publicity t
+        LEFT JOIN users pu ON pu.id = t.publish_user_id AND pu.deleted = 0
+    </sql>
+
+    <sql id="List_Filters">
+        <if test="publicityType != null and publicityType != ''">AND t.publicity_type = #{publicityType}</if>
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (t.title LIKE CONCAT('%', #{keyword}, '%')
+                 OR t.content LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.ClubPublicity"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO club_publicity
+            (publicity_type, title, content, start_date, end_date, contact_email, status,
+             publish_user_id, created_at, updated_at, deleted)
+        VALUES
+            (#{publicityType}, #{title}, #{content}, #{startDate}, #{endDate}, #{contactEmail}, #{status},
+             #{publishUserId}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.id = #{id} AND t.deleted = 0
+    </select>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY t.start_date DESC, t.id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="selectCount" resultType="long">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <!-- 关闭公示 CAS（§7-1）：只允许 open → closed（前置态由 #{fromStatus} 显式给出）；
+         已结束的公示重复关闭影响行数 0 → 400「该公示已结束，不可重复关闭」（§7-2） -->
+    <update id="closePublicity">
+        UPDATE club_publicity
+        SET status = 'closed', updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- 增量修改（动态 set）。CAS：id + deleted=0 + status=fromStatus；
+         status 列不被动态 set 覆盖（p.status 为空时保持原值），前置态由 #{fromStatus} 显式给出 -->
+    <update id="update">
+        UPDATE club_publicity
+        <set>
+            <if test="p.publicityType != null">publicity_type = #{p.publicityType},</if>
+            <if test="p.title != null">title = #{p.title},</if>
+            <if test="p.content != null">content = #{p.content},</if>
+            <if test="p.startDate != null">start_date = #{p.startDate},</if>
+            <if test="p.endDate != null">end_date = #{p.endDate},</if>
+            <if test="p.contactEmail != null">contact_email = #{p.contactEmail},</if>
+            <if test="p.publishUserId != null">publish_user_id = #{p.publishUserId},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{p.id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <update id="softDelete">
+        UPDATE club_publicity
+        SET deleted = 1, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <select id="countByTypeAndStatus" resultType="long">
+        SELECT COUNT(*)
+        FROM club_publicity t
+        WHERE t.deleted = 0
+        <if test="publicityType != null and publicityType != ''">AND t.publicity_type = #{publicityType}</if>
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+    </select>
+
+    <select id="countGroupByType" resultType="java.util.LinkedHashMap">
+        SELECT t.publicity_type AS publicity_type, COUNT(*) AS total
+        FROM club_publicity t
+        WHERE t.deleted = 0
+        GROUP BY t.publicity_type
+        ORDER BY t.publicity_type
+    </select>
+
+</mapper>

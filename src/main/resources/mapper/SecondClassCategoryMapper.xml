@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.SecondClassCategoryMapper">
+
+    <!-- 第二课堂板块（学工 P18，S26）。三列学时/学分口径全部允许 NULL = 学校未设置：
+         这里绝不能用 COALESCE 把 NULL 变成 0，否则「学校还没定」会被显示成「要求 0 学时」。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.SecondClassCategory">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="code" property="code"/>
+        <result column="sort_no" property="sortNo"/>
+        <result column="required_hours" property="requiredHours"/>
+        <result column="yearly_cap_hours" property="yearlyCapHours"/>
+        <result column="credit_per_hour" property="creditPerHour"/>
+        <result column="note" property="note"/>
+        <result column="enabled" property="enabled"/>
+        <result column="deleted" property="deleted"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, name, code, sort_no, required_hours, yearly_cap_hours, credit_per_hour,
+        note, enabled, deleted, created_at, updated_at
+    </sql>
+
+    <select id="listEnabled" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM second_class_category
+        WHERE deleted = 0 AND enabled = 1
+        ORDER BY sort_no ASC, id ASC
+    </select>
+
+    <select id="listAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM second_class_category
+        WHERE deleted = 0
+        ORDER BY sort_no ASC, id ASC
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM second_class_category
+        WHERE id = #{id} AND deleted = 0
+    </select>
+
+    <select id="selectByCode" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM second_class_category
+        WHERE code = #{code} AND deleted = 0
+    </select>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.SecondClassCategory"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO second_class_category
+            (name, code, sort_no, required_hours, yearly_cap_hours, credit_per_hour, note, enabled, deleted)
+        VALUES
+            (#{name}, #{code}, #{sortNo}, #{requiredHours}, #{yearlyCapHours}, #{creditPerHour},
+             #{note}, #{enabled}, 0)
+    </insert>
+
+    <!-- 三列口径每次提交都整体覆盖（含写回 NULL = 学校未设置）：
+         管理端表单本来就把三列一起提交，若做成动态 set，学校想「取消已设的上限」就没有路径了。 -->
+    <update id="update" parameterType="java.util.Map">
+        UPDATE second_class_category
+        <set>
+            <if test="c.name != null">name = #{c.name},</if>
+            <if test="c.sortNo != null">sort_no = #{c.sortNo},</if>
+            <if test="c.enabled != null">enabled = #{c.enabled},</if>
+            <if test="c.note != null">note = #{c.note},</if>
+            required_hours = #{c.requiredHours},
+            yearly_cap_hours = #{c.yearlyCapHours},
+            credit_per_hour = #{c.creditPerHour},
+            updated_at = NOW()
+        </set>
+        WHERE id = #{c.id} AND deleted = 0
+    </update>
+
+    <select id="countRecordsByCategory" resultType="long">
+        SELECT COUNT(*) FROM second_class_record WHERE category_id = #{categoryId} AND deleted = 0
+    </select>
+
+    <select id="countActivitiesByCategory" resultType="long">
+        SELECT COUNT(*) FROM second_class_activity WHERE category_id = #{categoryId} AND deleted = 0
+    </select>
+
+</mapper>

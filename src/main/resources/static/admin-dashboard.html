@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html data-theme="nestlight" lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>管理工作台 · 学工平台</title>
+  <!--
+    主题必须在样式表之前定下来。放到 defer 的共享脚本里会先按浅色画一帧、
+    再翻成深色 —— 也就是俗称的「闪白」，比没有深色模式更难受。
+    所以这段必须内联，且必须排在 <link rel="stylesheet"> 前面。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+<link rel="stylesheet" href="/css/nest-art3.css">
+</head>
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content selection:bg-primary/30">
+
+<div class="relative z-10 flex min-h-screen flex-col">
+  <div class="layout-container flex h-full grow flex-col">
+    <!-- Header -->
+    <header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none px-6 py-2 md:px-20">
+      <div class="navbar-start w-auto min-w-0 flex-1 items-center gap-3">
+        <div class="text-primary">
+          <span class="material-symbols-outlined text-3xl">admin_panel_settings</span>
+        </div>
+        <h2 class="nx-brand">学工平台 <span class="text-primary text-sm font-bold">Admin</span></h2>
+      </div>
+      <div class="navbar-end w-auto flex-none items-center gap-1 md:gap-2">
+        <!-- 1280-1439 宽的窗口放不下全部标签（校内机房 1366×768 很常见）：低频三项的标签只在 2xl(≥1536)
+             出现，窄屏退化为纯图标；每个按钮都有 title，图标态仍可发现、也可被读屏朗读。 -->
+        <button onclick="location.href='counselor-students.html'" title="学生名册" class="flex items-center gap-2 rounded-full px-2.5 py-2 transition-colors hover:bg-primary/10 md:px-4">
+          <span class="material-symbols-outlined text-xl">groups</span>
+          <span class="text-sm font-bold hidden md:inline">学生名册</span>
+        </button>
+        <div class="hidden items-center gap-1 md:flex md:gap-2">
+        <button onclick="location.href='award-manage.html'" title="奖惩管理" class="flex items-center gap-2 rounded-full px-2.5 py-2 transition-colors hover:bg-primary/10 md:px-4">
+          <span class="material-symbols-outlined text-xl">emoji_events</span>
+          <span class="text-sm font-bold hidden xl:inline">奖惩管理</span>
+        </button>
+        <button onclick="location.href='aid-review.html'" title="资助审批" class="flex items-center gap-2 rounded-full px-2.5 py-2 transition-colors hover:bg-primary/10 md:px-4">
+          <span class="material-symbols-outlined text-xl">volunteer_activism</span>
+          <span class="text-sm font-bold hidden xl:inline">资助审批</span>
+        </button>
+        <button onclick="location.href='eval-review.html'" title="综测管理" class="flex items-center gap-2 rounded-full px-2.5 py-2 transition-colors hover:bg-primary/10 md:px-4">
+          <span class="material-symbols-outlined text-xl">insights</span>
+          <span class="text-sm font-bold hidden xl:inline">综测管理</span>
+        </button>
+        <button onclick="location.href='counselor-dashboard.html'" title="辅导员工作台" class="flex items-center gap-2 rounded-full px-2.5 py-2 transition-colors hover:bg-primary/10 md:px-4">
+          <span class="material-symbols-outlined text-xl">space_dashboard</span>
+          <span class="text-sm font-bold hidden 2xl:inline">工作台总览</span>
+        </button>
+        <button onclick="location.href='dorm-admin.html'" title="NEST 宿舍分配" class="flex items-center gap-2 rounded-full px-2.5 py-2 transition-colors hover:bg-primary/10 md:px-4">
+          <span class="material-symbols-outlined text-xl">apartment</span>
+          <span class="text-sm font-bold hidden 2xl:inline">NEST 宿舍分配</span>
+        </button>
+        <button onclick="location.href='dorm-psyche.html'" title="心理特征（NEST）" class="flex items-center gap-2 px-2.5 md:px-4 py-2 rounded-full hover:bg-primary/10 transition-colors">
+          <span class="material-symbols-outlined text-xl">psychology</span>
+          <span class="text-sm font-medium hidden 2xl:inline">心理特征</span>
+        </button>
+        <button onclick="location.href='settings.html'" title="设置" class="flex items-center gap-2 px-2.5 md:px-4 py-2 rounded-full hover:bg-primary/10 transition-colors">
+          <span class="material-symbols-outlined text-xl">settings</span>
+          <span class="text-sm font-medium hidden md:inline">Settings</span>
+        </button>
+        </div>
+        <button onclick="logout()" title="退出登录" class="flex items-center gap-2 px-2.5 md:px-4 py-2 rounded-full transition-colors nx-danger-soft">
+          <span class="material-symbols-outlined text-xl">logout</span>
+          <span class="text-sm font-medium hidden md:inline">Logout</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="relative flex-1">
+      <div class="mx-auto w-full max-w-7xl px-6 py-10 md:px-10 md:py-14">
+        <!-- Masthead -->
+        <header class="nx-rise border-b border-base-300 pb-6">
+          <p class="nx-kicker">§ 03 · Admin / Overview</p>
+          <h1 class="mt-2 font-serif text-3xl leading-tight text-base-content sm:text-4xl">
+            欢迎，<span id="user-name">Admin</span>
+          </h1>
+          <p class="mt-3 max-w-2xl text-sm leading-relaxed text-base-content/70">
+            学工平台的全局视图：用户与学籍口径、审计通道、宿舍与心理特征。教学模块已下线，这里不再有课程与作业的统计。
+          </p>
+        </header>
+
+        <!-- 取不到数据时的提示：只在真的失败时出现，免得用六个「0」冒充真实统计 -->
+        <div id="dashboard-error" class="hidden nx-rise mt-6 flex items-center justify-between gap-4 rounded-box border border-error/30 bg-error/10 px-5 py-4">
+          <p class="text-sm text-error">统计数据没有加载出来，上面的「—」表示未知，不是 0。</p>
+          <button onclick="loadDashboard()" class="shrink-0 text-sm font-bold text-error underline underline-offset-4">Retry</button>
+        </div>
+
+        <!-- Stats Grid -->
+        <section class="nx-rise mt-10" style="--nx-delay:.06s">
+          <h2 class="mb-5 font-serif text-2xl text-base-content">数据一览</h2>
+          <div class="grid grid-cols-1 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 md:grid-cols-2 lg:grid-cols-4" id="stats-container">
+            <div class="flex items-center gap-4 bg-base-100 p-6">
+              <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <span class="material-symbols-outlined text-2xl">group</span>
+              </span>
+              <div class="min-w-0">
+                <p class="nx-tnum font-serif text-3xl leading-none text-base-content" id="stat-users">—</p>
+                <p class="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">Total Users</p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-4 bg-base-100 p-6">
+              <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-success/10 text-success">
+                <span class="material-symbols-outlined text-2xl">school</span>
+              </span>
+              <div class="min-w-0">
+                <p class="nx-tnum font-serif text-3xl leading-none text-base-content" id="stat-students">—</p>
+                <p class="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">Students</p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-4 bg-base-100 p-6">
+              <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-secondary/10 text-secondary">
+                <span class="material-symbols-outlined text-2xl">person_book</span>
+              </span>
+              <div class="min-w-0">
+                <p class="nx-tnum font-serif text-3xl leading-none text-base-content" id="stat-teachers">—</p>
+                <p class="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">Teachers</p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-4 bg-base-100 p-6">
+              <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-warning/10 text-warning">
+                <span class="material-symbols-outlined text-2xl">warning</span>
+              </span>
+              <div class="min-w-0">
+                <p class="nx-tnum font-serif text-3xl leading-none text-base-content" id="stat-missing-profiles">—</p>
+                <p class="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">Missing Profiles</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="mt-12 grid grid-cols-1 gap-12 lg:grid-cols-2">
+          <!-- Left: Quick Actions -->
+          <section class="nx-rise" style="--nx-delay:.12s">
+            <h2 class="mb-5 font-serif text-2xl text-base-content">快捷操作</h2>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <a href="admin-invitation-codes.html" class="flex items-center gap-4 rounded-box border border-base-300 bg-base-200 p-5 transition-colors hover:border-primary/40 hover:bg-base-100">
+                <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <span class="material-symbols-outlined text-2xl">vpn_key</span>
+                </span>
+                <div class="min-w-0">
+                  <p class="font-semibold text-base-content">Invitation Codes</p>
+                  <p class="mt-1 text-xs text-base-content/65">Manage teacher codes</p>
+                </div>
+              </a>
+
+              <a href="admin-users.html" class="flex items-center gap-4 rounded-box border border-base-300 bg-base-200 p-5 transition-colors hover:border-primary/40 hover:bg-base-100">
+                <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-success/10 text-success">
+                  <span class="material-symbols-outlined text-2xl">manage_accounts</span>
+                </span>
+                <div class="min-w-0">
+                  <p class="font-semibold text-base-content">User Management</p>
+                  <p class="mt-1 text-xs text-base-content/65">View and manage users</p>
+                </div>
+              </a>
+
+              <a href="under-development.html" class="flex items-center gap-4 rounded-box border border-dashed border-base-300 bg-base-200 p-5 transition-colors hover:border-primary/40 hover:bg-base-100">
+                <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-base-300 text-base-content/70">
+                  <span class="material-symbols-outlined text-2xl">analytics</span>
+                </span>
+                <div class="min-w-0">
+                  <p class="font-semibold text-base-content">Analytics</p>
+                  <p class="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">In development</p>
+                </div>
+              </a>
+
+              <!-- P10 勤工助学：管理员入口从顶栏移到这里——顶栏第 10 个按钮会让 1440 宽的窗口横向溢出
+                   （check-redesign.ps1 会拦），页内 Quick Actions 是设计说明里「功能入口在页内卡片」的既定位置。 -->
+              <a href="workstudy-manage.html" class="flex items-center gap-4 rounded-box border border-base-300 bg-base-200 p-5 transition-colors hover:border-primary/40 hover:bg-base-100">
+                <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-warning/10 text-warning">
+                  <span class="material-symbols-outlined text-2xl">work_history</span>
+                </span>
+                <div class="min-w-0">
+                  <p class="font-semibold text-base-content">Work-study</p>
+                  <p class="mt-1 text-xs text-base-content/65">设岗 · 面试 · 工时 · 酬金</p>
+                </div>
+              </a>
+
+              <!-- P11 困难认定：同样落在页内 Quick Actions，理由同上——顶栏已经 9 项，第 10 个会横向溢出。 -->
+              <a href="poverty-review.html" class="flex items-center gap-4 rounded-box border border-base-300 bg-base-200 p-5 transition-colors hover:border-primary/40 hover:bg-base-100" title="家庭经济困难学生认定管理">
+                <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-error/10 text-error">
+                  <span class="material-symbols-outlined text-2xl">volunteer_activism</span>
+                </span>
+                <div class="min-w-0">
+                  <p class="font-semibold text-base-content">Poverty</p>
+                  <p class="mt-1 text-xs text-base-content/65">民主评议 · 定级公示 · 复议</p>
+                </div>
+              </a>
+
+              <!-- P12 评奖评优：同样落在页内 Quick Actions（顶栏已 9 项，第 10 个会横向溢出）。 -->
+              <a href="honor-review.html" class="flex items-center gap-4 rounded-box border border-base-300 bg-base-200 p-5 transition-colors hover:border-primary/40 hover:bg-base-100" title="评奖评优在线申报审核">
+                <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <span class="material-symbols-outlined text-2xl">military_tech</span>
+                </span>
+                <div class="min-w-0">
+                  <p class="font-semibold text-base-content">Honors</p>
+                  <p class="mt-1 text-xs text-base-content/65">批次 · 审核 · 公示 · 导出</p>
+                </div>
+              </a>
+
+              <!-- P13 综测排名：同样落在页内 Quick Actions。 -->
+              <a href="ranking-review.html" class="flex items-center gap-4 rounded-box border border-base-300 bg-base-200 p-5 transition-colors hover:border-primary/40 hover:bg-base-100" title="综合测评排名与公示">
+                <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <span class="material-symbols-outlined text-2xl">leaderboard</span>
+                </span>
+                <div class="min-w-0">
+                  <p class="font-semibold text-base-content">Ranking</p>
+                  <p class="mt-1 text-xs text-base-content/65">批次 · 计算 · 公示 · 导出</p>
+                </div>
+              </a>
+            </div>
+          </section>
+
+          <!-- Right: System Overview -->
+          <section class="nx-rise" style="--nx-delay:.18s">
+            <h2 class="mb-5 font-serif text-2xl text-base-content">系统概览</h2>
+            <div class="divide-y divide-base-300 border-y border-base-300">
+              <div class="py-5">
+                <div class="flex items-center justify-between gap-4">
+                  <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-primary">today</span>
+                    <span class="text-sm font-semibold text-base-content">Today's New Users</span>
+                  </div>
+                  <span class="nx-tnum font-serif text-2xl leading-none text-primary" id="stat-today-users">—</span>
+                </div>
+                <div class="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-base-300">
+                  <div class="h-full rounded-full bg-primary" style="width: 0%" id="today-users-bar"></div>
+                </div>
+              </div>
+
+              <div class="py-5">
+                <div class="flex items-center justify-between gap-4">
+                  <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-success">task_alt</span>
+                    <span class="text-sm font-semibold text-base-content">Active Users (7 days)</span>
+                  </div>
+                  <span class="nx-tnum font-serif text-2xl leading-none text-success" id="stat-active-users">—</span>
+                </div>
+                <div class="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-base-300">
+                  <div class="h-full rounded-full bg-success" style="width: 0%" id="active-users-bar"></div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <footer class="border-t border-base-300">
+      <div class="mx-auto flex w-full max-w-7xl flex-col items-center justify-between gap-3 px-6 py-8 md:flex-row md:px-10">
+        <p class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">&copy; 2026 学工平台</p>
+        <p class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">All rights reserved</p>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<script>
+  async function checkAuth() {
+    try {
+      const response = await fetch('/api/auth/me');
+      const result = await response.json();
+
+      if (result.code !== 200) {
+        window.location.href = 'login.html';
+        return null;
+      }
+
+      // Check if user is admin
+      if (result.data.role?.toLowerCase() !== 'admin') {
+        // Redirect non-admins
+        if (result.data.role?.toLowerCase() === 'teacher') {
+          window.location.href = 'teacher-dashboard.html';
+        } else {
+          window.location.href = 'dashboard.html';
+        }
+        return null;
+      }
+
+      return result.data;
+    } catch (error) {
+      window.location.href = 'login.html';
+      return null;
+    }
+  }
+
+  async function init() {
+    const user = await checkAuth();
+    if (user) {
+      document.getElementById('user-name').textContent = user.nickname || user.username;
+      await loadDashboard();
+    }
+  }
+
+  // 一个请求包一层：失败不抛异常，只回报 ok=false，由调用方决定怎么显示。
+  async function fetchJson(url) {
+    try {
+      const response = await fetch(url, { credentials: 'same-origin' });
+      const body = await response.json().catch(() => null);
+      if (!body || body.code !== 200) {
+        return { ok: false, message: (body && body.message) || ('HTTP ' + response.status) };
+      }
+      return { ok: true, data: body.data };
+    } catch (error) {
+      return { ok: false, message: '连不上服务器。' };
+    }
+  }
+
+  async function loadDashboard() {
+    const errorBox = document.getElementById('dashboard-error');
+    const num = (v) => (typeof v === 'number' && isFinite(v) ? v : 0);
+    const setStat = (id, value) => {
+      const node = document.getElementById(id);
+      if (node) node.textContent = value;
+    };
+
+    // 三个口径分开取：谁取不到谁显示「—」，不用 0 冒充未知。
+    // /api/admin/dashboard 已不再提供课程数（totalCourses 正在下线）。
+    const [core, users, students] = await Promise.all([
+      fetchJson('/api/admin/dashboard'),
+      fetchJson('/api/admin/users?role=student'),
+      fetchJson('/api/counselor/students?scope=all')
+    ]);
+
+    if (core.ok) { errorBox.classList.add('hidden'); } else { showDashboardError(); }
+    const data = core.ok && core.data ? core.data : {};
+
+    setStat('stat-users', core.ok ? num(data.totalUsers) : '—');
+    setStat('stat-students', users.ok && users.data ? num(users.data.total) : '—');
+    setStat('stat-teachers', core.ok ? num(data.teachers) : '—');
+    setStat('stat-missing-profiles', students.ok && students.data && students.data.stats ? num(students.data.stats.missing) : '—');
+    setStat('stat-today-users', core.ok ? num(data.todayNewUsers) : '—');
+    setStat('stat-active-users', core.ok ? num(data.activeUsers) : '—');
+
+    const totalUsers = num(data.totalUsers);
+    const todayPercent = Math.min((num(data.todayNewUsers) / 10) * 100, 100);
+    const activePercent = totalUsers > 0 ? Math.min((num(data.activeUsers) / totalUsers) * 100, 100) : 0;
+
+    document.getElementById('today-users-bar').style.width = todayPercent + '%';
+    document.getElementById('active-users-bar').style.width = activePercent + '%';
+  }
+
+  function showDashboardError() {
+    document.getElementById('dashboard-error').classList.remove('hidden');
+  }
+
+  async function logout() {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = 'login.html';
+    } catch (error) {
+      window.location.href = 'login.html';
+    }
+  }
+
+  init();
+</script>
+  <script defer src="/js/nest-ui.js"></script>
+    <script defer src="/libs/animejs/anime.umd.min.js"></script>
+    <script defer src="/libs/countup/countUp.umd.js"></script>
+    <script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+    <script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+    <script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+</body>
+</html>

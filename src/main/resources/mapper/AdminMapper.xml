@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.AdminMapper">
+
+    <!-- 用户结果映射 -->
+    <resultMap id="UserResultMap" type="com.umi.nest.entity.User">
+        <id column="id" property="id"/>
+        <result column="username" property="username"/>
+        <result column="nickname" property="nickname"/>
+        <result column="email" property="email"/>
+        <result column="phone" property="phone"/>
+        <result column="role" property="role"/>
+        <result column="avatar" property="avatar"/>
+        <result column="status" property="status"/>
+        <result column="last_login_time" property="lastLoginTime"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="real_name" property="realName"/>
+        <result column="student_id" property="studentId"/>
+        <result column="school" property="school"/>
+        <!-- 登录失败锁定状态（等保：登录失败处理）：管理员在用户列表里要能看出谁被锁了 -->
+        <result column="failed_login_count" property="failedLoginCount"/>
+        <result column="locked_until" property="lockedUntil"/>
+    </resultMap>
+
+    <!-- ==================== 仪表盘统计 ==================== -->
+
+    <select id="countUsers" resultType="int">
+        SELECT COUNT(*) FROM users WHERE deleted = 0
+    </select>
+
+    <select id="countStudents" resultType="int">
+        SELECT COUNT(*) FROM users WHERE deleted = 0 AND role = 'student'
+    </select>
+
+    <select id="countTeachers" resultType="int">
+        SELECT COUNT(*) FROM users WHERE deleted = 0 AND role = 'teacher'
+    </select>
+
+    <select id="countTodayNewUsers" resultType="int">
+        SELECT COUNT(*) FROM users
+        WHERE deleted = 0 AND DATE(create_time) = CURDATE()
+    </select>
+
+    <select id="countActiveUsers" resultType="int">
+        SELECT COUNT(*) FROM users
+        WHERE deleted = 0 AND last_login_time >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+    </select>
+
+    <!-- ==================== 用户管理 ==================== -->
+
+    <select id="findUsers" resultMap="UserResultMap">
+        SELECT id, username, nickname, email, phone, role, avatar, status,
+               last_login_time, create_time, update_time, real_name, student_id, school,
+               failed_login_count, locked_until
+        FROM users
+        WHERE deleted = 0
+        <if test="role != null and role != ''">
+            AND role = #{role}
+        </if>
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (username LIKE CONCAT('%', #{keyword}, '%')
+                 OR nickname LIKE CONCAT('%', #{keyword}, '%')
+                 OR email LIKE CONCAT('%', #{keyword}, '%')
+                 OR phone LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY create_time DESC
+        <if test="offset != null and limit != null">
+            LIMIT #{offset}, #{limit}
+        </if>
+    </select>
+
+    <select id="countUsersByFilter" resultType="int">
+        SELECT COUNT(*)
+        FROM users
+        WHERE deleted = 0
+        <if test="role != null and role != ''">
+            AND role = #{role}
+        </if>
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (username LIKE CONCAT('%', #{keyword}, '%')
+                 OR nickname LIKE CONCAT('%', #{keyword}, '%')
+                 OR email LIKE CONCAT('%', #{keyword}, '%')
+                 OR phone LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </select>
+
+    <update id="updateUserRole">
+        UPDATE users
+        SET role = #{role},
+            update_time = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <update id="updateUserStatus">
+        UPDATE users
+        SET status = #{status},
+            update_time = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <update id="adminUpdateUser" parameterType="com.umi.nest.entity.User">
+        UPDATE users
+        <set>
+            <if test="nickname != null">nickname = #{nickname},</if>
+            <if test="email != null">email = #{email},</if>
+            <if test="phone != null">phone = #{phone},</if>
+            <if test="role != null">role = #{role},</if>
+            <if test="status != null">status = #{status},</if>
+            update_time = NOW()
+        </set>
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <select id="findTeachers" resultMap="UserResultMap">
+        SELECT id, username, nickname, email
+        FROM users
+        WHERE role = 'teacher' AND deleted = 0 AND status = 1
+        ORDER BY nickname
+    </select>
+
+    <update id="deleteUser">
+        UPDATE users SET deleted = 1, update_time = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <insert id="adminInsertUser" parameterType="com.umi.nest.entity.User"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO users (username, password_hash, nickname, email, phone, role,
+                          status, deleted, phone_verified, email_verified,
+                          notify_assignment_deadline, notify_private_message, notify_topic_reply)
+        VALUES (#{username}, #{passwordHash}, #{nickname}, #{email}, #{phone}, #{role},
+                1, 0, 0, 0, 1, 1, 1)
+    </insert>
+
+</mapper>

@@ -1,0 +1,18 @@
+Lenis
+=====
+upstream : https://github.com/darkroomengineering/lenis
+package  : lenis
+version  : 1.3.26
+license  : MIT (see LICENSE in this directory)
+fetched  : 2026-10-15 via `npm pack lenis`
+npm meta : unpackedSize 457,528 bytes
+files    : lenis.min.js 18,722 bytes (IIFE, sets globalThis.Lenis)
+           lenis.css       513 bytes (html.lenis / html.lenis-smooth / html.lenis-stopped rules)
+
+Usage in this project
+---------------------
+  <link rel="stylesheet" href="/libs/lenis/lenis.css">
+  <script src="/libs/lenis/lenis.min.js" defer></script>   -> window.Lenis
+  The art concept page (/art.html) starts Lenis only when the visitor has not asked for
+  reduced motion; the "动效" switch calls lenis.stop()/start() and destroys it on disable.
+  The classic pages of the site do not use Lenis.

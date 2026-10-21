@@ -1,0 +1,20 @@
+{
+  "port": 9222,
+  "clearCache": true,
+  "page": { "url": "http://127.0.0.1:8080/art.html?cb=art3m", "width": 375, "height": 812, "waitMs": 3200 },
+  "steps": [
+    {
+      "name": "clean",
+      "eval": "try{localStorage.setItem('nest-theme','light');localStorage.removeItem('nest-art-motion');}catch(e){};location.reload();'reloading'",
+      "waitMs": 4000
+    },
+    {
+      "name": "state-mobile",
+      "eval": "(()=>{const host=document.querySelector('[data-art-shader=\"hero\"]');const m=host&&host.paperShaderMount;const A=window.NestArt||{};const title=document.querySelector('.art-title-lat');return JSON.stringify({art:{state:A.state,theme:A.theme,motion:A.motion,canvases:A.canvases},heroBox:host?[host.clientWidth,host.clientHeight]:null,canvasSize:m?[m.canvasElement.width,m.canvasElement.height]:null,heroFrame:m?Math.round(m.currentFrame):null,scrollW:document.documentElement.scrollWidth,innerW:window.innerWidth,docH:document.documentElement.scrollHeight,titleBox:title?[Math.round(title.getBoundingClientRect().width),Math.round(title.getBoundingClientRect().height)]:null,titleFont:title?getComputedStyle(title).fontSize:null,bodyFont:getComputedStyle(document.body).fontFamily.slice(0,40),revealTotal:document.querySelectorAll('[data-art-reveal]').length,themeBtn:document.getElementById('artTheme').textContent,motionBtn:document.getElementById('artMotion').textContent});})()"
+    },
+    { "name": "reveal-all", "eval": "document.querySelectorAll('[data-art-reveal]').forEach(e=>e.classList.add('is-in'));'ok'", "waitMs": 700 },
+    { "name": "shot-mobile-hero", "shot": true, "file": "target/zz-art-mobile-hero.png" },
+    { "name": "shot-mobile-full", "shot": true, "file": "target/zz-art-mobile-full.png" },
+    { "name": "overflow-audit", "eval": "JSON.stringify(Array.from(document.querySelectorAll('body *')).filter(e=>e.getBoundingClientRect().right>window.innerWidth+1).slice(0,6).map(e=>e.className&&String(e.className).slice(0,40)||e.tagName))" }
+  ]
+}

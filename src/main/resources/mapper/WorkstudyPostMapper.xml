@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.WorkstudyPostMapper">
+
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.WorkstudyPost">
+        <id column="id" property="id"/>
+        <result column="post_type" property="postType"/>
+        <result column="unit" property="unit"/>
+        <result column="unit_user_id" property="unitUserId"/>
+        <result column="name" property="name"/>
+        <result column="content" property="content"/>
+        <result column="skill" property="skill"/>
+        <result column="headcount" property="headcount"/>
+        <result column="hired_count" property="hiredCount"/>
+        <result column="hourly_wage" property="hourlyWage"/>
+        <result column="hours_per_week" property="hoursPerWeek"/>
+        <result column="hours_per_month" property="hoursPerMonth"/>
+        <result column="academic_term" property="academicTerm"/>
+        <result column="apply_deadline" property="applyDeadline"/>
+        <result column="interview_at" property="interviewAt"/>
+        <result column="status" property="status"/>
+        <result column="review_note" property="reviewNote"/>
+        <result column="reviewer_id" property="reviewerId"/>
+        <result column="reviewed_at" property="reviewedAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="unit_user_name" property="unitUserName"/>
+        <result column="hired_count_actual" property="hiredCountActual"/>
+    </resultMap>
+
+    <!-- 列表/详情共用列；两个 hired 口径：hired_count 表内计数、hired_count_actual 申请表实算 -->
+    <sql id="Joined_Columns">
+        d.id, d.post_type, d.unit, d.unit_user_id, d.name, d.content, d.skill,
+        d.headcount, d.hired_count, d.hourly_wage, d.hours_per_week, d.hours_per_month,
+        d.academic_term, d.apply_deadline, d.interview_at, d.status, d.review_note,
+        d.reviewer_id, d.reviewed_at, d.created_at, d.updated_at, d.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS unit_user_name,
+        (SELECT COUNT(*) FROM workstudy_application wa
+          WHERE wa.post_id = d.id AND wa.deleted = 0 AND wa.status = 'hired') AS hired_count_actual
+    </sql>
+
+    <sql id="Joined_From">
+        FROM workstudy_post d
+        LEFT JOIN users u ON u.id = d.unit_user_id
+    </sql>
+
+    <sql id="Filters">
+        AND d.deleted = 0
+        <if test="type != null and type != ''">AND d.post_type = #{type}</if>
+        <if test="term != null and term != ''">AND d.academic_term = #{term}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (d.name LIKE CONCAT('%', #{keyword}, '%')
+                 OR d.unit LIKE CONCAT('%', #{keyword}, '%')
+                 OR d.content LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="status != null and status != ''">AND d.status = #{status}</if>
+        <if test="unitUserId != null">AND d.unit_user_id = #{unitUserId}</if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.WorkstudyPost"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO workstudy_post
+            (post_type, unit, unit_user_id, name, content, skill, headcount, hired_count,
+             hourly_wage, hours_per_week, hours_per_month, academic_term, apply_deadline,
+             interview_at, status, review_note, reviewer_id, reviewed_at,
+             created_at, updated_at, deleted)
+        VALUES
+            (#{postType}, #{unit}, #{unitUserId}, #{name}, #{content}, #{skill},
+             #{headcount}, #{hiredCount}, #{hourlyWage}, #{hoursPerWeek}, #{hoursPerMonth},
+             #{academicTerm}, #{applyDeadline}, #{interviewAt}, #{status}, #{reviewNote},
+             #{reviewerId}, #{reviewedAt}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE d.id = #{id} AND d.deleted = 0
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE 1 = 1
+        <include refid="Filters"/>
+        ORDER BY FIELD(d.status, 'recruiting', 'pending', 'draft', 'closed', 'rejected') ASC,
+                 d.created_at DESC, d.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="count" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE 1 = 1
+        <include refid="Filters"/>
+    </select>
+
+    <update id="update" parameterType="com.umi.nest.entity.WorkstudyPost">
+        UPDATE workstudy_post
+        <set>
+            <if test="postType != null">post_type = #{postType},</if>
+            <if test="unit != null">unit = #{unit},</if>
+            <if test="unitUserId != null">unit_user_id = #{unitUserId},</if>
+            <if test="name != null">name = #{name},</if>
+            <if test="content != null">content = #{content},</if>
+            <if test="skill != null">skill = #{skill},</if>
+            <if test="headcount != null">headcount = #{headcount},</if>
+            <if test="hourlyWage != null">hourly_wage = #{hourlyWage},</if>
+            <if test="hoursPerWeek != null">hours_per_week = #{hoursPerWeek},</if>
+            <if test="hoursPerMonth != null">hours_per_month = #{hoursPerMonth},</if>
+            <if test="academicTerm != null">academic_term = #{academicTerm},</if>
+            <if test="applyDeadline != null">apply_deadline = #{applyDeadline},</if>
+            <if test="interviewAt != null">interview_at = #{interviewAt},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="reviewNote != null">review_note = #{reviewNote},</if>
+            <if test="reviewerId != null">reviewer_id = #{reviewerId},</if>
+            <if test="reviewedAt != null">reviewed_at = #{reviewedAt},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <update id="updateStatus">
+        UPDATE workstudy_post
+        <set>
+            status = #{toStatus},
+            <if test="reviewerId != null">reviewer_id = #{reviewerId},</if>
+            <if test="reviewNote != null">review_note = #{reviewNote},</if>
+            <if test="reviewedAt != null">reviewed_at = #{reviewedAt},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{id} AND deleted = 0
+        <if test="fromStatus != null and fromStatus != ''">AND status = #{fromStatus}</if>
+    </update>
+
+    <update id="updateHiredCount">
+        UPDATE workstudy_post
+        SET hired_count = hired_count + #{delta}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0
+        <if test="delta > 0">AND hired_count &lt; headcount</if>
+        <if test="delta &lt; 0">AND hired_count &gt; 0</if>
+    </update>
+
+    <select id="countGroupByStatus" resultType="java.util.Map">
+        SELECT d.status AS status, COUNT(*) AS cnt
+        FROM workstudy_post d
+        WHERE d.deleted = 0
+        <if test="academicTerm != null and academicTerm != ''">AND d.academic_term = #{academicTerm}</if>
+        <if test="unitUserId != null">AND d.unit_user_id = #{unitUserId}</if>
+        GROUP BY d.status
+    </select>
+
+</mapper>

@@ -1,0 +1,16 @@
+{
+  "port": 9222,
+  "cookie": { "name": "JSESSIONID", "value": "__SID__", "url": "http://127.0.0.1:8080" },
+  "page": { "url": "http://127.0.0.1:8080/admin-users.html?cb=571", "width": 1440, "height": 1100, "waitMs": 3000 },
+  "steps": [
+    { "name": "1-boot", "eval": "JSON.stringify({nestUI: typeof NestUI, rows: document.querySelectorAll('table tbody tr').length, tableText: document.body.innerText.replace(/\\s+/g,' ').slice(0,200)})" },
+    { "name": "2-open-create", "eval": "(function(){ document.querySelector('[onclick*=\"openCreate\"]').click(); return 'clicked'; })()", "waitMs": 900 },
+    { "name": "3-create-state", "eval": "(function(){ var m=document.getElementById('create-modal'); var ids=[]; m.querySelectorAll('input,select,textarea').forEach(function(e){ if(e.id) ids.push(e.id); }); return JSON.stringify({visible: !m.classList.contains('hidden'), fields: ids, text: m.innerText.replace(/\\s+/g,' ').slice(0,160)}); })()" },
+    { "name": "4-close-create", "eval": "(function(){ var b=document.querySelector('[onclick*=\"closeCreateModal\"],[onclick*=\"closeCreate\"]'); if(!b) return 'no-btn'; b.click(); return 'closed'; })()", "waitMs": 500 },
+    { "name": "5-open-edit", "eval": "(function(){ var b=document.querySelector('[onclick*=\"openEditModal\"]'); if(!b) return 'no-row'; b.click(); return 'clicked'; })()", "waitMs": 1500 },
+    { "name": "6-edit-state", "eval": "(function(){ var m=document.getElementById('edit-modal'); var vals={}; m.querySelectorAll('input,select').forEach(function(e){ if(e.id) vals[e.id]=e.value; }); return JSON.stringify({visible: !m.classList.contains('hidden'), values: vals}); })()" },
+    { "name": "7-close-edit", "eval": "(function(){ var b=document.querySelector('[onclick*=\"closeEditModal\"],[onclick*=\"closeEdit\"]'); if(!b) return 'no-btn'; b.click(); return 'closed'; })()", "waitMs": 500 },
+    { "name": "8-status-toggle-presence", "eval": "(function(){ var t=document.querySelector('[onclick*=\"toggleUserStatus\"]'); return JSON.stringify({hasToggle: !!t, label: t ? t.textContent.trim().slice(0,30) : null, search: !!document.querySelector('#searchInput,#search,input[type=\"search\"]')}); })()" },
+    { "name": "9-shot", "shot": "target\\flow-admin-users.png" }
+  ]
+}

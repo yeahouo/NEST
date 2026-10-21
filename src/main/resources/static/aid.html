@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="nestlight">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>资助申请 · 学工平台</title>
+  <!--
+    主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
+    daisyUI 的组件颜色跟的是 [data-theme] 属性（不是 .dark 类），两处都必须写，
+    与 nest-ui.js 的 paintTheme() 保持一致。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <script src="/pwa.js" defer></script>
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/nest-art3.css">
+</head>
+
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content">
+
+<header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none border-0 p-0">
+  <div class="navbar mx-auto min-h-0 w-full max-w-7xl gap-3 px-5 py-2 md:px-8">
+    <div class="navbar-start gap-3">
+      <a class="flex items-center gap-3" href="dashboard.html">
+        <span class="nx-logo">
+          <span class="material-symbols-outlined text-xl">terminal</span>
+        </span>
+        <span class="hidden text-lg font-black uppercase tracking-tight sm:inline">学工平台</span>
+      </a>
+      <span class="hidden h-5 w-px bg-base-300 lg:block"></span>
+      <span class="hidden font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65 lg:block">§ 07 · Student affairs / Aid</span>
+    </div>
+    <div class="navbar-end gap-1.5">
+      <a class="btn btn-ghost btn-sm gap-2 rounded-full" href="dashboard.html">
+        <span class="material-symbols-outlined text-lg">dashboard</span>
+        <span class="hidden md:inline">工作台</span>
+      </a>
+      <button aria-label="切换深色 / 浅色模式" class="nx-icon-btn" data-nx-theme-toggle title="切换深色 / 浅色模式" type="button">
+        <span class="material-symbols-outlined nx-theme-icon-light text-xl">dark_mode</span>
+        <span class="material-symbols-outlined nx-theme-icon-dark text-xl">light_mode</span>
+      </button>
+      <a class="nx-icon-btn" href="settings.html" title="设置">
+        <span class="material-symbols-outlined text-xl">settings</span>
+      </a>
+      <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="logout-btn" type="button">
+        <span class="material-symbols-outlined text-lg">logout</span>
+        <span class="hidden md:inline">退出登录</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="flex-1 px-5 py-8 md:px-8 md:py-12">
+  <div class="mx-auto w-full max-w-7xl">
+
+    <!-- ── 刊头：等宽小标 + 衬线大标题 + 发丝分隔线 ───────────────────── -->
+    <header class="mb-8 border-b border-base-300 pb-6">
+      <p class="nx-kicker">§ 07 · Student / Aid</p>
+      <h1 data-nx-split="1" class="mt-2 font-serif text-3xl leading-tight sm:text-4xl lg:text-5xl">资助申请</h1>
+      <p class="mt-4 max-w-2xl text-sm text-base-content/70">
+        助学金、临时困难补助、勤工助学在这里申请。同一学年同一个项目只能有一条
+        在办或已批准的申请；提交后由辅导员审批，审批结果会回到本页。
+      </p>
+      <p class="mt-3 text-xs text-base-content/65">
+        家庭经济困难学生认定的七步流程、公示与复议在
+        <a class="nx-link" href="poverty.html">困难认定</a>
+        页；本页不再受理困难认定申请，只负责把认定结论带进助学金、临时困难补助与勤工助学的申请。
+        生源地信用助学贷款的登记在本页下方的「贷款登记」一节。
+      </p>
+    </header>
+
+    <!-- ── 状态发丝格 ─────────────────────────────────────────────── -->
+    <section id="aid-stats" class="mb-10 grid grid-cols-2 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 md:grid-cols-4"></section>
+
+    <div id="aid-message" class="alert hidden mb-6 items-start gap-2"></div>
+
+    <div class="grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
+
+      <!-- ── 左：新建申请 ─────────────────────────────────────────── -->
+      <section class="card rounded-box border border-base-300 bg-base-200 shadow-xl">
+        <div class="p-6 md:p-7">
+          <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">New application · 新建申请</p>
+          <h2 class="mt-2 font-serif text-2xl">填写申请</h2>
+
+          <div class="mt-6 grid gap-4">
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">资助项目</span>
+              <select class="select select-bordered" id="aid-type">
+                <option value="grant">助学金</option>
+                <option value="temporary">临时困难补助</option>
+                <option value="workstudy">勤工助学</option>
+              </select>
+            </label>
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">困难档次</span>
+              <select class="select select-bordered" id="aid-level">
+                <option value="">未填写</option>
+                <option value="general">一般困难</option>
+                <option value="difficult">困难</option>
+                <option value="special">特别困难</option>
+              </select>
+            </label>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <label class="form-control">
+                <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学年</span>
+                <input class="input input-bordered" id="aid-year" type="text"/>
+              </label>
+              <label class="form-control">
+                <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">申请金额</span>
+                <input class="input input-bordered" id="aid-amount" placeholder="可留空" type="text"/>
+              </label>
+            </div>
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">申请理由</span>
+              <textarea class="textarea textarea-bordered" id="aid-reason" placeholder="家庭情况、变故、开支等，至少 4 个字" rows="4"></textarea>
+            </label>
+            <label class="form-control">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">证明材料说明</span>
+              <input class="input input-bordered" id="aid-evidence" placeholder="如：低保证明已交辅导员" type="text"/>
+            </label>
+          </div>
+
+          <button class="btn btn-primary btn-block mt-6 rounded-full" id="aid-submit" type="button">提交申请</button>
+          <p class="mt-3 text-xs text-base-content/60">
+            提交即表示所述情况属实。建档立卡、低保等材料请交给辅导员留存，系统只记录说明。
+          </p>
+        </div>
+      </section>
+
+      <!-- ── 右：我的申请 ─────────────────────────────────────────── -->
+      <section>
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <h2 class="font-serif text-2xl">我的申请</h2>
+          <button class="btn btn-ghost btn-sm rounded-full" id="aid-refresh" type="button">刷新</button>
+        </div>
+        <div id="aid-list" class="grid gap-4" data-nx-autoanimate="1"></div>
+        <p id="aid-empty" class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60">
+          还没有提交过资助申请。
+        </p>
+      </section>
+
+    </div>
+
+    <!-- ── 生源地信用助学贷款登记 ─────────────────────────────────── -->
+    <section class="mt-14 border-t border-base-300 pt-10" id="loan-section">
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Student loan · 生源地信用助学贷款</p>
+          <h2 class="mt-2 font-serif text-2xl">贷款登记</h2>
+        </div>
+        <button class="btn btn-ghost btn-sm rounded-full" id="loan-refresh" type="button">刷新</button>
+      </div>
+      <p class="mt-3 max-w-3xl text-sm text-base-content/70" id="loan-policy">
+        这里登记的是你在生源地县级学生资助管理中心办理的信用助学贷款台账。
+      </p>
+      <p class="mt-2 text-xs text-base-content/60">
+        同一学年只留一条有效登记（撤回或不予登记的可以重新提交）；辅导员核验后你不能再改，
+        学校资助中心确认后这条才算登记完成。贷款审批与放款由经办机构负责，系统只记台账。
+      </p>
+
+      <div id="loan-message" class="alert hidden mt-5 items-start gap-2"></div>
+
+      <div id="loan-stats" class="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 md:grid-cols-4"></div>
+
+      <div class="mt-8 grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
+
+        <!-- 左：新建 / 改写登记 -->
+        <section class="card rounded-box border border-base-300 bg-base-200 shadow-xl">
+          <div class="p-6 md:p-7">
+            <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">New registration · 新建登记</p>
+            <h3 class="mt-2 font-serif text-xl">填写贷款信息</h3>
+
+            <div class="mt-6 grid gap-4">
+              <div class="grid gap-4 sm:grid-cols-2">
+                <label class="form-control">
+                  <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学年</span>
+                  <input class="input input-bordered" id="loan-year" placeholder="2026-2027" type="text"/>
+                </label>
+                <label class="form-control">
+                  <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">登记金额（元）</span>
+                  <input class="input input-bordered" id="loan-amount" placeholder="如 12000" type="text"/>
+                </label>
+              </div>
+              <div class="grid gap-4 sm:grid-cols-3">
+                <label class="form-control">
+                  <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">生源地省</span>
+                  <input class="input input-bordered" id="loan-province" placeholder="福建省" type="text"/>
+                </label>
+                <label class="form-control">
+                  <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">市</span>
+                  <input class="input input-bordered" id="loan-city" placeholder="漳州市" type="text"/>
+                </label>
+                <label class="form-control">
+                  <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">县 / 区</span>
+                  <input class="input input-bordered" id="loan-county" placeholder="龙海区" type="text"/>
+                </label>
+              </div>
+              <label class="form-control">
+                <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">经办机构</span>
+                <input class="input input-bordered" id="loan-bank" placeholder="如 国家开发银行福建省分行" type="text"/>
+              </label>
+              <div class="grid gap-4 sm:grid-cols-2">
+                <label class="form-control">
+                  <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">合同编号</span>
+                  <input class="input input-bordered" id="loan-contract" placeholder="可留空" type="text"/>
+                </label>
+                <label class="form-control">
+                  <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">回执 / 校验码</span>
+                  <input class="input input-bordered" id="loan-receipt" placeholder="可留空" type="text"/>
+                </label>
+              </div>
+              <label class="form-control">
+                <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">说明（可选）</span>
+                <textarea class="textarea textarea-bordered" id="loan-remark" placeholder="如：材料已交辅导员留存" rows="3"></textarea>
+              </label>
+            </div>
+
+            <button class="btn btn-primary btn-block mt-6 rounded-full" id="loan-submit" type="button">提交登记</button>
+            <p class="mt-3 text-xs text-base-content/60">
+              系统不校验也不代填任何政策上限；金额填错会挡住提交，按合同与回执填写即可。
+            </p>
+          </div>
+        </section>
+
+        <!-- 右：我的贷款台账 -->
+        <section>
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <h3 class="font-serif text-xl">我的贷款登记</h3>
+            <p class="text-xs text-base-content/60" id="loan-summary-text"></p>
+          </div>
+          <div id="loan-list" class="grid gap-4" data-nx-autoanimate="1"></div>
+          <p id="loan-empty" class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60">
+            还没有登记过生源地信用助学贷款。
+          </p>
+        </section>
+
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="nx-hairline-t border-base-300 px-5 py-6 md:px-8">
+  <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
+    <p class="font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65">学工平台 · Financial Aid</p>
+    <p class="text-xs text-base-content/60">资助材料属隐私信息，只在校内网流转。</p>
+  </div>
+</footer>
+
+<script>
+  // ─────────────────────────────── 状态 ───────────────────────────────
+  const AID_TEXT = { need: '困难认定', grant: '助学金', temporary: '临时困难补助', workstudy: '勤工助学' };
+  const LEVEL_TEXT = { general: '一般困难', difficult: '困难', special: '特别困难' };
+  const STATUS_TEXT = { pending: '待审批', approved: '已批准', rejected: '已驳回', cancelled: '已撤回' };
+  const STATUS_BADGE = { pending: 'badge-warning', approved: 'badge-success', rejected: 'badge-error', cancelled: 'badge-ghost' };
+
+  function escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  async function callApi(url, options) {
+    const response = await fetch(url, options);
+    return response.json();
+  }
+
+  function showMessage(text, type) {
+    const box = document.getElementById('aid-message');
+    const tone = type === 'success' ? 'alert-success' : 'alert-error';
+    const icon = type === 'success' ? 'check_circle' : 'error';
+    box.classList.remove('hidden');
+    box.className = 'alert items-start gap-2 ' + tone;
+    box.innerHTML = '<span class="material-symbols-outlined text-lg">' + icon
+        + '</span><span class="text-sm">' + escapeHtml(text) + '</span>';
+  }
+
+  function clearMessage() {
+    document.getElementById('aid-message').classList.add('hidden');
+  }
+
+  // ─────────────────────────────── 读数据 ─────────────────────────────
+  async function checkAuth() {
+    try {
+      const result = await callApi('/api/auth/me');
+      if (result.code !== 200) { window.location.href = 'login.html'; return null; }
+      const role = result.data && result.data.role;
+      if (role !== 'student') { window.location.href = 'aid-review.html'; return null; }
+      return result.data;
+    } catch (error) {
+      window.location.href = 'login.html';
+      return null;
+    }
+  }
+
+  function currentAcademicYear() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const start = now.getMonth() >= 8 ? year : year - 1;
+    return start + '-' + (start + 1);
+  }
+
+  function statCell(label, count) {
+    return '<div class="flex flex-col gap-1 bg-base-100 p-6">'
+        + '<dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">' + label + '</dt>'
+        + '<dd class="mt-1 font-serif text-2xl">' + count + '</dd></div>';
+  }
+
+  function renderStats(stats) {
+    const data = stats || {};
+    document.getElementById('aid-stats').innerHTML = statCell('待审批', data.pending || 0)
+        + statCell('已批准', data.approved || 0)
+        + statCell('已驳回', data.rejected || 0)
+        + statCell('已撤回', data.cancelled || 0);
+  }
+
+  function itemHtml(item) {
+    const badge = STATUS_BADGE[item.status] || 'badge-ghost';
+    const amount = (item.amount === null || item.amount === undefined || item.amount === '') ? '—' : ('¥ ' + item.amount);
+    const rows = [
+      ['学年', item.academicYear || '—'],
+      ['档次', LEVEL_TEXT[item.level] || '—'],
+      ['金额', amount],
+      ['提交', String(item.createdAt || '').replace('T', ' ').slice(0, 16) || '—']
+    ];
+    return '<article class="card rounded-box border border-base-300 bg-base-200 p-5 shadow-xl">'
+        + '<div class="flex items-start justify-between gap-3">'
+        + '<h3 class="font-bold">' + escapeHtml(AID_TEXT[item.aidType] || '资助申请') + '</h3>'
+        + '<span class="badge ' + badge + ' badge-sm whitespace-nowrap">' + (STATUS_TEXT[item.status] || item.status) + '</span>'
+        + '</div>'
+        + '<dl class="mt-4 grid grid-cols-2 gap-x-6 gap-y-3">'
+        + rows.map(function (row) {
+          return '<div><dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">'
+              + row[0] + '</dt><dd class="mt-0.5 text-sm">' + escapeHtml(row[1]) + '</dd></div>';
+        }).join('')
+        + '</dl>'
+        + (item.reason ? '<p class="mt-4 border-t border-base-300 pt-4 text-sm text-base-content/75">' + escapeHtml(item.reason) + '</p>' : '')
+        + (item.approveNote ? '<p class="mt-2 text-xs text-base-content/70">审批意见：' + escapeHtml(item.approveNote) + '</p>' : '')
+        + (item.approverName ? '<p class="mt-1 text-xs text-base-content/60">审批人：' + escapeHtml(item.approverName) + '</p>' : '')
+        + (item.status === 'pending'
+            ? '<div class="mt-4 flex justify-end border-t border-base-300 pt-4">'
+              + '<button class="btn btn-ghost btn-sm rounded-full" data-cancel="' + item.id + '" type="button">撤回</button></div>'
+            : '')
+        + '</article>';
+  }
+
+  async function load() {
+    const result = await callApi('/api/aid/my?size=50');
+    if (result.code !== 200) {
+      showMessage(result.message || '读不到资助申请', 'error');
+      return;
+    }
+    renderStats(result.data.stats);
+    const items = result.data.items || [];
+    const host = document.getElementById('aid-list');
+    host.innerHTML = items.map(itemHtml).join('');
+    host.querySelectorAll('[data-cancel]').forEach(function (button) {
+      button.addEventListener('click', function () { cancelAid(button.getAttribute('data-cancel')); });
+    });
+    const empty = document.getElementById('aid-empty');
+    if (items.length === 0) { empty.classList.remove('hidden'); } else { empty.classList.add('hidden'); }
+  }
+
+  async function submitAid() {
+    const payload = {
+      aidType: document.getElementById('aid-type').value,
+      level: document.getElementById('aid-level').value,
+      academicYear: document.getElementById('aid-year').value.trim(),
+      amount: document.getElementById('aid-amount').value.trim(),
+      reason: document.getElementById('aid-reason').value.trim(),
+      evidence: document.getElementById('aid-evidence').value.trim()
+    };
+    const result = await callApi('/api/aid', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (result.code !== 200) {
+      showMessage(result.message || '提交失败', 'error');
+      return;
+    }
+    document.getElementById('aid-reason').value = '';
+    document.getElementById('aid-evidence').value = '';
+    document.getElementById('aid-amount').value = '';
+    showMessage(result.message || '已提交', 'success');
+    await load();
+  }
+
+  async function cancelAid(id) {
+    const result = await callApi('/api/aid/' + id + '/cancel', { method: 'POST' });
+    if (result.code !== 200) {
+      showMessage(result.message || '撤回失败', 'error');
+      return;
+    }
+    showMessage(result.message || '已撤回', 'success');
+    await load();
+  }
+
+  function logout() {
+    callApi('/api/auth/logout', { method: 'POST' }).then(function () {
+      window.location.href = 'login.html';
+    });
+  }
+
+  // ─────────────────── 生源地信用助学贷款登记（P19） ───────────────────
+  const LOAN_STATUS_TEXT = {
+    submitted: '待核验', counselor_approved: '辅导员已核', confirmed: '学校已确认',
+    returned: '退回待改', rejected: '不予登记', withdrawn: '已撤回'
+  };
+  const LOAN_STATUS_BADGE = {
+    submitted: 'badge-warning', counselor_approved: 'badge-info', confirmed: 'badge-success',
+    returned: 'badge-error', rejected: 'badge-error', withdrawn: 'badge-ghost'
+  };
+
+  function loanMessage(text, type) {
+    const box = document.getElementById('loan-message');
+    const tone = type === 'success' ? 'alert-success' : 'alert-error';
+    const icon = type === 'success' ? 'check_circle' : 'error';
+    box.classList.remove('hidden');
+    box.className = 'alert items-start gap-2 ' + tone;
+    box.innerHTML = '<span class="material-symbols-outlined text-lg">' + icon
+        + '</span><span class="text-sm">' + escapeHtml(text) + '</span>';
+  }
+
+  function loanValue(id) {
+    const el = document.getElementById(id);
+    return el ? el.value.trim() : '';
+  }
+
+  function loanItemHtml(item) {
+    const badge = LOAN_STATUS_BADGE[item.status] || 'badge-ghost';
+    const place = [item.originProvince, item.originCity, item.originCounty].filter(Boolean).join(' / ') || '—';
+    const rows = [
+      ['学年', item.academicYear || '—'],
+      ['生源地', place],
+      ['经办机构', item.bankName || '—'],
+      ['登记金额', item.amount === null || item.amount === undefined ? '—' : ('¥ ' + item.amount)],
+      ['到账', Number(item.disbursed) === 1 ? ('已到账' + (item.disbursedAt ? '（' + String(item.disbursedAt).slice(0, 10) + '）' : '')) : '未到账'],
+      ['辅导员', item.counselorName || '—']
+    ];
+    const actions = [];
+    if (item.status === 'submitted' || item.status === 'returned') {
+      actions.push('<button class="btn btn-ghost btn-sm rounded-full" data-loan-withdraw="' + item.id + '" type="button">撤回</button>');
+    }
+    actions.push('<button class="btn btn-ghost btn-sm rounded-full" data-loan-disbursed="' + item.id
+        + '" data-loan-flag="' + (Number(item.disbursed) === 1 ? '0' : '1') + '" type="button">'
+        + (Number(item.disbursed) === 1 ? '改回未到账' : '标记已到账') + '</button>');
+    return '<article class="card rounded-box border border-base-300 bg-base-200 p-5 shadow-xl">'
+        + '<div class="flex items-start justify-between gap-3">'
+        + '<h4 class="font-bold">' + escapeHtml(item.academicYear || '贷款登记') + '</h4>'
+        + '<span class="badge ' + badge + ' badge-sm whitespace-nowrap">' + (LOAN_STATUS_TEXT[item.status] || item.status) + '</span>'
+        + '</div>'
+        + '<dl class="mt-4 grid grid-cols-2 gap-x-6 gap-y-3">'
+        + rows.map(function (row) {
+          return '<div><dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">'
+              + row[0] + '</dt><dd class="mt-0.5 text-sm">' + escapeHtml(row[1]) + '</dd></div>';
+        }).join('')
+        + '</dl>'
+        + (item.returnReason ? '<p class="mt-4 border-t border-base-300 pt-4 text-sm text-base-content/75">退回原因：' + escapeHtml(item.returnReason) + '</p>' : '')
+        + (item.remark ? '<p class="mt-2 text-xs text-base-content/70">说明：' + escapeHtml(item.remark) + '</p>' : '')
+        + '<div class="mt-4 flex flex-wrap justify-end gap-2 border-t border-base-300 pt-4">' + actions.join('') + '</div>'
+        + '</article>';
+  }
+
+  async function loadLoan() {
+    const result = await callApi('/api/loan/my?size=50');
+    if (result.code !== 200) {
+      loanMessage(result.message || '读不到贷款登记', 'error');
+      return;
+    }
+    const items = result.data.list || [];
+    const host = document.getElementById('loan-list');
+    host.innerHTML = items.map(loanItemHtml).join('');
+    host.querySelectorAll('[data-loan-withdraw]').forEach(function (button) {
+      button.addEventListener('click', function () { withdrawLoan(button.getAttribute('data-loan-withdraw')); });
+    });
+    host.querySelectorAll('[data-loan-disbursed]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        markDisbursed(button.getAttribute('data-loan-disbursed'), button.getAttribute('data-loan-flag'));
+      });
+    });
+    const empty = document.getElementById('loan-empty');
+    if (items.length === 0) { empty.classList.remove('hidden'); } else { empty.classList.add('hidden'); }
+
+    const summary = await callApi('/api/loan/summary');
+    if (summary.code === 200) {
+      const counts = summary.data.counts || {};
+      document.getElementById('loan-stats').innerHTML = statCell('待核验', counts.submitted || 0)
+          + statCell('辅导员已核', counts.counselor_approved || 0)
+          + statCell('学校已确认', counts.confirmed || 0)
+          + statCell('退回待改', counts.returned || 0);
+      const policy = document.getElementById('loan-policy');
+      if (summary.data.policy) { policy.textContent = summary.data.policy; }
+      document.getElementById('loan-summary-text').textContent =
+          '共 ' + (summary.data.total || 0) + ' 条 · 已确认 ¥ ' + (summary.data.confirmedAmount || '0');
+    }
+  }
+
+  async function submitLoan() {
+    const payload = {
+      academicYear: loanValue('loan-year'),
+      originProvince: loanValue('loan-province'),
+      originCity: loanValue('loan-city'),
+      originCounty: loanValue('loan-county'),
+      bankName: loanValue('loan-bank'),
+      contractNo: loanValue('loan-contract'),
+      receiptNo: loanValue('loan-receipt'),
+      amount: loanValue('loan-amount'),
+      remark: loanValue('loan-remark')
+    };
+    const result = await callApi('/api/loan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (result.code !== 200) {
+      loanMessage(result.message || '提交失败', 'error');
+      return;
+    }
+    ['loan-amount', 'loan-contract', 'loan-receipt', 'loan-remark'].forEach(function (id) {
+      document.getElementById(id).value = '';
+    });
+    loanMessage(result.message || '已提交', 'success');
+    await loadLoan();
+  }
+
+  async function withdrawLoan(id) {
+    const result = await callApi('/api/loan/' + id + '/withdraw', { method: 'POST' });
+    if (result.code !== 200) {
+      loanMessage(result.message || '撤回失败', 'error');
+      return;
+    }
+    loanMessage(result.message || '已撤回', 'success');
+    await loadLoan();
+  }
+
+  async function markDisbursed(id, flag) {
+    const result = await callApi('/api/loan/' + id + '/disbursed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ disbursed: flag === '1' ? '是' : '否' })
+    });
+    if (result.code !== 200) {
+      loanMessage(result.message || '更新失败', 'error');
+      return;
+    }
+    loanMessage(result.message || '已更新', 'success');
+    await loadLoan();
+  }
+
+  document.getElementById('logout-btn').addEventListener('click', logout);
+  document.getElementById('aid-submit').addEventListener('click', submitAid);
+  document.getElementById('aid-refresh').addEventListener('click', load);
+  document.getElementById('loan-submit').addEventListener('click', submitLoan);
+  document.getElementById('loan-refresh').addEventListener('click', loadLoan);
+  document.addEventListener('DOMContentLoaded', async function () {
+    clearMessage();
+    document.getElementById('aid-year').value = currentAcademicYear();
+    document.getElementById('loan-year').value = currentAcademicYear();
+    const me = await checkAuth();
+    if (!me) { return; }
+    await load();
+    await loadLoan();
+  });
+</script>
+<script defer src="/js/nest-ui.js"></script>
+<script defer src="/libs/animejs/anime.umd.min.js"></script>
+<script defer src="/libs/countup/countUp.umd.js"></script>
+<script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+<script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+<script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+</body>
+</html>

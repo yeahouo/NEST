@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.CommunityActivitySignupMapper">
+
+    <!-- 活动报名（学工 P15）。status 是状态列（CAS 谓词用它）；一人一活动一条（唯一键兜底并发）。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.CommunityActivitySignup">
+        <id column="id" property="id"/>
+        <result column="activity_id" property="activityId"/>
+        <result column="student_id" property="studentId"/>
+        <result column="building" property="building"/>
+        <result column="room_no" property="roomNo"/>
+        <result column="signup_at" property="signupAt"/>
+        <result column="status" property="status"/>
+        <result column="reject_reason" property="rejectReason"/>
+        <result column="award" property="award"/>
+        <result column="score" property="score"/>
+        <result column="note" property="note"/>
+        <result column="reviewed_by" property="reviewedBy"/>
+        <result column="reviewed_at" property="reviewedAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="activity_title" property="activityTitle"/>
+        <result column="activity_status" property="activityStatus"/>
+        <result column="signup_deadline" property="signupDeadline"/>
+        <result column="reviewed_by_name" property="reviewedByName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        s.id, s.activity_id, s.student_id, s.building, s.room_no, s.signup_at, s.status,
+        s.reject_reason, s.award, s.score, s.note, s.reviewed_by, s.reviewed_at,
+        s.created_at, s.updated_at, s.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        p.student_no AS student_no,
+        p.class_name AS class_name,
+        a.title AS activity_title,
+        a.status AS activity_status,
+        a.signup_deadline AS signup_deadline,
+        COALESCE(NULLIF(rb.real_name, ''), rb.nickname, rb.username) AS reviewed_by_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM community_activity_signup s
+        INNER JOIN community_activity a ON a.id = s.activity_id AND a.deleted = 0
+        LEFT JOIN users u ON u.id = s.student_id
+        LEFT JOIN student_profile p ON p.user_id = s.student_id AND p.deleted = 0
+        LEFT JOIN users rb ON rb.id = s.reviewed_by
+    </sql>
+
+    <!-- 按活动列名单：只用到 activityId / status / keyword（OGNL 不能引用未声明的参数） -->
+    <sql id="Activity_Filters">
+        AND s.activity_id = #{activityId}
+        <if test="status != null and status != ''">AND s.status = #{status}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR p.student_no LIKE CONCAT('%', #{keyword}, '%')
+                 OR p.class_name LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <!-- 我的报名：只用到 studentId / activityId -->
+    <sql id="Mine_Filters">
+        AND s.student_id = #{studentId}
+        <if test="activityId != null">AND s.activity_id = #{activityId}</if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.CommunityActivitySignup" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO community_activity_signup
+            (activity_id, student_id, building, room_no, signup_at, status, reject_reason, award,
+             score, note, reviewed_by, reviewed_at, created_at, updated_at, deleted)
+        VALUES
+            (#{activityId}, #{studentId}, #{building}, #{roomNo}, #{signupAt}, #{status}, #{rejectReason}, #{award},
+             #{score}, #{note}, #{reviewedBy}, #{reviewedAt}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE s.id = #{id} AND s.deleted = 0
+    </select>
+
+    <select id="findByActivityStudent" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE s.activity_id = #{activityId} AND s.student_id = #{studentId} AND s.deleted = 0
+        LIMIT 1
+    </select>
+
+    <select id="listByActivity" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE s.deleted = 0
+        <include refid="Activity_Filters"/>
+        ORDER BY s.signup_at ASC, s.id ASC
+    </select>
+
+    <select id="listMine" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE s.deleted = 0
+        <include refid="Mine_Filters"/>
+        ORDER BY s.signup_at DESC, s.id DESC
+    </select>
+
+    <!-- CAS：报名审核 signed → approved / rejected -->
+    <update id="review">
+        UPDATE community_activity_signup
+        SET status = #{toStatus},
+            reject_reason = #{rejectReason},
+            reviewed_by = #{reviewedBy},
+            reviewed_at = #{reviewedAt},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- CAS：签到置位 attended / absent，可同时登记 award 与 score -->
+    <update id="markAttendance">
+        UPDATE community_activity_signup
+        SET status = #{toStatus},
+            award = #{award},
+            score = #{score},
+            note = #{note},
+            reviewed_by = #{reviewedBy},
+            reviewed_at = #{reviewedAt},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <select id="occupancy" resultType="int">
+        SELECT COUNT(*)
+        FROM community_activity_signup s
+        WHERE s.activity_id = #{activityId} AND s.deleted = 0 AND s.status != 'rejected'
+    </select>
+
+    <select id="countGroupByStatus" resultType="java.util.LinkedHashMap">
+        SELECT s.status AS status, COUNT(*) AS total
+        FROM community_activity_signup s
+        WHERE s.deleted = 0
+        <if test="activityId != null">AND s.activity_id = #{activityId}</if>
+        GROUP BY s.status
+        ORDER BY s.status
+    </select>
+
+    <select id="countActive" resultType="int">
+        SELECT COUNT(*)
+        FROM community_activity_signup s
+        WHERE s.activity_id = #{activityId} AND s.student_id = #{studentId}
+          AND s.deleted = 0 AND s.status IN ('approved', 'attended')
+    </select>
+
+</mapper>

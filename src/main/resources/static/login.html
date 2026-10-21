@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="nestlight">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>登录 · 学工平台</title>
+  <!--
+    主题必须在样式表之前定下来。放到 defer 的共享脚本里会先按浅色画一帧、
+    再翻成深色 —— 也就是俗称的「闪白」，比没有深色模式更难受。
+    所以这段必须内联，且必须排在 <link rel="stylesheet"> 前面。
+
+    第十八轮起这里多写一行 data-theme：daisyUI 的整套组件变量按这个属性取
+    （名字映射见 tools/webbuild/tailwind.config.js 的 daisyui.themes），
+    nest-ui.js 的 paintTheme() 在运行期会同步维护它。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <script src="/pwa.js" defer></script>
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+<link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+<link href="/css/nest-fonts.css" rel="stylesheet"/>
+<link href="/css/nest.css" rel="stylesheet"/>
+<link rel="stylesheet" href="/css/nest-art3.css">
+</head>
+<body data-nx-particles="on" class="font-display bg-base-100 text-base-content">
+<!--
+  背景三层（自下往上）：/js/nest-shader-bg.js 的 WebGL 纸（z-index:-20）、
+  .nx-aurora.nx-grid 的径向洗底与网格（-z-10）、/js/nest-particles.js 的 canvas 粒子（-10）。
+  第十八轮改版只是把「纸」与「墨」换成 daisyUI 的 base-100 / base-content 令牌，三层结构没动。
+-->
+<div class="nx-aurora nx-grid fixed inset-0 -z-10"></div>
+
+<div class="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5">
+
+  <header class="nx-hairline-b flex items-center justify-between gap-4 py-5">
+    <a class="flex items-center gap-3" href="index.html">
+      <span class="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-content">
+        <span class="material-symbols-outlined text-xl">terminal</span>
+      </span>
+      <span class="flex flex-col leading-none">
+        <span class="font-serif text-lg tracking-tight">学工平台</span>
+        <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65">Learning system</span>
+      </span>
+    </a>
+    <a class="btn btn-ghost btn-sm gap-2 rounded-full" href="index.html" aria-label="Back to home">
+      <span class="material-symbols-outlined text-lg">arrow_back</span>
+      <span class="hidden sm:inline">Back to home</span>
+    </a>
+  </header>
+
+  <main class="grid flex-1 items-center gap-12 py-10 lg:grid-cols-2 lg:gap-16">
+
+    <!-- 左栏：编辑部式的说明版式（编号、发丝线、大标题），窄屏排到表单下面 -->
+    <section class="order-2 lg:order-1">
+      <p class="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.2em] text-base-content/65">
+        <span>Student affairs workspace</span>
+        <span class="h-px flex-1 bg-base-300"></span>
+        <span>§ 01</span>
+      </p>
+
+      <h1 data-nx-split="1" class="mt-6 font-serif text-4xl leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
+        Student records, leave, aid and residence — in one place.
+      </h1>
+
+      <p class="mt-5 max-w-lg text-[15px] leading-relaxed text-base-content/70">
+        学工平台 is the student-affairs system of the department. Sign in with the
+        account issued by your school — students, counselors and staff share this page.
+      </p>
+
+      <dl class="mt-8 grid max-w-lg grid-cols-3 gap-px overflow-hidden rounded-2xl bg-base-300 text-center">
+        <div class="bg-base-100 px-3 py-4">
+          <dt class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">Pages</dt>
+          <dd class="font-serif text-2xl">22</dd>
+        </div>
+        <div class="bg-base-100 px-3 py-4">
+          <dt class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">Tests</dt>
+          <dd class="font-serif text-2xl">326</dd>
+        </div>
+        <div class="bg-base-100 px-3 py-4">
+          <dt class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">Dorm runs</dt>
+          <dd class="font-serif text-2xl">10k</dd>
+        </div>
+      </dl>
+
+      <ul class="nx-stagger mt-9 hidden max-w-lg lg:grid">
+        <li class="flex gap-4 border-t border-base-300 py-4">
+          <span class="font-mono text-[11px] text-base-content/65">01</span>
+          <div>
+            <p class="text-sm font-bold">Leave &amp; outing</p>
+            <p class="mt-1 text-xs leading-relaxed text-base-content/70">
+              Students file a leave request; the counsellor approves, rejects or closes it in one inbox.
+            </p>
+          </div>
+        </li>
+        <li class="flex gap-4 border-t border-base-300 py-4">
+          <span class="font-mono text-[11px] text-base-content/65">02</span>
+          <div>
+            <p class="text-sm font-bold">Awards &amp; aid</p>
+            <p class="mt-1 text-xs leading-relaxed text-base-content/70">
+              Awards, punishments and aid applications in one chain, with the amount and document number kept.
+            </p>
+          </div>
+        </li>
+        <li class="flex gap-4 border-t border-base-300 py-4">
+          <span class="font-mono text-[11px] text-base-content/65">03</span>
+          <div>
+            <p class="text-sm font-bold">Evaluation</p>
+            <p class="mt-1 text-xs leading-relaxed text-base-content/70">
+              Five dimensions, self-assessment plus the counsellor's score, then a class-wide recompute.
+            </p>
+          </div>
+        </li>
+        <li class="flex gap-4 border-y border-base-300 py-4">
+          <span class="font-mono text-[11px] text-base-content/65">04</span>
+          <div>
+            <p class="text-sm font-bold">Dorm assignment</p>
+            <p class="mt-1 text-xs leading-relaxed text-base-content/70">
+              Room assignments that come with the reason behind each one.
+            </p>
+          </div>
+        </li>
+      </ul>
+
+      <p class="mt-8 max-w-lg text-xs leading-relaxed text-base-content/65">
+        Everything on this page is served by the school's own server — no external CDN,
+        no third-party tracking.
+      </p>
+    </section>
+
+    <!-- 右栏：登录卡（daisyUI 的 card / input / btn / alert / divider） -->
+    <section class="nx-rise order-1 mx-auto w-full max-w-md lg:order-2 lg:max-w-none">
+      <div class="card border border-base-300 bg-base-200 shadow-xl">
+        <div class="card-body gap-6 p-7 sm:p-9">
+
+          <div class="flex items-center gap-3">
+            <span class="grid h-11 w-11 place-items-center rounded-2xl bg-primary/10 text-primary">
+              <span class="material-symbols-outlined text-2xl">login</span>
+            </span>
+            <div>
+              <h2 class="font-serif text-3xl leading-tight tracking-tight">Welcome back</h2>
+              <p class="text-xs text-base-content/70">Sign in to continue to your workspace.</p>
+            </div>
+          </div>
+
+          <form class="flex flex-col gap-5" id="loginForm" novalidate>
+            <label class="form-control w-full">
+              <div class="label py-0 pb-2">
+                <span class="label-text font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/70">Username</span>
+              </div>
+              <div class="relative">
+                <input class="input input-bordered w-full pl-11" id="username" name="username" type="text"
+                       placeholder="Your student or staff ID" autocomplete="username"
+                       autocapitalize="none" spellcheck="false" required/>
+                <span class="material-symbols-outlined pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-lg text-base-content/65">person</span>
+              </div>
+            </label>
+
+            <div class="form-control w-full">
+              <div class="label py-0 pb-2">
+                <span class="label-text font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/70">Password</span>
+                <a class="label-text-alt link link-primary text-xs" href="forgot-password.html">Forgot password?</a>
+              </div>
+              <div class="relative">
+                <input class="input input-bordered w-full pl-11 pr-12" id="password" name="password" type="password"
+                       placeholder="••••••••" autocomplete="current-password" required/>
+                <span class="material-symbols-outlined pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-lg text-base-content/65">lock</span>
+                <button aria-label="Show password" class="btn btn-ghost btn-sm btn-circle absolute right-1.5 top-1/2 -translate-y-1/2"
+                        id="togglePassword" type="button">
+                  <span class="material-symbols-outlined text-lg" id="togglePasswordIcon">visibility</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- 错误框：role=alert 让读屏软件也能念出来，而不是只有颜色上的变化。
+                 显隐仍由本页内联脚本切 hidden/flex 两个类控制（第十八轮改版只换外观，没动这段逻辑）。 -->
+            <div class="alert alert-error hidden items-start gap-2 text-xs font-medium"
+                 id="errorMsg" role="alert">
+              <span class="material-symbols-outlined text-base leading-none">error</span>
+              <span id="errorText"></span>
+            </div>
+
+            <button class="btn btn-primary btn-block" id="loginBtn" type="submit">
+              <span id="loginBtnLabel">Log in</span>
+            </button>
+          </form>
+
+          <div class="divider my-0 text-[10px] uppercase tracking-[0.2em] text-base-content/65">or</div>
+
+          <p class="text-center text-sm text-base-content/70">
+            Don't have an account?
+            <a class="link link-primary ml-1" href="register.html">Register</a>
+          </p>
+        </div>
+      </div>
+
+      <p class="mt-4 text-center text-xs text-base-content/65">
+        Trouble signing in? Contact the student affairs office — the system does not reset passwords by phone.
+      </p>
+    </section>
+  </main>
+
+  <footer class="nx-hairline-t flex flex-col items-center justify-between gap-3 py-6 text-xs text-base-content/65 sm:flex-row">
+    <p>© <span id="year">2026</span> 学工平台. All rights reserved.</p>
+    <p>Xiamen University Tan Kah Kee College · School of Information Science and Technology</p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var form = document.getElementById('loginForm');
+  var usernameInput = document.getElementById('username');
+  var passwordInput = document.getElementById('password');
+  var errorBox = document.getElementById('errorMsg');
+  var errorText = document.getElementById('errorText');
+  var loginBtn = document.getElementById('loginBtn');
+  var loginBtnLabel = document.getElementById('loginBtnLabel');
+  var toggleBtn = document.getElementById('togglePassword');
+  var toggleIcon = document.getElementById('togglePasswordIcon');
+
+  document.getElementById('year').textContent = String(new Date().getFullYear());
+
+  function showError(message) {
+    errorText.textContent = message;
+    errorBox.classList.remove('hidden');
+    errorBox.classList.add('flex');
+  }
+
+  function clearError() {
+    errorBox.classList.add('hidden');
+    errorBox.classList.remove('flex');
+  }
+
+  function setBusy(busy) {
+    loginBtn.disabled = busy;
+    loginBtnLabel.textContent = busy ? 'Signing in…' : 'Log in';
+  }
+
+  toggleBtn.addEventListener('click', function () {
+    var showing = passwordInput.type === 'text';
+    passwordInput.type = showing ? 'password' : 'text';
+    toggleIcon.textContent = showing ? 'visibility' : 'visibility_off';
+    toggleBtn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+    passwordInput.focus();
+  });
+
+  form.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    clearError();
+
+    var username = usernameInput.value.trim();
+    var password = passwordInput.value;
+
+    // 客户端只拦「明显没填」这一种情况；账号是否存在、密码对不对，一律由服务端回答，
+    // 免得这里多出一套跟后端不一致的规则。
+    if (!username || !password) {
+      showError('Please enter both your username and your password.');
+      (username ? passwordInput : usernameInput).focus();
+      return;
+    }
+
+    setBusy(true);
+    try {
+      var response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username, password: password })
+      });
+
+      var result = await response.json();
+
+      if (result.code === 200) {
+        var role = (result.data && result.data.role ? String(result.data.role) : '').toLowerCase();
+        if (role === 'admin') {
+          window.location.href = 'admin-dashboard.html';
+        } else if (role === 'teacher') {
+          window.location.href = 'teacher-dashboard.html';
+        } else {
+          window.location.href = 'dashboard.html';
+        }
+        return; // 正在跳转，不要把按钮恢复成可点
+      }
+
+      showError(result.message || 'Sign-in failed. Please check your username and password.');
+      passwordInput.select();
+    } catch (error) {
+      showError('Could not reach the server. Check your network and try again.');
+    }
+    setBusy(false);
+  });
+})();
+</script>
+  <script defer src="/js/nest-ui.js"></script>
+    <script defer src="/libs/animejs/anime.umd.min.js"></script>
+    <script defer src="/libs/countup/countUp.umd.js"></script>
+    <script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+    <script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+    <script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+<script type="module" src="/js/nest-shader-bg.js"></script>
+</body>
+</html>

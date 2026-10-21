@@ -1,0 +1,2220 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="nestlight">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>心理健康管理 · 学工平台</title>
+  <!-- 主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。daisyUI 的组件颜色跟的是 [data-theme] 属性（不是 .dark 类），两处都必须写，与 nest-ui.js 的 paintTheme() 保持一致。 -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/nest-art3.css">
+</head>
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content">
+
+<header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none border-0 p-0">
+  <div class="navbar mx-auto min-h-0 w-full max-w-7xl gap-3 px-5 py-2 md:px-8">
+    <div class="navbar-start gap-3">
+      <a class="flex items-center gap-3" href="teacher-dashboard.html">
+        <span class="nx-logo"><span class="material-symbols-outlined text-xl">terminal</span></span>
+        <span class="hidden text-lg font-black uppercase tracking-tight sm:inline">学工平台</span>
+      </a>
+      <span class="hidden h-5 w-px bg-base-300 lg:block"></span>
+      <span class="hidden font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65 lg:block">§ 19 · Staff affairs / Psyche</span>
+    </div>
+    <div class="navbar-end gap-1.5">
+      <a class="btn btn-ghost btn-sm gap-2 rounded-full" href="teacher-dashboard.html"><span class="material-symbols-outlined text-lg">dashboard</span><span class="hidden md:inline">工作台</span></a>
+      <button aria-label="切换深色 / 浅色模式" class="nx-icon-btn" data-nx-theme-toggle title="切换深色 / 浅色模式" type="button">
+        <span class="material-symbols-outlined nx-theme-icon-light text-xl">dark_mode</span>
+        <span class="material-symbols-outlined nx-theme-icon-dark text-xl">light_mode</span>
+      </button>
+      <a class="nx-icon-btn" href="settings.html" title="设置"><span class="material-symbols-outlined text-xl">settings</span></a>
+      <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="logout-btn" type="button"><span class="material-symbols-outlined text-lg">logout</span><span class="hidden md:inline">退出登录</span></button>
+    </div>
+  </div>
+</header>
+
+<main class="flex-1 px-5 py-8 md:px-8 md:py-12">
+  <div class="mx-auto w-full max-w-7xl">
+
+    <header class="mb-8 border-b border-base-300 pb-6">
+      <p class="nx-kicker">§ 19 · Staff / Psyche</p>
+      <h1 data-nx-split="1" class="mt-2 font-serif text-3xl leading-tight sm:text-4xl lg:text-5xl">心理健康管理</h1>
+      <p class="mt-4 max-w-2xl text-sm text-base-content/70">普查批次与量表、名单进度与抽查访谈、关注台账与跟进留痕、预约排期、转介登记与脱敏导出。平台不做量表计分诊断：题本与分档阈值均由学校导入，结果等级由中心 / 辅导员回填（S8 / S16 / S17）。</p>
+    </header>
+
+    <div id="manage-message" class="alert hidden mb-6 items-start gap-2"></div>
+
+    <!-- 统计（全部为聚合数，不含任何个案原文） -->
+    <section class="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 sm:grid-cols-3 lg:grid-cols-6" id="stat-row">
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">批次</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-batches">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">名单人数</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-total">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">已完成</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-completed">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">完成率</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-rate">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关注台账</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-focus">—</dd>
+      </div>
+      <div class="flex flex-col gap-1 bg-base-100 p-6">
+        <dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">预约量</dt>
+        <dd class="mt-1 font-serif text-2xl" id="stat-appts">—</dd>
+      </div>
+    </section>
+
+    <!-- 页签 -->
+    <section class="mb-8 flex flex-wrap items-center gap-2 rounded-box border border-base-300 bg-base-100 p-1.5" id="psyche-tabs">
+      <button class="tab-btn nx-tab is-active" id="tab-batch" type="button">批次与量表</button>
+      <button class="tab-btn nx-tab" id="tab-tasks" type="button">名单与进度</button>
+      <button class="tab-btn nx-tab" id="tab-focus" type="button">关注台账</button>
+      <button class="tab-btn nx-tab" id="tab-appt" type="button">预约排期</button>
+      <button class="tab-btn nx-tab" id="tab-ref" type="button">转介登记</button>
+      <button class="tab-btn nx-tab" id="tab-export" type="button">导出</button>
+    </section>
+
+    <!-- ============================ 批次与量表 ============================ -->
+    <section class="card mb-6 rounded-box border border-base-300 bg-base-200 shadow-xl" id="panel-batch">
+      <div class="p-6 md:p-7">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Batches · 普查批次</p>
+            <h2 class="mt-2 font-serif text-2xl">批次与量表</h2>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="badge badge-ghost badge-sm font-mono" id="batch-count">—</span>
+            <button class="btn btn-ghost btn-sm rounded-full" id="batch-refresh" type="button">刷新</button>
+            <button class="btn btn-primary btn-sm rounded-full" id="batch-new" type="button">新建批次</button>
+          </div>
+        </div>
+        <!-- 权限（源码核实）：批次的新建 / 修改 / 发布 / 关闭与量表新建均为 **仅管理员**
+             （PsycheService.java L154 createInstrument、L226 createBatch、L296 updateBatch、L388 publishBatch、L410 closeBatch 全部 guardAdmin）。
+             非 admin（辅导员）进入本页时不渲染这些按钮，只读批次与量表。 -->
+        <p class="mt-4 text-xs text-base-content/60" id="batch-perm-note">批次与量表的新建 / 修改 / 发布 / 关闭为仅管理员操作（后端校验）；辅导员可查看批次、维护名单与进度、抽查访谈、关注台账、预约与转介。</p>
+
+        <div class="mt-5 flex flex-wrap items-end gap-3">
+          <label class="form-control w-48">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</span>
+            <select class="select select-bordered select-sm" id="batch-status">
+              <option value="">全部状态</option>
+              <option value="draft">草稿 draft</option>
+              <option value="open">进行中 open</option>
+              <option value="closed">已结束 closed</option>
+            </select>
+          </label>
+          <label class="form-control w-64">
+            <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关键词</span>
+            <input class="input input-bordered input-sm" id="batch-keyword" placeholder="批次名称 / 年级 / 学年" type="text"/>
+          </label>
+          <button class="btn btn-primary btn-sm rounded-full" id="batch-search" type="button">查询</button>
+        </div>
+
+        <div class="mt-5 overflow-x-auto">
+          <table class="w-full border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-base-300">
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">批次</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">年级 / 学年</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">量表</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">开放 / 关闭</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">抽查访谈</th>
+                <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">操作</th>
+              </tr>
+            </thead>
+            <tbody id="batch-list"></tbody>
+          </table>
+        </div>
+        <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="batch-empty">暂无批次。管理员可新建批次并联结量表。</p>
+
+        <div class="mt-10 border-t border-base-300 pt-6">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Instruments · 量表库</p>
+              <h3 class="mt-2 font-serif text-2xl">量表库</h3>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="badge badge-ghost badge-sm font-mono" id="inst-count">—</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="inst-refresh" type="button">刷新</button>
+              <button class="btn btn-primary btn-sm rounded-full" id="inst-new" type="button">新建量表</button>
+            </div>
+          </div>
+          <p class="mt-4 text-xs text-base-content/60">题本（itemJson）与分档阈值（bandJson）由学校导入；SCL-90 / SDS 只留记录位（题本为空，不做临床解释）。题量为 0 的量表无法用于普查作答。</p>
+          <div class="mt-5 overflow-x-auto">
+            <table class="w-full border-collapse text-sm">
+              <thead>
+                <tr class="border-b border-base-300">
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">编码</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">名称</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">题量</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">题本 / 分档</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</th>
+                </tr>
+              </thead>
+              <tbody id="inst-list"></tbody>
+            </table>
+          </div>
+          <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="inst-empty">暂无量表。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 名单与进度 ============================ -->
+    <section class="hidden" id="panel-tasks">
+      <div class="card mb-6 rounded-box border border-base-300 bg-base-200 shadow-xl">
+        <div class="p-6 md:p-7">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Roster · 名单与进度</p>
+              <h2 class="mt-2 font-serif text-2xl">名单与抽查访谈</h2>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="badge badge-ghost badge-sm font-mono" id="tasks-count">—</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="tasks-refresh" type="button">刷新</button>
+              <button class="btn btn-ghost btn-sm rounded-full" id="tasks-export" type="button">导出本批次</button>
+              <button class="btn btn-primary btn-sm rounded-full" id="tasks-import" type="button">导入名单</button>
+            </div>
+          </div>
+          <p class="mt-4 text-xs text-base-content/60">列表由后端脱敏下发（姓名保留姓氏 + *，学号只留后四位）。辅导员只能看到自己名下学生（student_profile.counselor_id），此处不做任何前端过滤。</p>
+
+          <div class="mt-5 flex flex-wrap items-end gap-3">
+            <label class="form-control w-64">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">批次（必选）</span>
+              <select class="select select-bordered select-sm" id="tasks-batch">
+                <option value="">请选择批次</option>
+              </select>
+            </label>
+            <label class="form-control w-48">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">作答状态</span>
+              <select class="select select-bordered select-sm" id="tasks-status">
+                <option value="">全部状态</option>
+                <option value="pending">待完成 pending</option>
+                <option value="in_progress">进行中 in_progress</option>
+                <option value="completed">已完成 completed</option>
+                <option value="absent">未参加 absent</option>
+              </select>
+            </label>
+            <label class="form-control w-48">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">班级</span>
+              <input class="input input-bordered input-sm" id="tasks-class" placeholder="如 软件工程1班" type="text"/>
+            </label>
+            <label class="form-control w-48">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关键词</span>
+              <input class="input input-bordered input-sm" id="tasks-keyword" placeholder="姓名 / 学号" type="text"/>
+            </label>
+            <button class="btn btn-primary btn-sm rounded-full" id="tasks-search" type="button">查询</button>
+          </div>
+
+          <p class="mt-5 font-mono text-xs text-base-content/65" id="tasks-stats">—</p>
+
+          <div class="mt-3 overflow-x-auto">
+            <table class="w-full border-collapse text-sm">
+              <thead>
+                <tr class="border-b border-base-300">
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">姓名</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学号</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">班级</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">答题进度</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">抽查访谈</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">结果等级（回填）</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">操作</th>
+                </tr>
+              </thead>
+              <tbody id="tasks-list"></tbody>
+            </table>
+          </div>
+          <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="tasks-empty">请选择批次后查询名单。</p>
+
+          <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <p class="font-mono text-xs text-base-content/65" id="tasks-total"></p>
+            <div class="flex items-center gap-2">
+              <button class="btn btn-ghost btn-sm rounded-full" id="tasks-prev" type="button">上一页</button>
+              <span class="font-mono text-xs" id="tasks-page">1 / 1</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="tasks-next" type="button">下一页</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 关注台账 ============================ -->
+    <section class="hidden" id="panel-focus">
+      <div class="card mb-6 rounded-box border border-base-300 bg-base-200 shadow-xl">
+        <div class="p-6 md:p-7">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Focus · 关注台账</p>
+              <h2 class="mt-2 font-serif text-2xl">关注台账与跟进留痕</h2>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="badge badge-ghost badge-sm font-mono" id="focus-count">—</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="focus-refresh" type="button">刷新</button>
+              <button class="btn btn-primary btn-sm rounded-full" id="focus-new" type="button">登记关注</button>
+            </div>
+          </div>
+          <p class="mt-4 text-xs text-base-content/60">保密（S16）：关注台账仅管理员与该生辅导员可读写；等级为工作分级（general / key / risk），不是临床诊断结论。</p>
+
+          <div class="mt-5 flex flex-wrap items-end gap-3">
+            <label class="form-control w-48">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关注等级</span>
+              <select class="select select-bordered select-sm" id="focus-level">
+                <option value="">全部等级</option>
+                <option value="general">一般关注 general</option>
+                <option value="key">重点关注 key</option>
+                <option value="risk">危机预警 risk</option>
+              </select>
+            </label>
+            <label class="form-control w-48">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">跟进状态</span>
+              <select class="select select-bordered select-sm" id="focus-status">
+                <option value="">全部状态</option>
+                <option value="open">待跟进 open</option>
+                <option value="following">跟进中 following</option>
+                <option value="closed">已关闭 closed</option>
+              </select>
+            </label>
+            <label class="form-control w-48">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">班级</span>
+              <input class="input input-bordered input-sm" id="focus-class" placeholder="如 软件工程1班" type="text"/>
+            </label>
+            <label class="form-control w-48">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关键词</span>
+              <input class="input input-bordered input-sm" id="focus-keyword" placeholder="姓名 / 学号 / 缘由" type="text"/>
+            </label>
+            <button class="btn btn-primary btn-sm rounded-full" id="focus-search" type="button">查询</button>
+          </div>
+
+          <div class="mt-5 overflow-x-auto">
+            <table class="w-full border-collapse text-sm">
+              <thead>
+                <tr class="border-b border-base-300">
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">等级</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">来源</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关注缘由</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">已采取措施</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">辅导员</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">操作</th>
+                </tr>
+              </thead>
+              <tbody id="focus-list"></tbody>
+            </table>
+          </div>
+          <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="focus-empty">暂无关注记录。</p>
+
+          <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <p class="font-mono text-xs text-base-content/65" id="focus-total"></p>
+            <div class="flex items-center gap-2">
+              <button class="btn btn-ghost btn-sm rounded-full" id="focus-prev" type="button">上一页</button>
+              <span class="font-mono text-xs" id="focus-page">1 / 1</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="focus-next" type="button">下一页</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 预约排期 ============================ -->
+    <section class="hidden" id="panel-appointment">
+      <div class="card mb-6 rounded-box border border-base-300 bg-base-200 shadow-xl">
+        <div class="p-6 md:p-7">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Appointments · 预约排期</p>
+              <h2 class="mt-2 font-serif text-2xl">预约排期</h2>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="badge badge-ghost badge-sm font-mono" id="appt-count">—</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="appt-refresh" type="button">刷新</button>
+            </div>
+          </div>
+          <p class="mt-4 text-xs text-base-content/60">S16：单次 50 分钟、时段周一至周五 8:00-17:00、非应激须提前至少一个工作日；S17：线上咨询提前半天短信确认（不足 12 小时仍可确认，后端会在提示里说明）。管理员看全部；辅导员只看自己或名下学生的预约。</p>
+
+          <div class="mt-5 flex flex-wrap items-end gap-3">
+            <label class="form-control w-48">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</span>
+              <select class="select select-bordered select-sm" id="appt-status">
+                <option value="">全部状态</option>
+                <option value="requested">已申请 requested</option>
+                <option value="confirmed">已确认 confirmed</option>
+                <option value="done">已完成 done</option>
+                <option value="cancelled">已取消 cancelled</option>
+                <option value="no_show">未到 no_show</option>
+              </select>
+            </label>
+            <label class="form-control w-48">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">方式</span>
+              <select class="select select-bordered select-sm" id="appt-mode">
+                <option value="">全部方式</option>
+                <option value="office">面询 office</option>
+                <option value="online">线上 online</option>
+              </select>
+            </label>
+            <label class="form-control w-56">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关键词</span>
+              <input class="input input-bordered input-sm" id="appt-keyword" placeholder="姓名 / 学号" type="text"/>
+            </label>
+            <button class="btn btn-primary btn-sm rounded-full" id="appt-search" type="button">查询</button>
+          </div>
+
+          <div class="mt-5 overflow-x-auto">
+            <table class="w-full border-collapse text-sm">
+              <thead>
+                <tr class="border-b border-base-300">
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">期望时间</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">方式 / 时长</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">咨询师</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">备注 / 续约</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">操作</th>
+                </tr>
+              </thead>
+              <tbody id="appt-list"></tbody>
+            </table>
+          </div>
+          <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="appt-empty">暂无预约。</p>
+
+          <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <p class="font-mono text-xs text-base-content/65" id="appt-total"></p>
+            <div class="flex items-center gap-2">
+              <button class="btn btn-ghost btn-sm rounded-full" id="appt-prev" type="button">上一页</button>
+              <span class="font-mono text-xs" id="appt-page">1 / 1</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="appt-next" type="button">下一页</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 转介登记 ============================ -->
+    <section class="hidden" id="panel-referral">
+      <div class="card mb-6 rounded-box border border-base-300 bg-base-200 shadow-xl">
+        <div class="p-6 md:p-7">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Referrals · 转介登记</p>
+              <h2 class="mt-2 font-serif text-2xl">转介登记与跟踪</h2>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="badge badge-ghost badge-sm font-mono" id="ref-count">—</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="ref-refresh" type="button">刷新</button>
+              <button class="btn btn-primary btn-sm rounded-full" id="ref-new" type="button">登记转介</button>
+            </div>
+          </div>
+          <p class="mt-4 text-xs text-base-content/60">公开出处没有校内危机干预与转介制度文本，此处只做「登记 + 跟踪留痕」，不写任何流程结论；去向为校内中心 / 医院 / 家庭配合。</p>
+
+          <div class="mt-5 flex flex-wrap items-end gap-3">
+            <label class="form-control w-48">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">转介去向</span>
+              <select class="select select-bordered select-sm" id="ref-target-filter">
+                <option value="">全部去向</option>
+                <option value="campus">校内中心 campus</option>
+                <option value="hospital">医院 hospital</option>
+                <option value="family">家庭配合 family</option>
+              </select>
+            </label>
+            <label class="form-control w-48">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">跟踪状态</span>
+              <select class="select select-bordered select-sm" id="ref-status-filter">
+                <option value="">全部状态</option>
+                <option value="open">待跟踪 open</option>
+                <option value="following">跟踪中 following</option>
+                <option value="closed">已结案 closed</option>
+              </select>
+            </label>
+            <button class="btn btn-primary btn-sm rounded-full" id="ref-search" type="button">查询</button>
+          </div>
+          <!-- 说明（源码核实）：GET /api/psyche/referrals 只接受 target / status / page / size
+               （PsycheController.java L254-261），没有 keyword 参数，所以这里不放关键词框，避免「看着能筛其实无效」。 -->
+
+          <div class="mt-5 overflow-x-auto">
+            <table class="w-full border-collapse text-sm">
+              <thead>
+                <tr class="border-b border-base-300">
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">来源</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">去向</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">转介原因</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">转介人 / 时间</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">状态</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">跟踪记录</th>
+                  <th class="py-2 pr-4 text-left font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">操作</th>
+                </tr>
+              </thead>
+              <tbody id="ref-list"></tbody>
+            </table>
+          </div>
+          <p class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60" id="ref-empty">暂无转介记录。</p>
+
+          <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <p class="font-mono text-xs text-base-content/65" id="ref-total"></p>
+            <div class="flex items-center gap-2">
+              <button class="btn btn-ghost btn-sm rounded-full" id="ref-prev" type="button">上一页</button>
+              <span class="font-mono text-xs" id="ref-page">1 / 1</span>
+              <button class="btn btn-ghost btn-sm rounded-full" id="ref-next" type="button">下一页</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 导出 ============================ -->
+    <section class="hidden" id="panel-export">
+      <div class="card mb-6 rounded-box border border-base-300 bg-base-200 shadow-xl">
+        <div class="p-6 md:p-7">
+          <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Export · 脱敏导出</p>
+          <h2 class="mt-2 font-serif text-2xl">导出 CSV</h2>
+          <p class="mt-4 max-w-3xl text-xs text-base-content/60">三种导出：普查名单（可限定批次）、关注台账、预约排期。CSV 由后端生成，带 UTF-8 BOM（Excel 直接打开不乱码），姓名与学号已脱敏，预约导出不含主要咨询问题全文与中心内部备注。学生账号无导出权限。</p>
+
+          <div class="mt-6 flex flex-wrap items-end gap-3">
+            <label class="form-control w-64">
+              <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">批次（导出名单用）</span>
+              <select class="select select-bordered select-sm" id="export-batch">
+                <option value="">全部批次</option>
+              </select>
+            </label>
+            <button class="btn btn-primary btn-sm rounded-full" id="export-tasks" type="button">导出普查名单</button>
+            <button class="btn btn-ghost btn-sm rounded-full" id="export-focus" type="button">导出关注台账</button>
+            <button class="btn btn-ghost btn-sm rounded-full" id="export-appts" type="button">导出预约排期</button>
+          </div>
+
+          <div class="mt-6 rounded-box border border-dashed border-base-300 p-5">
+            <p class="text-xs text-base-content/60">已知边界：/api/psyche/export 未登录时返回 302 → 登录页；浏览器会跟随跳转，于是拿到的是登录页 HTML（Content-Type: text/html）而不是 CSV。本页用 Content-Type 兜住这种情况并提示重新登录，不会保存一个 .csv 后缀的 HTML 文件。导出接口不走统一 JSON 包裹（{code,message,data}），返回的是文件字节流。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 相关入口 -->
+    <section class="card mt-8 rounded-box border border-base-300 bg-base-100" data-nx-reveal>
+      <div class="card-body gap-4 p-5 md:p-6">
+        <h2 class="text-lg font-black tracking-tight">相关入口</h2>
+        <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="teacher-dashboard.html">
+          <span class="material-symbols-outlined text-xl text-primary">dashboard</span>
+          <span class="min-w-0">
+            <span class="block text-sm font-semibold">返回工作台</span>
+            <span class="mt-0.5 block text-xs text-base-content/65">学工平台 · 教师 / 管理员工位</span>
+          </span>
+        </a>
+        <a class="nx-bordered nx-bordered-i flex items-start gap-3 p-3.5" href="psyche.html">
+          <span class="material-symbols-outlined text-xl text-primary">psychology</span>
+          <span class="min-w-0">
+            <span class="block text-sm font-semibold">学生端：心理健康</span>
+            <span class="mt-0.5 block text-xs text-base-content/65">普查作答、我的结果与建议、预约申请与自助流程说明</span>
+          </span>
+        </a>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer class="nx-hairline-t border-base-300 px-5 py-6 md:px-8">
+  <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
+    <p class="font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65">学工平台 · Psyche</p>
+    <p class="text-xs text-base-content/60">心理健康服务中心 主 5#118 · 预约电话 0596-6288525 / 18960027525</p>
+  </div>
+</footer>
+
+<!-- ===================== 弹窗 1：批次 ===================== -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="batch-dialog">
+  <div class="card nx-dialog w-full max-w-2xl p-6">
+    <h2 class="font-serif text-2xl" id="batch-title">新建批次</h2>
+    <p class="mt-2 text-xs text-base-content/65" id="batch-hint">状态由「发布 / 关闭」按钮切换，不随表单提交（后端新建与修改都不读 status）。</p>
+    <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">批次名称（必填）</span>
+        <input class="input input-bordered input-sm" id="batch-name" placeholder="如 2024 级学生心理健康普查" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">年级</span>
+        <input class="input input-bordered input-sm" id="batch-grade" placeholder="如 2024" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学年</span>
+        <input class="input input-bordered input-sm" id="batch-year" placeholder="如 2024-2025" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">量表</span>
+        <select class="select select-bordered select-sm" id="batch-instrument">
+          <option value="">不绑定量表</option>
+        </select>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">开放时间</span>
+        <input class="input input-bordered input-sm" id="batch-open" type="datetime-local"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关闭时间</span>
+        <input class="input input-bordered input-sm" id="batch-close" type="datetime-local"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">通知标题</span>
+        <input class="input input-bordered input-sm" id="batch-notice-title" placeholder="如 关于开展心理健康普查的通知" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">通知链接</span>
+        <input class="input input-bordered input-sm" id="batch-notice-url" placeholder="/notice/123 或外部链接" type="text"/>
+      </label>
+    </div>
+    <label class="form-control mt-3">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">访谈说明（S8 随机抽查面对面访谈时给名单的说明）</span>
+      <textarea class="textarea textarea-bordered" id="batch-interview-note" placeholder="如：普查结束后按 10% 随机抽查，由辅导员面对面访谈并登记。"></textarea>
+    </label>
+    <label class="mt-3 flex items-center gap-2">
+      <input class="checkbox" id="batch-interview" type="checkbox"/>
+      <span class="text-sm">需要抽查面对面访谈（interview_required）</span>
+    </label>
+    <div id="batch-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="batch-close-btn" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="batch-save" type="button">提交</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 弹窗 2：量表 ===================== -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="inst-dialog">
+  <div class="card nx-dialog w-full max-w-2xl p-6">
+    <h2 class="font-serif text-2xl">新建量表</h2>
+    <p class="mt-2 text-xs text-base-content/65">题本与分档阈值由学校导入；平台只按 bandJson 折算分数档位，不做临床解释。仅管理员可新建（后端 403 时会原样提示）。</p>
+    <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">编码（唯一，必填）</span>
+        <input class="input input-bordered input-sm" id="inst-code" placeholder="如 demo-self-rating" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">名称（必填）</span>
+        <input class="input input-bordered input-sm" id="inst-name" placeholder="如 演示自评问卷（非临床）" type="text"/>
+      </label>
+    </div>
+    <label class="form-control mt-3">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">出处说明</span>
+      <input class="input input-bordered input-sm" id="inst-source" placeholder="如 校内演示量表，非临床诊断工具" type="text"/>
+    </label>
+    <label class="form-control mt-3">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">作答提示</span>
+      <input class="input input-bordered input-sm" id="inst-guide" placeholder="如 请按最近 2 周左右的实际状况填写" type="text"/>
+    </label>
+    <label class="form-control mt-3">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">题本 JSON（itemJson）</span>
+      <textarea class="textarea textarea-bordered" id="inst-items" placeholder='[{"no":1,"text":"…","options":[{"value":0,"label":"没有"}]}]'></textarea>
+    </label>
+    <label class="form-control mt-3">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">分档阈值 JSON（bandJson）</span>
+      <textarea class="textarea textarea-bordered" id="inst-bands" placeholder='[{"band":"normal","max":5},{"band":"attention","max":8}]'></textarea>
+    </label>
+    <label class="mt-3 flex items-center gap-2">
+      <input class="checkbox" id="inst-active" type="checkbox"/>
+      <span class="text-sm">启用（active）</span>
+    </label>
+    <div id="inst-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="inst-close-btn" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="inst-save" type="button">提交</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 弹窗 3：导入名单 ===================== -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="import-dialog">
+  <div class="card nx-dialog w-full max-w-xl p-6">
+    <h2 class="font-serif text-2xl">导入名单</h2>
+    <p class="mt-2 text-xs text-base-content/65" id="import-batch">—</p>
+    <label class="form-control mt-5">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">名单 CSV（学号,姓名）</span>
+      <textarea class="textarea textarea-bordered" id="import-csv" placeholder="20240001,张三&#10;20240002,李四" rows="8"></textarea>
+    </label>
+    <p class="mt-3 text-xs text-base-content/60">每行「学号,姓名」；以学号匹配在校学生，已存在或查不到的会分别计入 skipped / notFound（后端返回 created / skipped / notFound 三个数）。</p>
+    <div id="import-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="import-close-btn" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="import-save" type="button">导入</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 弹窗 4：抽查访谈 ===================== -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="interview-dialog">
+  <div class="card nx-dialog w-full max-w-lg p-6">
+    <h2 class="font-serif text-2xl">抽查访谈登记</h2>
+    <p class="mt-2 text-xs text-base-content/65" id="interview-target">—</p>
+    <label class="mt-5 flex items-center gap-2">
+      <input class="checkbox" id="interview-flag" type="checkbox"/>
+      <span class="text-sm">已完成面对面访谈（interviewed = 1）</span>
+    </label>
+    <label class="form-control mt-4">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">访谈记录</span>
+      <textarea class="textarea textarea-bordered" id="interview-note" rows="4" placeholder="访谈时间、基本情况、后续安排（不含临床诊断结论）"></textarea>
+    </label>
+    <div id="interview-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="interview-close-btn" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="interview-save" type="button">提交</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 弹窗 5：回填结果等级 ===================== -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="result-dialog">
+  <div class="card nx-dialog w-full max-w-lg p-6">
+    <h2 class="font-serif text-2xl">回填结果等级</h2>
+    <p class="mt-2 text-xs text-base-content/65" id="result-target">—</p>
+    <p class="mt-3 text-xs text-base-content/60">结果等级由中心 / 辅导员回填，平台不自动判定；学生端只看到建议卡文本，不展示等级原文（S16 保密性）。</p>
+    <label class="form-control mt-5">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">结果等级</span>
+      <select class="select select-bordered select-sm" id="result-level">
+        <option value="">不设置 / 清空</option>
+        <option value="normal">正常 normal</option>
+        <option value="attention">关注 attention</option>
+        <option value="warning">预警 warning</option>
+      </select>
+    </label>
+    <label class="form-control mt-3">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">给学生的建议卡文本</span>
+      <textarea class="textarea textarea-bordered" id="result-note" rows="5" placeholder="建议卡会原样出现在学生端「我的结果」里，请注意措辞与保密"></textarea>
+    </label>
+    <div id="result-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="result-close-btn" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="result-save" type="button">提交</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 弹窗 6：关注登记 / 修改 ===================== -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="focus-dialog">
+  <div class="card nx-dialog w-full max-w-2xl p-6">
+    <h2 class="font-serif text-2xl" id="focus-title">登记关注</h2>
+    <p class="mt-2 text-xs text-base-content/65">关注缘由与措施请写工作记录，不要写临床诊断结论。</p>
+    <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生（必填）</span>
+        <select class="select select-bordered select-sm" id="focus-student">
+          <option value="">请先加载名单 / 关注 / 预约后选择</option>
+        </select>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">或直接填学号（users.id）</span>
+        <input class="input input-bordered input-sm" id="focus-student-manual" placeholder="留空则用上面的选择" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关注等级</span>
+        <select class="select select-bordered select-sm" id="focus-level-input">
+          <option value="general">一般关注 general</option>
+          <option value="key">重点关注 key</option>
+          <option value="risk">危机预警 risk</option>
+        </select>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">来源</span>
+        <select class="select select-bordered select-sm" id="focus-source">
+          <option value="task">普查 task</option>
+          <option value="apply">学生求助 apply</option>
+          <option value="counselor">辅导员发现 counselor</option>
+          <option value="appointment">咨询 appointment</option>
+          <option value="referral">转介 referral</option>
+          <option value="other">其他 other</option>
+        </select>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关联批次（可选）</span>
+        <select class="select select-bordered select-sm" id="focus-batch">
+          <option value="">不关联批次</option>
+        </select>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">跟进辅导员（users.id，可选）</span>
+        <input class="input input-bordered input-sm" id="focus-counselor" placeholder="留空则由后端按该生辅导员归属" type="text"/>
+      </label>
+      <label class="form-control" id="focus-status-wrap">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">跟进状态（修改时可用）</span>
+        <select class="select select-bordered select-sm" id="focus-status-input">
+          <option value="open">待跟进 open</option>
+          <option value="following">跟进中 following</option>
+          <option value="closed">已关闭 closed</option>
+        </select>
+      </label>
+    </div>
+    <label class="form-control mt-3">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关注缘由（必填）</span>
+      <textarea class="textarea textarea-bordered" id="focus-summary" rows="3" placeholder="如：普查结果提示需关注（不含临床诊断结论）"></textarea>
+    </label>
+    <label class="form-control mt-3">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">已采取措施</span>
+      <textarea class="textarea textarea-bordered" id="focus-measures" rows="3" placeholder="如：已纳入抽查访谈、建立跟进台账"></textarea>
+    </label>
+    <div id="focus-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="focus-close-btn" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="focus-save" type="button">提交</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 弹窗 7：跟进留痕 ===================== -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="follow-dialog">
+  <div class="card nx-dialog w-full max-w-2xl p-6">
+    <h2 class="font-serif text-2xl">跟进留痕</h2>
+    <p class="mt-2 text-xs text-base-content/65" id="follow-target">—</p>
+    <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">发生时间（留空=现在）</span>
+        <input class="input input-bordered input-sm" id="follow-happened" type="datetime-local"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">下一步计划</span>
+        <input class="input input-bordered input-sm" id="follow-next" placeholder="如：两周后回访" type="text"/>
+      </label>
+    </div>
+    <label class="form-control mt-3">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">跟进内容（必填）</span>
+      <textarea class="textarea textarea-bordered" id="follow-content" rows="3" placeholder="如：首次面谈，情绪平稳，主诉课程压力"></textarea>
+    </label>
+    <label class="form-control mt-3">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">本次措施</span>
+      <textarea class="textarea textarea-bordered" id="follow-measures" rows="3" placeholder="如：建议规律作息、减少晚间屏幕时间"></textarea>
+    </label>
+    <div class="mt-5 border-t border-base-300 pt-4">
+      <p class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">本次提交后后端回传的该台账跟进流水</p>
+      <div class="mt-3 grid gap-3" id="follow-list"></div>
+      <p class="mt-3 text-xs text-base-content/60" id="follow-list-note">提交一次后这里会显示后端回传的流水（接口只在下发该台账时带回，本页没有单独的「流水列表」端点）。</p>
+    </div>
+    <div id="follow-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="follow-close-btn" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="follow-save" type="button">提交</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 弹窗 8：转介登记 / 修改 ===================== -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="ref-dialog">
+  <div class="card nx-dialog w-full max-w-2xl p-6">
+    <h2 class="font-serif text-2xl" id="ref-title">登记转介</h2>
+    <p class="mt-2 text-xs text-base-content/65">只做「登记 + 跟踪留痕」，不写任何流程结论。</p>
+    <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生（必填）</span>
+        <select class="select select-bordered select-sm" id="ref-student">
+          <option value="">请先加载名单 / 关注 / 预约后选择</option>
+        </select>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">或直接填学号（users.id）</span>
+        <input class="input input-bordered input-sm" id="ref-student-manual" placeholder="留空则用上面的选择" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">来源类型</span>
+        <select class="select select-bordered select-sm" id="ref-source-type">
+          <option value="focus">关注台账 focus</option>
+          <option value="task">普查 task</option>
+          <option value="appointment">咨询 appointment</option>
+          <option value="other">其他 other</option>
+        </select>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">来源记录 id（可选，如关注台账 id）</span>
+        <input class="input input-bordered input-sm" id="ref-source-id" placeholder="留空则不关联" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">转介去向（必填）</span>
+        <select class="select select-bordered select-sm" id="ref-target">
+          <option value="campus">校内中心 campus（主 5#118）</option>
+          <option value="hospital">医院 hospital</option>
+          <option value="family">家庭配合 family</option>
+        </select>
+      </label>
+      <label class="form-control" id="ref-status-wrap">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">跟踪状态（修改时可用）</span>
+        <select class="select select-bordered select-sm" id="ref-status-input">
+          <option value="open">待跟踪 open</option>
+          <option value="following">跟踪中 following</option>
+          <option value="closed">已结案 closed</option>
+        </select>
+      </label>
+    </div>
+    <label class="form-control mt-3">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">转介原因（必填，不含临床诊断结论）</span>
+      <textarea class="textarea textarea-bordered" id="ref-reason" rows="3"></textarea>
+    </label>
+    <label class="form-control mt-3" id="ref-follow-wrap">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">跟踪记录（最新一条摘要，修改时可用）</span>
+      <textarea class="textarea textarea-bordered" id="ref-follow-note" rows="3"></textarea>
+    </label>
+    <div id="ref-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="ref-close-btn" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="ref-save" type="button">提交</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 弹窗 9：完成预约 ===================== -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="complete-dialog">
+  <div class="card nx-dialog w-full max-w-lg p-6">
+    <h2 class="font-serif text-2xl">登记完成</h2>
+    <p class="mt-2 text-xs text-base-content/65" id="complete-target">—</p>
+    <label class="form-control mt-5">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">本次时长（分钟，默认 50）</span>
+      <input class="input input-bordered input-sm" id="complete-minutes" type="number" value="50"/>
+    </label>
+    <!-- 已核实：PsycheAppointmentService.complete(Long,String,Long) L298-315 只做 CAS confirmed→done + 写 finished_at，
+         **不读任何请求体**，因此这里的时长当前不会被后端保存。仍按 S16 口径以默认 50 展示并随请求发出（向前兼容），
+         报告里如实标注「后端未读取」。 -->
+    <p class="mt-3 text-xs text-base-content/60">S16：单次咨询时长限定 50 分钟。注意：当前后端 /complete 未读取该字段（源码核实），此处仅作录入提示。</p>
+    <div id="complete-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="complete-close-btn" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="complete-save" type="button">确认完成</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 弹窗 10：取消预约 ===================== -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="acancel-dialog">
+  <div class="card nx-dialog w-full max-w-lg p-6">
+    <h2 class="font-serif text-2xl">取消预约</h2>
+    <p class="mt-2 text-xs text-base-content/65" id="acancel-target">—</p>
+    <label class="form-control mt-5">
+      <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">取消原因（留空=管理员取消，最多 500 字）</span>
+      <textarea class="textarea textarea-bordered" id="acancel-reason" rows="3"></textarea>
+    </label>
+    <div id="acancel-message" class="alert hidden mt-4 items-start gap-2"></div>
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="acancel-close" type="button">返回</button>
+      <button class="btn btn-primary rounded-full" id="acancel-save" type="button">确认取消</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(async function () {
+  'use strict';
+
+  // ============================================================ 常量与状态
+  var ROLE = '';
+  var BATCHES = [];
+  var INSTRUMENTS = [];
+  var STUDENTS = [];              // {id, label} 由以下三个列表合并去重，供关注 / 转介弹窗选择
+  var PAGE = { tasks: 1, focus: 1, appt: 1, ref: 1 };
+  var TOTAL = { tasks: 0, focus: 0, appt: 0, ref: 0 };
+  var SIZE = 10;
+  var currentTab = 'batch';
+  var followFocusId = null;
+
+  var TAB_PANELS = {
+    batch: 'panel-batch',
+    tasks: 'panel-tasks',
+    focus: 'panel-focus',
+    appt: 'panel-appointment',
+    ref: 'panel-referral',
+    export: 'panel-export'
+  };
+  var TAB_BUTTONS = {
+    batch: 'tab-batch',
+    tasks: 'tab-tasks',
+    focus: 'tab-focus',
+    appt: 'tab-appt',
+    ref: 'tab-ref',
+    export: 'tab-export'
+  };
+
+  var BATCH_STATUS = {
+    draft: { label: '草稿', cls: 'badge-ghost' },
+    open: { label: '进行中', cls: 'badge-success' },
+    closed: { label: '已关闭', cls: 'badge-ghost' }
+  };
+  var TASK_STATUS = {
+    pending: { label: '待完成', cls: 'badge-ghost' },
+    in_progress: { label: '进行中', cls: 'badge-primary' },
+    completed: { label: '已完成', cls: 'badge-success' },
+    absent: { label: '未参加', cls: 'badge-error' }
+  };
+  var FOCUS_LEVEL = {
+    general: { label: '一般关注', cls: 'badge-ghost' },
+    key: { label: '重点关注', cls: 'badge-warning' },
+    risk: { label: '危机预警', cls: 'badge-error' }
+  };
+  var FOCUS_STATUS = {
+    open: { label: '待跟进', cls: 'badge-ghost' },
+    following: { label: '跟进中', cls: 'badge-primary' },
+    closed: { label: '已关闭', cls: 'badge-ghost' }
+  };
+  var FOCUS_SOURCE = {
+    task: '普查', apply: '学生求助', counselor: '辅导员发现',
+    appointment: '咨询', referral: '转介', other: '其他'
+  };
+  var REF_SOURCE = { task: '普查', focus: '关注台账', appointment: '咨询', other: '其他' };
+  var REF_TARGET = { campus: '校内中心', hospital: '医院', family: '家庭配合' };
+  var REF_STATUS = {
+    open: { label: '待跟踪', cls: 'badge-ghost' },
+    following: { label: '跟踪中', cls: 'badge-primary' },
+    closed: { label: '已结案', cls: 'badge-ghost' }
+  };
+  var APPT_STATUS = {
+    requested: { label: '已申请', cls: 'badge-ghost' },
+    confirmed: { label: '已确认', cls: 'badge-primary' },
+    done: { label: '已完成', cls: 'badge-success' },
+    cancelled: { label: '已取消', cls: 'badge-ghost' },
+    no_show: { label: '未到', cls: 'badge-error' }
+  };
+  var MODE_LABEL = { office: '面询', online: '线上咨询' };
+  var RESULT_LEVEL = { normal: '正常', attention: '关注', warning: '预警' };
+
+  // ============================================================ 基础工具（照抄 poverty-review 约定）
+  function escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  async function callApi(url, options) {
+    const config = options || {};
+    config.credentials = 'same-origin';
+    const response = await fetch(url, config);
+    let result = null;
+    try { result = await response.json(); } catch (error) { result = { code: response.status, message: '服务没有返回可解析的内容' }; }
+    if (result && result.code === 401) { window.location.href = 'login.html'; return { code: 401, message: '登录状态已失效', data: null }; }
+    return result;
+  }
+
+  function showMessage(message, type) {
+    const box = document.getElementById('manage-message');
+    const toneCls = type === 'success' ? 'alert-success' : 'alert-error';
+    const icon = type === 'success' ? 'check_circle' : 'error';
+    box.classList.remove('hidden');
+    box.className = 'alert mb-6 items-start gap-2 ' + toneCls;
+    box.innerHTML = '<span class="material-symbols-outlined text-lg">' + icon + '</span><span class="text-sm">' + escapeHtml(message) + '</span>';
+  }
+
+  function showBoxMessage(hostId, message, type) {
+    const box = document.getElementById(hostId);
+    box.classList.remove('hidden');
+    box.className = 'alert mt-4 items-start gap-2 ' + (type === 'success' ? 'alert-success' : 'alert-error');
+    box.innerHTML = '<span class="text-sm">' + escapeHtml(message) + '</span>';
+  }
+
+  function hideBoxMessage(hostId) { document.getElementById(hostId).classList.add('hidden'); }
+
+  function clearMessage() { document.getElementById('manage-message').classList.add('hidden'); }
+
+  function text(value) {
+    if (value === null || value === undefined || value === '') { return '—'; }
+    return String(value);
+  }
+
+  function formatTime(value) {
+    if (!value) { return '—'; }
+    return String(value).replace('T', ' ').slice(0, 16);
+  }
+
+  function toNumber(value) { return /^[0-9]+$/.test(String(value)) ? Number(value) : value; }
+
+  function openDialog(id) {
+    const box = document.getElementById(id);
+    box.classList.remove('hidden');
+    box.classList.add('flex');
+  }
+
+  function closeDialog(id) {
+    const box = document.getElementById(id);
+    box.classList.add('hidden');
+    box.classList.remove('flex');
+  }
+
+  function setStat(id, value) { document.getElementById(id).textContent = String(value); }
+
+  function badge(map, key) {
+    const meta = map[key];
+    if (!meta) { return '<span class="badge badge-sm badge-ghost">' + escapeHtml(text(key)) + '</span>'; }
+    return '<span class="badge badge-sm ' + meta.cls + '">' + escapeHtml(meta.label) + '</span>';
+  }
+
+  function toBackendTime(value) {
+    if (!value) { return null; }
+    const raw = String(value).trim().replace('T', ' ');
+    if (/^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}$/.test(raw)) { return raw + ':00'; }
+    return raw;
+  }
+
+  function toLocalInput(value) {
+    if (!value) { return ''; }
+    const m = String(value).replace('T', ' ').match(/^([0-9]{4}-[0-9]{2}-[0-9]{2})[ ]?([0-9]{2}:[0-9]{2})/);
+    return m ? (m[1] + 'T' + m[2]) : '';
+  }
+
+  function pagesOf(kind) { return Math.max(1, Math.ceil((TOTAL[kind] || 0) / SIZE)); }
+
+  function pageText(kind, count) {
+    return '本页 ' + count + ' 条 / 共 ' + (TOTAL[kind] || 0) + ' 条';
+  }
+
+  function renderPager(kind) {
+    document.getElementById(kind + '-page').textContent = PAGE[kind] + ' / ' + pagesOf(kind);
+  }
+
+  function intOrNull(value) {
+    const raw = String(value === null || value === undefined ? '' : value).trim();
+    if (!/[0-9]/.test(raw)) { return null; }
+    return toNumber(raw);
+  }
+
+  // ============================================================ 登录态
+  async function checkAuth() {
+    try {
+      const result = await callApi('/api/auth/me');
+      if (!result || result.code !== 200 || !result.data) { window.location.href = 'login.html'; return null; }
+      const role = result.data.role;
+      if (role === 'student') { window.location.href = 'psyche.html'; return null; }
+      ROLE = role || '';
+      return result.data;
+    } catch (error) {
+      window.location.href = 'login.html';
+      return null;
+    }
+  }
+
+  // ============================================================ 统计
+  async function loadStats() {
+    const result = await callApi('/api/psyche/stats');
+    if (!result || result.code !== 200) {
+      setStat('stat-batches', '—'); setStat('stat-total', '—'); setStat('stat-completed', '—');
+      setStat('stat-rate', '—'); setStat('stat-focus', '—'); setStat('stat-appts', '—');
+      if (result && result.message) { showMessage(result.message, 'error'); }
+      return;
+    }
+    const data = result.data || {};
+    const batches = data.batches || [];
+    let total = 0;
+    let completed = 0;
+    batches.forEach(function (row) {
+      total += Number(row.total) || 0;
+      completed += Number(row.completed) || 0;
+    });
+    setStat('stat-batches', batches.length);
+    setStat('stat-total', total);
+    setStat('stat-completed', completed);
+    setStat('stat-rate', total > 0 ? (Math.round(completed / total * 100) + '%') : '—');
+    const focus = data.focusLevels || {};
+    setStat('stat-focus', (focus.total || 0) + '（重点 ' + (focus.key || 0) + ' / 预警 ' + (focus.risk || 0) + '）');
+    const appt = data.appointments || {};
+    setStat('stat-appts', (appt.total || 0) + '（已完成 ' + (appt.done || 0) + '）');
+  }
+
+  // ============================================================ 页签
+  async function switchTab(name) {
+    currentTab = name;
+    Object.keys(TAB_PANELS).forEach(function (key) {
+      const panel = document.getElementById(TAB_PANELS[key]);
+      const button = document.getElementById(TAB_BUTTONS[key]);
+      const active = key === name;
+      panel.classList.toggle('hidden', !active);
+      button.classList.toggle('is-active', active);
+    });
+    if (name === 'batch') { await loadBatches(); await loadInstruments(); }
+    if (name === 'tasks') { await loadTasks(PAGE.tasks); }
+    if (name === 'focus') { await loadFocus(PAGE.focus); }
+    if (name === 'appt') { await loadAppts(PAGE.appt); }
+    if (name === 'ref') { await loadRefs(PAGE.ref); }
+  }
+
+  // ============================================================ 批次
+  async function loadBatches() {
+    const params = new URLSearchParams();
+    const status = document.getElementById('batch-status').value;
+    const keyword = document.getElementById('batch-keyword').value.trim();
+    if (status) { params.set('status', status); }
+    if (keyword) { params.set('keyword', keyword); }
+    const suffix = params.toString() ? ('?' + params.toString()) : '';
+    const result = await callApi('/api/psyche/batches' + suffix);
+    if (!result || result.code !== 200) {
+      if (result && result.message) { showMessage(result.message, 'error'); }
+      return;
+    }
+    BATCHES = Array.isArray(result.data) ? result.data : [];
+    document.getElementById('batch-count').textContent = '共 ' + BATCHES.length + ' 个批次';
+    renderBatches();
+    fillBatchSelects();
+  }
+
+  function renderBatches() {
+    const host = document.getElementById('batch-list');
+    if (!BATCHES.length) {
+      host.innerHTML = '';
+      document.getElementById('batch-empty').classList.remove('hidden');
+      return;
+    }
+    document.getElementById('batch-empty').classList.add('hidden');
+    host.innerHTML = BATCHES.map(function (batch) {
+      const actions = [];
+      actions.push('<button class="btn btn-ghost btn-xs rounded-full" data-batch-tasks="' + escapeHtml(batch.id) + '" type="button">名单</button>');
+      if (ROLE === 'admin') {
+        // 已结束（closed）的批次后端会 400「状态已变化，请刷新后重试」⇒ 不再给出这个死按钮
+        if (batch.status === 'draft' || batch.status === 'open') {
+          actions.push('<button class="btn btn-ghost btn-xs rounded-full" data-batch-edit="' + escapeHtml(batch.id) + '" type="button">编辑</button>');
+        }
+        if (batch.status === 'draft') {
+          actions.push('<button class="btn btn-ghost btn-xs rounded-full" data-batch-publish="' + escapeHtml(batch.id) + '" type="button">发布</button>');
+        }
+        if (batch.status === 'open') {
+          actions.push('<button class="btn btn-ghost btn-xs rounded-full" data-batch-close="' + escapeHtml(batch.id) + '" type="button">关闭</button>');
+        }
+      }
+      return '<tr class="border-b border-base-200">'
+          + '<td class="py-2 pr-4"><span class="block font-semibold">' + escapeHtml(text(batch.batchName)) + '</span>'
+          + '<span class="block font-mono text-[10px] text-base-content/60">#' + escapeHtml(text(batch.id)) + ' · ' + escapeHtml(text(batch.createdByName)) + '</span></td>'
+          + '<td class="py-2 pr-4">' + escapeHtml(text(batch.grade)) + ' / ' + escapeHtml(text(batch.academicYear)) + '</td>'
+          + '<td class="py-2 pr-4">' + escapeHtml(text(batch.instrumentName)) + '</td>'
+          + '<td class="py-2 pr-4 font-mono text-[11px]">' + escapeHtml(formatTime(batch.openAt)) + ' ~ ' + escapeHtml(formatTime(batch.closeAt)) + '</td>'
+          + '<td class="py-2 pr-4">' + badge(BATCH_STATUS, batch.status) + '</td>'
+          + '<td class="py-2 pr-4">' + (Number(batch.interviewRequired) === 1 ? '<span class="badge badge-sm badge-warning">需要</span>' : '<span class="text-base-content/60">不需要</span>') + '</td>'
+          + '<td class="py-2 pr-4"><div class="flex flex-wrap items-center gap-1">' + actions.join('') + '</div></td>'
+          + '</tr>';
+    }).join('');
+
+    host.querySelectorAll('[data-batch-tasks]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        const id = this.getAttribute('data-batch-tasks');
+        switchTab('tasks').then(function () {
+          document.getElementById('tasks-batch').value = id;
+          loadTasks(1);
+        });
+      });
+    });
+    host.querySelectorAll('[data-batch-edit]').forEach(function (button) {
+      button.addEventListener('click', function () { openBatchDialog(findBatch(this.getAttribute('data-batch-edit'))); });
+    });
+    host.querySelectorAll('[data-batch-publish]').forEach(function (button) {
+      button.addEventListener('click', function () { publishBatch(this.getAttribute('data-batch-publish')); });
+    });
+    host.querySelectorAll('[data-batch-close]').forEach(function (button) {
+      button.addEventListener('click', function () { closeBatch(this.getAttribute('data-batch-close')); });
+    });
+  }
+
+  function findBatch(id) {
+    for (let i = 0; i < BATCHES.length; i += 1) {
+      if (String(BATCHES[i].id) === String(id)) { return BATCHES[i]; }
+    }
+    return null;
+  }
+
+  function fillBatchSelects() {
+    const options = '<option value="">全部批次</option>' + BATCHES.map(function (batch) {
+      return '<option value="' + escapeHtml(batch.id) + '">' + escapeHtml(text(batch.batchName)) + '</option>';
+    }).join('');
+    ['export-batch', 'focus-batch'].forEach(function (id) {
+      const select = document.getElementById(id);
+      const previous = select.value;
+      select.innerHTML = (id === 'focus-batch' ? '<option value="">不关联批次</option>' + options.replace('<option value="">全部批次</option>', '') : options);
+      if (previous) { select.value = previous; }
+    });
+    const taskSelect = document.getElementById('tasks-batch');
+    const kept = taskSelect.value;
+    taskSelect.innerHTML = '<option value="">请选择批次</option>' + BATCHES.map(function (batch) {
+      return '<option value="' + escapeHtml(batch.id) + '">' + escapeHtml(text(batch.batchName)) + '</option>';
+    }).join('');
+    if (kept) { taskSelect.value = kept; }
+    const instSelect = document.getElementById('batch-instrument');
+    const keptInst = instSelect.value;
+    instSelect.innerHTML = '<option value="">不绑定量表</option>' + INSTRUMENTS.map(function (item) {
+      return '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(text(item.name)) + '（' + escapeHtml(text(item.itemCount)) + ' 题）</option>';
+    }).join('');
+    if (keptInst) { instSelect.value = keptInst; }
+  }
+
+  function fillInstrumentSelect() { fillBatchSelects(); }
+
+  function openBatchDialog(batch) {
+    hideBoxMessage('batch-message');
+    fillInstrumentSelect();
+    if (batch) {
+      document.getElementById('batch-title').textContent = '修改批次 #' + batch.id;
+      document.getElementById('batch-hint').textContent = '当前状态：' + text(BATCH_STATUS[batch.status] ? BATCH_STATUS[batch.status].label : batch.status)
+          + '。修改为增量语义：只提交改动过的字段也可以；状态由「发布 / 关闭」按钮切换。';
+      document.getElementById('batch-name').value = batch.batchName || '';
+      document.getElementById('batch-grade').value = batch.grade || '';
+      document.getElementById('batch-year').value = batch.academicYear || '';
+      document.getElementById('batch-instrument').value = batch.instrumentId ? String(batch.instrumentId) : '';
+      document.getElementById('batch-open').value = toLocalInput(batch.openAt);
+      document.getElementById('batch-close').value = toLocalInput(batch.closeAt);
+      document.getElementById('batch-notice-title').value = batch.noticeTitle || '';
+      document.getElementById('batch-notice-url').value = batch.noticeUrl || '';
+      document.getElementById('batch-interview-note').value = batch.interviewNote || '';
+      document.getElementById('batch-interview').checked = Number(batch.interviewRequired) === 1;
+    } else {
+      document.getElementById('batch-title').textContent = '新建批次';
+      document.getElementById('batch-hint').textContent = '新建后的状态是草稿 draft；要在开放时间内接受学生作答，需要先「发布」。后端新建不读 status。';
+      ['batch-name', 'batch-grade', 'batch-year', 'batch-notice-title', 'batch-notice-url', 'batch-interview-note', 'batch-open', 'batch-close'].forEach(function (id) {
+        document.getElementById(id).value = '';
+      });
+      document.getElementById('batch-instrument').value = '';
+      document.getElementById('batch-interview').checked = false;
+    }
+    document.getElementById('batch-save').setAttribute('data-batch-id', batch ? String(batch.id) : '');
+    openDialog('batch-dialog');
+  }
+
+  async function saveBatch() {
+    const id = document.getElementById('batch-save').getAttribute('data-batch-id');
+    const name = document.getElementById('batch-name').value.trim();
+    if (!name) { showBoxMessage('batch-message', '请填写批次名称。', 'error'); return; }
+    const body = {
+      batchName: name,
+      grade: document.getElementById('batch-grade').value.trim() || null,
+      academicYear: document.getElementById('batch-year').value.trim() || null,
+      instrumentId: intOrNull(document.getElementById('batch-instrument').value),
+      openAt: toBackendTime(document.getElementById('batch-open').value),
+      closeAt: toBackendTime(document.getElementById('batch-close').value),
+      noticeTitle: document.getElementById('batch-notice-title').value.trim() || null,
+      noticeUrl: document.getElementById('batch-notice-url').value.trim() || null,
+      interviewNote: document.getElementById('batch-interview-note').value.trim() || null,
+      interviewRequired: document.getElementById('batch-interview').checked ? 1 : 0
+    };
+    const url = id ? ('/api/psyche/batches/' + encodeURIComponent(id)) : '/api/psyche/batches';
+    const result = await callApi(url, {
+      method: id ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!result || result.code !== 200) {
+      showBoxMessage('batch-message', (result && result.message) || '提交失败，请稍后再试。', 'error');
+      return;
+    }
+    closeDialog('batch-dialog');
+    showMessage(result.message || (id ? '批次已更新。' : '批次已创建（草稿）。'), 'success');
+    await loadBatches();
+  }
+
+  async function publishBatch(id) {
+    const result = await callApi('/api/psyche/batches/' + encodeURIComponent(id) + '/publish', { method: 'POST' });
+    if (!result || result.code !== 200) { showMessage((result && result.message) || '发布失败。', 'error'); return; }
+    showMessage(result.message || '批次已发布。', 'success');
+    await loadBatches();
+  }
+
+  async function closeBatch(id) {
+    const result = await callApi('/api/psyche/batches/' + encodeURIComponent(id) + '/close', { method: 'POST' });
+    if (!result || result.code !== 200) { showMessage((result && result.message) || '关闭失败。', 'error'); return; }
+    showMessage(result.message || '批次已关闭。', 'success');
+    await loadBatches();
+  }
+
+  // ============================================================ 量表
+  async function loadInstruments() {
+    const result = await callApi('/api/psyche/instruments');
+    if (!result || result.code !== 200) {
+      if (result && result.message) { showMessage(result.message, 'error'); }
+      return;
+    }
+    INSTRUMENTS = Array.isArray(result.data) ? result.data : [];
+    document.getElementById('inst-count').textContent = '共 ' + INSTRUMENTS.length + ' 个量表';
+    renderInstruments();
+    fillBatchSelects();
+  }
+
+  function renderInstruments() {
+    const host = document.getElementById('inst-list');
+    if (!INSTRUMENTS.length) {
+      host.innerHTML = '';
+      document.getElementById('inst-empty').classList.remove('hidden');
+      return;
+    }
+    document.getElementById('inst-empty').classList.add('hidden');
+    host.innerHTML = INSTRUMENTS.map(function (item) {
+      const count = Number(item.itemCount) || 0;
+      return '<tr class="border-b border-base-200">'
+          + '<td class="py-2 pr-4 font-mono text-[11px]">' + escapeHtml(text(item.code)) + '</td>'
+          + '<td class="py-2 pr-4"><span class="block font-semibold">' + escapeHtml(text(item.name)) + '</span>'
+          + '<span class="block text-xs text-base-content/60">' + escapeHtml(text(item.sourceNote)) + '</span></td>'
+          + '<td class="py-2 pr-4">' + (count > 0 ? String(count) : '<span class="badge badge-sm badge-ghost">无题本</span>') + '</td>'
+          + '<td class="py-2 pr-4 text-xs text-base-content/65">' + escapeHtml(text(item.guideText)) + '</td>'
+          + '<td class="py-2 pr-4">' + (Number(item.active) === 1 ? '<span class="badge badge-sm badge-success">启用</span>' : '<span class="badge badge-sm badge-ghost">停用</span>') + '</td>'
+          + '</tr>';
+    }).join('');
+  }
+
+  function openInstrumentDialog() {
+    hideBoxMessage('inst-message');
+    document.getElementById('inst-code').value = '';
+    document.getElementById('inst-name').value = '';
+    document.getElementById('inst-source').value = '';
+    document.getElementById('inst-guide').value = '';
+    document.getElementById('inst-items').value = '';
+    document.getElementById('inst-bands').value = '';
+    document.getElementById('inst-active').checked = true;
+    openDialog('inst-dialog');
+  }
+
+  async function saveInstrument() {
+    const code = document.getElementById('inst-code').value.trim();
+    const name = document.getElementById('inst-name').value.trim();
+    if (!code || !name) { showBoxMessage('inst-message', '编码与名称都必须填写。', 'error'); return; }
+    const items = document.getElementById('inst-items').value.trim();
+    const bands = document.getElementById('inst-bands').value.trim();
+    if (items) {
+      try { JSON.parse(items); } catch (err) { showBoxMessage('inst-message', '题本 JSON 不是合法 JSON，请检查后再提交。', 'error'); return; }
+    }
+    if (bands) {
+      try { JSON.parse(bands); } catch (err) { showBoxMessage('inst-message', '分档阈值 JSON 不是合法 JSON，请检查后再提交。', 'error'); return; }
+    }
+    const result = await callApi('/api/psyche/instruments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: code,
+        name: name,
+        sourceNote: document.getElementById('inst-source').value.trim() || null,
+        guideText: document.getElementById('inst-guide').value.trim() || null,
+        itemJson: items || null,
+        bandJson: bands || null,
+        active: document.getElementById('inst-active').checked ? 1 : 0
+      })
+    });
+    if (!result || result.code !== 200) {
+      showBoxMessage('inst-message', (result && result.message) || '提交失败，请稍后再试。', 'error');
+      return;
+    }
+    closeDialog('inst-dialog');
+    showMessage(result.message || '量表已创建。', 'success');
+    await loadInstruments();
+  }
+
+  // ============================================================ 名单与进度
+  function rememberStudents(rows) {
+    (rows || []).forEach(function (row) {
+      if (!row || row.studentId === null || row.studentId === undefined) { return; }
+      const id = String(row.studentId);
+      if (STUDENTS.some(function (one) { return one.id === id; })) { return; }
+      STUDENTS.push({ id: id, label: text(row.studentName) + ' · ' + text(row.studentNo) + ' · ' + text(row.className) });
+    });
+    const options = '<option value="">请选择学生</option>' + STUDENTS.map(function (one) {
+      return '<option value="' + escapeHtml(one.id) + '">' + escapeHtml(one.label) + '</option>';
+    }).join('');
+    document.getElementById('focus-student').innerHTML = options;
+    document.getElementById('ref-student').innerHTML = options;
+  }
+
+  async function loadTasks(page) {
+    const batchId = document.getElementById('tasks-batch').value;
+    if (!batchId) {
+      document.getElementById('tasks-list').innerHTML = '';
+      document.getElementById('tasks-empty').classList.remove('hidden');
+      document.getElementById('tasks-empty').textContent = '请先选择批次后查询名单。';
+      document.getElementById('tasks-total').textContent = '';
+      document.getElementById('tasks-stats').textContent = '—';
+      document.getElementById('tasks-count').textContent = '—';
+      return;
+    }
+    if (page) { PAGE.tasks = page; }
+    const params = new URLSearchParams();
+    params.set('page', String(PAGE.tasks));
+    params.set('size', String(SIZE));
+    const status = document.getElementById('tasks-status').value;
+    const className = document.getElementById('tasks-class').value.trim();
+    const keyword = document.getElementById('tasks-keyword').value.trim();
+    if (status) { params.set('status', status); }
+    if (className) { params.set('className', className); }
+    if (keyword) { params.set('keyword', keyword); }
+    const result = await callApi('/api/psyche/batches/' + encodeURIComponent(batchId) + '/tasks?' + params.toString());
+    if (!result || result.code !== 200) {
+      if (result && result.message) { showMessage(result.message, 'error'); }
+      return;
+    }
+    const data = result.data || {};
+    const rows = data.list || [];
+    TOTAL.tasks = Number(data.total) || 0;
+    rememberStudents(rows);
+    document.getElementById('tasks-count').textContent = '共 ' + TOTAL.tasks + ' 人';
+    renderTasks(rows);
+    renderPager('tasks');
+    document.getElementById('tasks-total').textContent = pageText('tasks', rows.length);
+    const stats = data.stats || {};
+    document.getElementById('tasks-stats').textContent = '批次统计：总人数 ' + text(stats.total)
+        + ' · 已完成 ' + text(stats.completed) + ' · 完成率 ' + text(stats.completionPercent) + '%'
+        + ' · 进行中 ' + text(stats.in_progress) + ' · 待完成 ' + text(stats.pending) + ' · 未参加 ' + text(stats.absent);
+    await loadBatchStatLine(batchId);
+  }
+
+  async function loadBatchStatLine(batchId) {
+    const result = await callApi('/api/psyche/batches/' + encodeURIComponent(batchId) + '/stats');
+    if (!result || result.code !== 200 || !result.data) { return; }
+    const data = result.data;
+    document.getElementById('tasks-stats').textContent += ' ｜ 批次口径：' + text(data.completionPercent) + '%（' + text(data.completed) + '/' + text(data.total) + '）';
+  }
+
+  function renderTasks(rows) {
+    const host = document.getElementById('tasks-list');
+    if (!rows.length) {
+      host.innerHTML = '';
+      document.getElementById('tasks-empty').classList.remove('hidden');
+      document.getElementById('tasks-empty').textContent = '该批次下没有符合条件的名单。';
+      return;
+    }
+    document.getElementById('tasks-empty').classList.add('hidden');
+    host.innerHTML = rows.map(function (row) {
+      const actions = [];
+      actions.push('<button class="btn btn-ghost btn-xs rounded-full" data-task-interview="' + escapeHtml(row.id) + '" type="button">访谈登记</button>');
+      actions.push('<button class="btn btn-ghost btn-xs rounded-full" data-task-result="' + escapeHtml(row.id) + '" type="button">回填结果</button>');
+      const level = row.resultLevel ? (RESULT_LEVEL[row.resultLevel] || row.resultLevel) : '';
+      return '<tr class="border-b border-base-200">'
+          + '<td class="py-2 pr-4">' + escapeHtml(text(row.studentName)) + '</td>'
+          + '<td class="py-2 pr-4 font-mono text-[11px]">' + escapeHtml(text(row.studentNo)) + '</td>'
+          + '<td class="py-2 pr-4">' + escapeHtml(text(row.className)) + '</td>'
+          + '<td class="py-2 pr-4">' + badge(TASK_STATUS, row.status) + '</td>'
+          + '<td class="py-2 pr-4 font-mono text-[11px]">' + escapeHtml(text(row.answerCount)) + ' / ' + escapeHtml(text(row.totalItems)) + '</td>'
+          + '<td class="py-2 pr-4">' + (Number(row.interviewed) === 1 ? '<span class="badge badge-sm badge-success">已访谈</span>' : '<span class="text-base-content/60">未访谈</span>') + '</td>'
+          + '<td class="py-2 pr-4">' + (level ? escapeHtml(level) : '<span class="text-base-content/60">未回填</span>') + '</td>'
+          + '<td class="py-2 pr-4"><div class="flex flex-wrap items-center gap-1">' + actions.join('') + '</div></td>'
+          + '</tr>';
+    }).join('');
+
+    host.querySelectorAll('[data-task-interview]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        const id = this.getAttribute('data-task-interview');
+        openInterviewDialog(id, findRow(rows, id));
+      });
+    });
+    host.querySelectorAll('[data-task-result]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        const id = this.getAttribute('data-task-result');
+        openResultDialog(id, findRow(rows, id));
+      });
+    });
+  }
+
+  function findRow(rows, id) {
+    for (let i = 0; i < rows.length; i += 1) {
+      if (String(rows[i].id) === String(id)) { return rows[i]; }
+    }
+    return null;
+  }
+
+  function openInterviewDialog(taskId, row) {
+    hideBoxMessage('interview-message');
+    document.getElementById('interview-target').textContent = row
+        ? ('学生：' + text(row.studentName) + ' · ' + text(row.studentNo) + ' · ' + text(row.className) + '（任务 #' + taskId + '）')
+        : ('任务 #' + taskId);
+    document.getElementById('interview-flag').checked = row ? Number(row.interviewed) === 1 : false;
+    document.getElementById('interview-note').value = (row && row.interviewNote) ? row.interviewNote : '';
+    document.getElementById('interview-save').setAttribute('data-task-id', String(taskId));
+    openDialog('interview-dialog');
+  }
+
+  async function saveInterview() {
+    const taskId = document.getElementById('interview-save').getAttribute('data-task-id');
+    const result = await callApi('/api/psyche/tasks/' + encodeURIComponent(taskId) + '/interview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        interviewed: document.getElementById('interview-flag').checked ? 1 : 0,
+        note: document.getElementById('interview-note').value.trim() || null
+      })
+    });
+    if (!result || result.code !== 200) {
+      showBoxMessage('interview-message', (result && result.message) || '提交失败，请稍后再试。', 'error');
+      return;
+    }
+    closeDialog('interview-dialog');
+    showMessage(result.message || '抽查访谈登记已保存。', 'success');
+    await loadTasks();
+  }
+
+  function openResultDialog(taskId, row) {
+    hideBoxMessage('result-message');
+    document.getElementById('result-target').textContent = row
+        ? ('学生：' + text(row.studentName) + ' · ' + text(row.studentNo) + ' · 答题 ' + text(row.answerCount) + '/' + text(row.totalItems) + '（任务 #' + taskId + '）')
+        : ('任务 #' + taskId);
+    document.getElementById('result-level').value = (row && row.resultLevel) ? row.resultLevel : '';
+    document.getElementById('result-note').value = (row && row.resultNote) ? row.resultNote : '';
+    document.getElementById('result-save').setAttribute('data-task-id', String(taskId));
+    openDialog('result-dialog');
+  }
+
+  async function saveResult() {
+    const taskId = document.getElementById('result-save').getAttribute('data-task-id');
+    const result = await callApi('/api/psyche/tasks/' + encodeURIComponent(taskId) + '/result', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        resultLevel: document.getElementById('result-level').value || null,
+        resultNote: document.getElementById('result-note').value.trim() || null
+      })
+    });
+    if (!result || result.code !== 200) {
+      showBoxMessage('result-message', (result && result.message) || '提交失败，请稍后再试。', 'error');
+      return;
+    }
+    closeDialog('result-dialog');
+    showMessage(result.message || '结果等级已回填。', 'success');
+    await loadTasks();
+  }
+
+  function openImportDialog() {
+    const batchId = document.getElementById('tasks-batch').value;
+    if (!batchId) { showMessage('请先选择批次再导入名单。', 'error'); return; }
+    const batch = findBatch(batchId);
+    hideBoxMessage('import-message');
+    document.getElementById('import-batch').textContent = '目标批次：' + (batch ? text(batch.batchName) : ('#' + batchId));
+    document.getElementById('import-csv').value = '';
+    document.getElementById('import-save').setAttribute('data-batch-id', String(batchId));
+    openDialog('import-dialog');
+  }
+
+  async function saveImport() {
+    const batchId = document.getElementById('import-save').getAttribute('data-batch-id');
+    const csv = document.getElementById('import-csv').value.trim();
+    if (!csv) { showBoxMessage('import-message', '请粘贴名单 CSV（每行「学号,姓名」）。', 'error'); return; }
+    const result = await callApi('/api/psyche/batches/' + encodeURIComponent(batchId) + '/tasks/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ csv: csv })
+    });
+    if (!result || result.code !== 200) {
+      showBoxMessage('import-message', (result && result.message) || '导入失败，请稍后再试。', 'error');
+      return;
+    }
+    const data = result.data || {};
+    closeDialog('import-dialog');
+    showMessage('导入完成：新增 ' + text(data.created) + ' 条，跳过 ' + text(data.skipped) + ' 条，未匹配 ' + text(data.notFound) + ' 条。', 'success');
+    await loadTasks(1);
+  }
+
+  // ============================================================ 关注台账
+  async function loadFocus(page) {
+    if (page) { PAGE.focus = page; }
+    const params = new URLSearchParams();
+    params.set('page', String(PAGE.focus));
+    params.set('size', String(SIZE));
+    const level = document.getElementById('focus-level').value;
+    const status = document.getElementById('focus-status').value;
+    const className = document.getElementById('focus-class').value.trim();
+    const keyword = document.getElementById('focus-keyword').value.trim();
+    if (level) { params.set('level', level); }
+    if (status) { params.set('status', status); }
+    if (className) { params.set('className', className); }
+    if (keyword) { params.set('keyword', keyword); }
+    const result = await callApi('/api/psyche/focus?' + params.toString());
+    if (!result || result.code !== 200) {
+      if (result && result.message) { showMessage(result.message, 'error'); }
+      return;
+    }
+    const data = result.data || {};
+    const rows = data.list || [];
+    TOTAL.focus = Number(data.total) || 0;
+    rememberStudents(rows);
+    document.getElementById('focus-count').textContent = '共 ' + TOTAL.focus + ' 条';
+    renderFocus(rows);
+    renderPager('focus');
+    document.getElementById('focus-total').textContent = pageText('focus', rows.length);
+  }
+
+  function renderFocus(rows) {
+    const host = document.getElementById('focus-list');
+    if (!rows.length) {
+      host.innerHTML = '';
+      document.getElementById('focus-empty').classList.remove('hidden');
+      return;
+    }
+    document.getElementById('focus-empty').classList.add('hidden');
+    host.innerHTML = rows.map(function (row) {
+      const source = FOCUS_SOURCE[row.source] || row.source;
+      return '<tr class="border-b border-base-200">'
+          + '<td class="py-2 pr-4"><span class="block font-semibold">' + escapeHtml(text(row.studentName)) + '</span>'
+          + '<span class="block font-mono text-[10px] text-base-content/60">' + escapeHtml(text(row.studentNo)) + ' · ' + escapeHtml(text(row.className)) + '</span></td>'
+          + '<td class="py-2 pr-4">' + badge(FOCUS_LEVEL, row.level) + '</td>'
+          + '<td class="py-2 pr-4">' + escapeHtml(text(source)) + '</td>'
+          + '<td class="py-2 pr-4">' + escapeHtml(text(row.summary)) + '</td>'
+          + '<td class="py-2 pr-4">' + escapeHtml(text(row.measures)) + '</td>'
+          + '<td class="py-2 pr-4">' + escapeHtml(text(row.counselorName)) + '</td>'
+          + '<td class="py-2 pr-4">' + badge(FOCUS_STATUS, row.status) + '</td>'
+          + '<td class="py-2 pr-4"><div class="flex flex-wrap items-center gap-1">'
+          + '<button class="btn btn-ghost btn-xs rounded-full" data-focus-edit="' + escapeHtml(row.id) + '" type="button">修改</button>'
+          + '<button class="btn btn-ghost btn-xs rounded-full" data-focus-follow="' + escapeHtml(row.id) + '" type="button">跟进留痕</button>'
+          + '</div></td>'
+          + '</tr>';
+    }).join('');
+
+    host.querySelectorAll('[data-focus-edit]').forEach(function (button) {
+      button.addEventListener('click', function () { openFocusDialog(findRow(rows, this.getAttribute('data-focus-edit'))); });
+    });
+    host.querySelectorAll('[data-focus-follow]').forEach(function (button) {
+      button.addEventListener('click', function () { openFollowDialog(findRow(rows, this.getAttribute('data-focus-follow'))); });
+    });
+  }
+
+  function openFocusDialog(row) {
+    hideBoxMessage('focus-message');
+    fillBatchSelects();
+    const editing = !!row;
+    document.getElementById('focus-title').textContent = editing ? ('修改关注台账 #' + row.id) : '登记关注';
+    document.getElementById('focus-status-wrap').classList.toggle('hidden', !editing);
+    document.getElementById('focus-student-manual').value = '';
+    if (editing) {
+      document.getElementById('focus-student').value = row.studentId ? String(row.studentId) : '';
+      document.getElementById('focus-student').disabled = true;
+      document.getElementById('focus-level-input').value = row.level || 'general';
+      document.getElementById('focus-source').value = row.source || 'task';
+      document.getElementById('focus-source').disabled = true;
+      document.getElementById('focus-batch').value = row.batchId ? String(row.batchId) : '';
+      document.getElementById('focus-counselor').value = row.counselorId ? String(row.counselorId) : '';
+      document.getElementById('focus-status-input').value = row.status || 'open';
+      document.getElementById('focus-summary').value = row.summary || '';
+      document.getElementById('focus-measures').value = row.measures || '';
+    } else {
+      document.getElementById('focus-student').value = '';
+      document.getElementById('focus-student').disabled = false;
+      document.getElementById('focus-level-input').value = 'general';
+      document.getElementById('focus-source').value = 'task';
+      document.getElementById('focus-source').disabled = false;
+      document.getElementById('focus-batch').value = '';
+      document.getElementById('focus-counselor').value = '';
+      document.getElementById('focus-status-input').value = 'open';
+      document.getElementById('focus-summary').value = '';
+      document.getElementById('focus-measures').value = '';
+    }
+    document.getElementById('focus-save').setAttribute('data-focus-id', editing ? String(row.id) : '');
+    openDialog('focus-dialog');
+  }
+
+  async function saveFocus() {
+    const id = document.getElementById('focus-save').getAttribute('data-focus-id');
+    const summary = document.getElementById('focus-summary').value.trim();
+    if (!summary) { showBoxMessage('focus-message', '请填写关注缘由。', 'error'); return; }
+    const body = {
+      level: document.getElementById('focus-level-input').value,
+      summary: summary,
+      measures: document.getElementById('focus-measures').value.trim() || null,
+      counselorId: intOrNull(document.getElementById('focus-counselor').value)
+    };
+    let url = '/api/psyche/focus';
+    let method = 'POST';
+    if (id) {
+      url = '/api/psyche/focus/' + encodeURIComponent(id);
+      method = 'PUT';
+      body.status = document.getElementById('focus-status-input').value;
+    } else {
+      const manual = intOrNull(document.getElementById('focus-student-manual').value);
+      const picked = intOrNull(document.getElementById('focus-student').value);
+      const studentId = manual || picked;
+      if (!studentId) { showBoxMessage('focus-message', '请选择学生或直接填写学号（users.id）。', 'error'); return; }
+      body.studentId = studentId;
+      body.source = document.getElementById('focus-source').value;
+      body.batchId = intOrNull(document.getElementById('focus-batch').value);
+    }
+    const result = await callApi(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!result || result.code !== 200) {
+      showBoxMessage('focus-message', (result && result.message) || '提交失败，请稍后再试。', 'error');
+      return;
+    }
+    closeDialog('focus-dialog');
+    document.getElementById('focus-student').disabled = false;
+    document.getElementById('focus-source').disabled = false;
+    showMessage(result.message || (id ? '关注台账已更新。' : '关注台账已登记。'), 'success');
+    await loadFocus();
+  }
+
+  function openFollowDialog(row) {
+    if (!row) { return; }
+    hideBoxMessage('follow-message');
+    followFocusId = row.id;
+    document.getElementById('follow-target').textContent = '学生：' + text(row.studentName) + ' · ' + text(row.studentNo)
+        + ' · 当前状态 ' + text(FOCUS_STATUS[row.status] ? FOCUS_STATUS[row.status].label : row.status)
+        + '（台账 #' + row.id + '）';
+    document.getElementById('follow-happened').value = '';
+    document.getElementById('follow-next').value = '';
+    document.getElementById('follow-content').value = '';
+    document.getElementById('follow-measures').value = '';
+    document.getElementById('follow-list').innerHTML = '';
+    openDialog('follow-dialog');
+  }
+
+  async function saveFollowup() {
+    const content = document.getElementById('follow-content').value.trim();
+    if (!content) { showBoxMessage('follow-message', '请填写跟进内容。', 'error'); return; }
+    const result = await callApi('/api/psyche/focus/' + encodeURIComponent(followFocusId) + '/followups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content: content,
+        measures: document.getElementById('follow-measures').value.trim() || null,
+        nextPlan: document.getElementById('follow-next').value.trim() || null,
+        happenedAt: toBackendTime(document.getElementById('follow-happened').value)
+      })
+    });
+    if (!result || result.code !== 200) {
+      showBoxMessage('follow-message', (result && result.message) || '提交失败，请稍后再试。', 'error');
+      return;
+    }
+    const data = result.data || {};
+    const list = data.followups || [];
+    document.getElementById('follow-list').innerHTML = list.length ? list.map(function (item) {
+      return '<div class="rounded-box border border-base-300 p-4">'
+          + '<p class="font-mono text-[10px] text-base-content/60">' + escapeHtml(formatTime(item.happenedAt)) + ' · ' + escapeHtml(text(item.operatorName)) + '</p>'
+          + '<p class="mt-2 text-sm">' + escapeHtml(text(item.content)) + '</p>'
+          + '<p class="mt-1 text-xs text-base-content/65">措施：' + escapeHtml(text(item.measures)) + ' ｜ 下一步：' + escapeHtml(text(item.nextPlan)) + '</p>'
+          + '</div>';
+    }).join('') : '<p class="text-xs text-base-content/60">后端未回传跟进流水。</p>';
+    document.getElementById('follow-content').value = '';
+    document.getElementById('follow-measures').value = '';
+    document.getElementById('follow-next').value = '';
+    showBoxMessage('follow-message', result.message || '跟进留痕已保存。', 'success');
+    await loadFocus();
+  }
+
+  // ============================================================ 预约排期
+  async function loadAppts(page) {
+    if (page) { PAGE.appt = page; }
+    const params = new URLSearchParams();
+    params.set('page', String(PAGE.appt));
+    params.set('size', String(SIZE));
+    const status = document.getElementById('appt-status').value;
+    const mode = document.getElementById('appt-mode').value;
+    const keyword = document.getElementById('appt-keyword').value.trim();
+    if (status) { params.set('status', status); }
+    if (mode) { params.set('mode', mode); }
+    if (keyword) { params.set('keyword', keyword); }
+    const result = await callApi('/api/psyche/appointments?' + params.toString());
+    if (!result || result.code !== 200) {
+      if (result && result.message) { showMessage(result.message, 'error'); }
+      return;
+    }
+    const data = result.data || {};
+    const rows = data.list || [];
+    TOTAL.appt = Number(data.total) || 0;
+    rememberStudents(rows);
+    document.getElementById('appt-count').textContent = '共 ' + TOTAL.appt + ' 条';
+    renderAppts(rows);
+    renderPager('appt');
+    document.getElementById('appt-total').textContent = pageText('appt', rows.length);
+  }
+
+  function renderAppts(rows) {
+    const host = document.getElementById('appt-list');
+    if (!rows.length) {
+      host.innerHTML = '';
+      document.getElementById('appt-empty').classList.remove('hidden');
+      return;
+    }
+    document.getElementById('appt-empty').classList.add('hidden');
+    host.innerHTML = rows.map(function (row) {
+      const actions = [];
+      if (row.status === 'requested') {
+        actions.push('<button class="btn btn-ghost btn-xs rounded-full" data-appt-confirm="' + escapeHtml(row.id) + '" type="button">确认</button>');
+      }
+      if (row.status === 'confirmed') {
+        actions.push('<button class="btn btn-ghost btn-xs rounded-full" data-appt-complete="' + escapeHtml(row.id) + '" type="button">登记完成</button>');
+      }
+      if (row.status === 'requested' || row.status === 'confirmed') {
+        actions.push('<button class="btn btn-ghost btn-xs rounded-full" data-appt-cancel="' + escapeHtml(row.id) + '" type="button">取消</button>');
+      }
+      const extra = [];
+      if (Number(row.renewedFrom) > 0) { extra.push('续约自 #' + row.renewedFrom); }
+      if (row.cancelReason) { extra.push('原因：' + row.cancelReason); }
+      if (Number(row.renewedFrom) <= 0 && !row.cancelReason) { extra.push('—'); }
+      return '<tr class="border-b border-base-200">'
+          + '<td class="py-2 pr-4"><span class="block font-semibold">' + escapeHtml(text(row.studentName)) + '</span>'
+          + '<span class="block font-mono text-[10px] text-base-content/60">' + escapeHtml(text(row.studentNo)) + ' · ' + escapeHtml(text(row.className)) + '</span></td>'
+          + '<td class="py-2 pr-4 font-mono text-[11px]">' + escapeHtml(formatTime(row.expectStart)) + '</td>'
+          + '<td class="py-2 pr-4">' + escapeHtml(text(MODE_LABEL[row.mode] || row.mode)) + ' · ' + escapeHtml(text(row.durationMinutes)) + ' 分钟</td>'
+          + '<td class="py-2 pr-4">' + badge(APPT_STATUS, row.status) + '</td>'
+          + '<td class="py-2 pr-4">' + escapeHtml(text(row.counselorName)) + '</td>'
+          + '<td class="py-2 pr-4 text-xs text-base-content/65">' + escapeHtml(extra.join(' · ')) + '</td>'
+          + '<td class="py-2 pr-4"><div class="flex flex-wrap items-center gap-1">' + actions.join('') + '</div></td>'
+          + '</tr>';
+    }).join('');
+
+    host.querySelectorAll('[data-appt-confirm]').forEach(function (button) {
+      button.addEventListener('click', function () { confirmAppt(this.getAttribute('data-appt-confirm')); });
+    });
+    host.querySelectorAll('[data-appt-complete]').forEach(function (button) {
+      button.addEventListener('click', function () { openCompleteDialog(findRow(rows, this.getAttribute('data-appt-complete'))); });
+    });
+    host.querySelectorAll('[data-appt-cancel]').forEach(function (button) {
+      button.addEventListener('click', function () { openApptCancelDialog(findRow(rows, this.getAttribute('data-appt-cancel'))); });
+    });
+  }
+
+  async function confirmAppt(id) {
+    const result = await callApi('/api/psyche/appointments/' + encodeURIComponent(id) + '/confirm', { method: 'POST' });
+    if (!result || result.code !== 200) { showMessage((result && result.message) || '确认失败。', 'error'); return; }
+    showMessage(result.message || '预约已确认。', 'success');
+    await loadAppts();
+  }
+
+  function openCompleteDialog(row) {
+    if (!row) { return; }
+    hideBoxMessage('complete-message');
+    document.getElementById('complete-target').textContent = '学生：' + text(row.studentName) + ' · ' + text(row.expectStart)
+        + ' · ' + text(MODE_LABEL[row.mode] || row.mode) + '（预约 #' + row.id + '）';
+    document.getElementById('complete-minutes').value = text(row.durationMinutes) === '—' ? '50' : String(row.durationMinutes);
+    document.getElementById('complete-save').setAttribute('data-appt-id', String(row.id));
+    openDialog('complete-dialog');
+  }
+
+  async function saveComplete() {
+    const id = document.getElementById('complete-save').getAttribute('data-appt-id');
+    const result = await callApi('/api/psyche/appointments/' + encodeURIComponent(id) + '/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ durationMinutes: intOrNull(document.getElementById('complete-minutes').value) })
+    });
+    if (!result || result.code !== 200) {
+      showBoxMessage('complete-message', (result && result.message) || '提交失败，请稍后再试。', 'error');
+      return;
+    }
+    closeDialog('complete-dialog');
+    showMessage(result.message || '预约已完成。', 'success');
+    await loadAppts();
+  }
+
+  function openApptCancelDialog(row) {
+    if (!row) { return; }
+    hideBoxMessage('acancel-message');
+    document.getElementById('acancel-target').textContent = '学生：' + text(row.studentName) + ' · ' + text(row.expectStart) + '（预约 #' + row.id + '）';
+    document.getElementById('acancel-reason').value = '';
+    document.getElementById('acancel-save').setAttribute('data-appt-id', String(row.id));
+    openDialog('acancel-dialog');
+  }
+
+  async function saveApptCancel() {
+    const id = document.getElementById('acancel-save').getAttribute('data-appt-id');
+    const reason = document.getElementById('acancel-reason').value.trim();
+    if (reason.length > 500) { showBoxMessage('acancel-message', '取消原因不能超过 500 个字符。', 'error'); return; }
+    const result = await callApi('/api/psyche/appointments/' + encodeURIComponent(id) + '/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cancelReason: reason })
+    });
+    if (!result || result.code !== 200) {
+      showBoxMessage('acancel-message', (result && result.message) || '取消失败，请稍后再试。', 'error');
+      return;
+    }
+    closeDialog('acancel-dialog');
+    showMessage(result.message || '预约已取消。', 'success');
+    await loadAppts();
+  }
+
+  // ============================================================ 转介登记
+  async function loadRefs(page) {
+    if (page) { PAGE.ref = page; }
+    const params = new URLSearchParams();
+    params.set('page', String(PAGE.ref));
+    params.set('size', String(SIZE));
+    const target = document.getElementById('ref-target-filter').value;
+    const status = document.getElementById('ref-status-filter').value;
+    if (target) { params.set('target', target); }
+    if (status) { params.set('status', status); }
+    const result = await callApi('/api/psyche/referrals?' + params.toString());
+    if (!result || result.code !== 200) {
+      if (result && result.message) { showMessage(result.message, 'error'); }
+      return;
+    }
+    const data = result.data || {};
+    const rows = data.list || [];
+    TOTAL.ref = Number(data.total) || 0;
+    rememberStudents(rows);
+    document.getElementById('ref-count').textContent = '共 ' + TOTAL.ref + ' 条';
+    renderRefs(rows);
+    renderPager('ref');
+    document.getElementById('ref-total').textContent = pageText('ref', rows.length);
+  }
+
+  function renderRefs(rows) {
+    const host = document.getElementById('ref-list');
+    if (!rows.length) {
+      host.innerHTML = '';
+      document.getElementById('ref-empty').classList.remove('hidden');
+      return;
+    }
+    document.getElementById('ref-empty').classList.add('hidden');
+    host.innerHTML = rows.map(function (row) {
+      return '<tr class="border-b border-base-200">'
+          + '<td class="py-2 pr-4"><span class="block font-semibold">' + escapeHtml(text(row.studentName)) + '</span>'
+          + '<span class="block font-mono text-[10px] text-base-content/60">' + escapeHtml(text(row.studentNo)) + ' · ' + escapeHtml(text(row.className)) + '</span></td>'
+          + '<td class="py-2 pr-4">' + escapeHtml(text(REF_SOURCE[row.sourceType] || row.sourceType)) + (row.sourceId ? ' #' + escapeHtml(text(row.sourceId)) : '') + '</td>'
+          + '<td class="py-2 pr-4">' + escapeHtml(text(REF_TARGET[row.target] || row.target)) + '</td>'
+          + '<td class="py-2 pr-4">' + escapeHtml(text(row.reason)) + '</td>'
+          + '<td class="py-2 pr-4 text-xs text-base-content/65">' + escapeHtml(text(row.referredByName)) + '<br/>' + escapeHtml(formatTime(row.referredAt)) + '</td>'
+          + '<td class="py-2 pr-4">' + badge(REF_STATUS, row.status) + '</td>'
+          + '<td class="py-2 pr-4">' + escapeHtml(text(row.followNote)) + '</td>'
+          + '<td class="py-2 pr-4"><button class="btn btn-ghost btn-xs rounded-full" data-ref-edit="' + escapeHtml(row.id) + '" type="button">修改</button></td>'
+          + '</tr>';
+    }).join('');
+
+    host.querySelectorAll('[data-ref-edit]').forEach(function (button) {
+      button.addEventListener('click', function () { openRefDialog(findRow(rows, this.getAttribute('data-ref-edit'))); });
+    });
+  }
+
+  function openRefDialog(row) {
+    hideBoxMessage('ref-message');
+    const editing = !!row;
+    document.getElementById('ref-title').textContent = editing ? ('修改转介登记 #' + row.id) : '登记转介';
+    document.getElementById('ref-status-wrap').classList.toggle('hidden', !editing);
+    document.getElementById('ref-follow-wrap').classList.toggle('hidden', !editing);
+    document.getElementById('ref-student-manual').value = '';
+    if (editing) {
+      document.getElementById('ref-student').value = row.studentId ? String(row.studentId) : '';
+      document.getElementById('ref-student').disabled = true;
+      document.getElementById('ref-source-type').value = row.sourceType || 'focus';
+      document.getElementById('ref-source-type').disabled = true;
+      document.getElementById('ref-source-id').value = row.sourceId ? String(row.sourceId) : '';
+      document.getElementById('ref-source-id').disabled = true;
+      document.getElementById('ref-target').value = row.target || 'campus';
+      document.getElementById('ref-reason').value = row.reason || '';
+      document.getElementById('ref-status-input').value = row.status || 'open';
+      document.getElementById('ref-follow-note').value = row.followNote || '';
+    } else {
+      document.getElementById('ref-student').value = '';
+      document.getElementById('ref-student').disabled = false;
+      document.getElementById('ref-source-type').value = 'focus';
+      document.getElementById('ref-source-type').disabled = false;
+      document.getElementById('ref-source-id').value = '';
+      document.getElementById('ref-source-id').disabled = false;
+      document.getElementById('ref-target').value = 'campus';
+      document.getElementById('ref-reason').value = '';
+      document.getElementById('ref-status-input').value = 'open';
+      document.getElementById('ref-follow-note').value = '';
+    }
+    document.getElementById('ref-save').setAttribute('data-ref-id', editing ? String(row.id) : '');
+    openDialog('ref-dialog');
+  }
+
+  async function saveRef() {
+    const id = document.getElementById('ref-save').getAttribute('data-ref-id');
+    const reason = document.getElementById('ref-reason').value.trim();
+    if (!reason) { showBoxMessage('ref-message', '请填写转介原因。', 'error'); return; }
+    let url = '/api/psyche/referrals';
+    let method = 'POST';
+    let body = { target: document.getElementById('ref-target').value, reason: reason };
+    if (id) {
+      url = '/api/psyche/referrals/' + encodeURIComponent(id);
+      method = 'PUT';
+      body.status = document.getElementById('ref-status-input').value;
+      body.followNote = document.getElementById('ref-follow-note').value.trim() || null;
+    } else {
+      const manual = intOrNull(document.getElementById('ref-student-manual').value);
+      const picked = intOrNull(document.getElementById('ref-student').value);
+      const studentId = manual || picked;
+      if (!studentId) { showBoxMessage('ref-message', '请选择学生或直接填写学号（users.id）。', 'error'); return; }
+      body = {
+        studentId: studentId,
+        sourceType: document.getElementById('ref-source-type').value,
+        sourceId: intOrNull(document.getElementById('ref-source-id').value),
+        target: document.getElementById('ref-target').value,
+        reason: reason
+      };
+    }
+    const result = await callApi(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!result || result.code !== 200) {
+      showBoxMessage('ref-message', (result && result.message) || '提交失败，请稍后再试。', 'error');
+      return;
+    }
+    closeDialog('ref-dialog');
+    document.getElementById('ref-student').disabled = false;
+    document.getElementById('ref-source-type').disabled = false;
+    document.getElementById('ref-source-id').disabled = false;
+    showMessage(result.message || (id ? '转介登记已更新。' : '转介登记已创建。'), 'success');
+    await loadRefs();
+  }
+
+  // ============================================================ 导出
+  // 已知边界：/api/psyche/export 未登录时返回 302 → 登录页；fetch 会跟随跳转，
+  // 于是拿到的是登录页 HTML（Content-Type: text/html），而不是 CSV。
+  // 这里用 Content-Type 兜住这两种情况，避免存下一个 .csv 后缀的 HTML 文件。
+  async function exportCsv(type, batchId, fileName) {
+    let url = '/api/psyche/export?type=' + encodeURIComponent(type);
+    if (batchId) { url += '&batchId=' + encodeURIComponent(batchId); }
+    let response;
+    try {
+      response = await fetch(url, { credentials: 'same-origin' });
+    } catch (error) {
+      showMessage('导出失败：无法连接服务，请稍后再试。', 'error');
+      return;
+    }
+    const contentType = response.headers.get('Content-Type') || '';
+    if (contentType.indexOf('json') >= 0) {
+      let result = null;
+      try { result = await response.json(); } catch (error) { result = null; }
+      if (result && result.code === 401) { window.location.href = 'login.html'; return; }
+      showMessage((result && result.message) || '导出失败：当前账号没有导出权限。', 'error');
+      return;
+    }
+    if (contentType.indexOf('html') >= 0) {
+      showMessage('导出失败：请求被重定向到了登录页（导出接口在未登录时 302 → 登录页，返回的是 HTML）。请重新登录后重试。', 'error');
+      return;
+    }
+    if (!response.ok) {
+      showMessage('导出失败：服务返回 ' + response.status + '，请稍后再试。', 'error');
+      return;
+    }
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 1000);
+    showMessage('已开始下载 ' + fileName + '（CSV 带 UTF-8 BOM，姓名与学号已脱敏）。', 'success');
+  }
+
+  // ============================================================ 事件绑定
+  document.getElementById('logout-btn').addEventListener('click', async function () {
+    try { await callApi('/api/auth/logout', { method: 'POST' }); } catch (error) { /* 忽略：无论如何都回登录页 */ }
+    window.location.href = 'login.html';
+  });
+
+  document.getElementById('tab-batch').addEventListener('click', function () { switchTab('batch'); });
+  document.getElementById('tab-tasks').addEventListener('click', function () { switchTab('tasks'); });
+  document.getElementById('tab-focus').addEventListener('click', function () { switchTab('focus'); });
+  document.getElementById('tab-appt').addEventListener('click', function () { switchTab('appt'); });
+  document.getElementById('tab-ref').addEventListener('click', function () { switchTab('ref'); });
+  document.getElementById('tab-export').addEventListener('click', function () { switchTab('export'); });
+
+  document.getElementById('batch-search').addEventListener('click', function () { loadBatches(); });
+  document.getElementById('batch-refresh').addEventListener('click', function () { loadBatches(); });
+  document.getElementById('batch-new').addEventListener('click', function () { openBatchDialog(null); });
+  document.getElementById('batch-save').addEventListener('click', function () { saveBatch(); });
+  document.getElementById('batch-close-btn').addEventListener('click', function () { closeDialog('batch-dialog'); });
+
+  document.getElementById('inst-refresh').addEventListener('click', function () { loadInstruments(); });
+  document.getElementById('inst-new').addEventListener('click', function () { openInstrumentDialog(); });
+  document.getElementById('inst-save').addEventListener('click', function () { saveInstrument(); });
+  document.getElementById('inst-close-btn').addEventListener('click', function () { closeDialog('inst-dialog'); });
+
+  document.getElementById('tasks-refresh').addEventListener('click', function () { loadTasks(); });
+  document.getElementById('tasks-search').addEventListener('click', function () { loadTasks(1); });
+  document.getElementById('tasks-batch').addEventListener('change', function () { loadTasks(1); });
+  document.getElementById('tasks-import').addEventListener('click', function () { openImportDialog(); });
+  document.getElementById('tasks-export').addEventListener('click', function () {
+    const batchId = document.getElementById('tasks-batch').value;
+    exportCsv('tasks', batchId || null, batchId ? ('psyche-tasks-' + batchId + '.csv') : 'psyche-tasks.csv');
+  });
+  document.getElementById('tasks-prev').addEventListener('click', function () {
+    if (PAGE.tasks > 1) { loadTasks(PAGE.tasks - 1); }
+  });
+  document.getElementById('tasks-next').addEventListener('click', function () {
+    if (PAGE.tasks < pagesOf('tasks')) { loadTasks(PAGE.tasks + 1); }
+  });
+  document.getElementById('import-save').addEventListener('click', function () { saveImport(); });
+  document.getElementById('import-close-btn').addEventListener('click', function () { closeDialog('import-dialog'); });
+  document.getElementById('interview-save').addEventListener('click', function () { saveInterview(); });
+  document.getElementById('interview-close-btn').addEventListener('click', function () { closeDialog('interview-dialog'); });
+  document.getElementById('result-save').addEventListener('click', function () { saveResult(); });
+  document.getElementById('result-close-btn').addEventListener('click', function () { closeDialog('result-dialog'); });
+
+  document.getElementById('focus-refresh').addEventListener('click', function () { loadFocus(); });
+  document.getElementById('focus-search').addEventListener('click', function () { loadFocus(1); });
+  document.getElementById('focus-new').addEventListener('click', function () { openFocusDialog(null); });
+  document.getElementById('focus-save').addEventListener('click', function () { saveFocus(); });
+  document.getElementById('focus-close-btn').addEventListener('click', function () { closeDialog('focus-dialog'); });
+  document.getElementById('focus-prev').addEventListener('click', function () {
+    if (PAGE.focus > 1) { loadFocus(PAGE.focus - 1); }
+  });
+  document.getElementById('focus-next').addEventListener('click', function () {
+    if (PAGE.focus < pagesOf('focus')) { loadFocus(PAGE.focus + 1); }
+  });
+  document.getElementById('follow-save').addEventListener('click', function () { saveFollowup(); });
+  document.getElementById('follow-close-btn').addEventListener('click', function () { closeDialog('follow-dialog'); });
+
+  document.getElementById('appt-refresh').addEventListener('click', function () { loadAppts(); });
+  document.getElementById('appt-search').addEventListener('click', function () { loadAppts(1); });
+  document.getElementById('appt-prev').addEventListener('click', function () {
+    if (PAGE.appt > 1) { loadAppts(PAGE.appt - 1); }
+  });
+  document.getElementById('appt-next').addEventListener('click', function () {
+    if (PAGE.appt < pagesOf('appt')) { loadAppts(PAGE.appt + 1); }
+  });
+  document.getElementById('complete-save').addEventListener('click', function () { saveComplete(); });
+  document.getElementById('complete-close-btn').addEventListener('click', function () { closeDialog('complete-dialog'); });
+  document.getElementById('acancel-save').addEventListener('click', function () { saveApptCancel(); });
+  document.getElementById('acancel-close').addEventListener('click', function () { closeDialog('acancel-dialog'); });
+
+  document.getElementById('ref-refresh').addEventListener('click', function () { loadRefs(); });
+  document.getElementById('ref-search').addEventListener('click', function () { loadRefs(1); });
+  document.getElementById('ref-new').addEventListener('click', function () { openRefDialog(null); });
+  document.getElementById('ref-save').addEventListener('click', function () { saveRef(); });
+  document.getElementById('ref-close-btn').addEventListener('click', function () { closeDialog('ref-dialog'); });
+  document.getElementById('ref-prev').addEventListener('click', function () {
+    if (PAGE.ref > 1) { loadRefs(PAGE.ref - 1); }
+  });
+  document.getElementById('ref-next').addEventListener('click', function () {
+    if (PAGE.ref < pagesOf('ref')) { loadRefs(PAGE.ref + 1); }
+  });
+
+  document.getElementById('export-tasks').addEventListener('click', function () {
+    const batchId = document.getElementById('export-batch').value;
+    exportCsv('tasks', batchId || null, batchId ? ('psyche-tasks-' + batchId + '.csv') : 'psyche-tasks.csv');
+  });
+  document.getElementById('export-focus').addEventListener('click', function () {
+    exportCsv('focus', null, 'psyche-focus.csv');
+  });
+  document.getElementById('export-appts').addEventListener('click', function () {
+    exportCsv('appointments', null, 'psyche-appointments.csv');
+  });
+
+  // ============================================================ 启动
+  clearMessage();
+  const me = await checkAuth();
+  if (!me) { return; }
+  if (ROLE !== 'admin') {
+    document.getElementById('batch-new').classList.add('hidden');
+    document.getElementById('batch-perm-note').textContent = '批次与量表的新建 / 修改 / 发布 / 关闭为仅管理员操作（后端 guardAdmin 校验），当前账号为辅导员，只能查看批次与量表。';
+  }
+  await loadStats();
+  await loadBatches();
+  await loadInstruments();
+  await switchTab('batch');
+})();
+</script>
+
+<script defer src="/js/nest-ui.js"></script>
+<script defer src="/libs/animejs/anime.umd.min.js"></script>
+<script defer src="/libs/countup/countUp.umd.js"></script>
+<script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+<script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+<script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+</body>
+</html>

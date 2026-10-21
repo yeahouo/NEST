@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.ClubRatingMapper">
+
+    <!-- 社团星级登记（学工 P17，S25b）。business_unit = 业务指导单位，
+         与 club.attach_unit「挂靠单位」口径不同（§2），此处只出现 business_unit。
+         社团名由 JOIN club 带出；登记人姓名不在响应字段内（§5 club_rating 只要 businessUnit/basisNote）。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.ClubRating">
+        <id column="id" property="id"/>
+        <result column="club_id" property="clubId"/>
+        <result column="school_year" property="schoolYear"/>
+        <result column="star_level" property="starLevel"/>
+        <result column="business_unit" property="businessUnit"/>
+        <result column="basis_note" property="basisNote"/>
+        <result column="publicity_id" property="publicityId"/>
+        <result column="register_user_id" property="registerUserId"/>
+        <result column="register_time" property="registerTime"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="club_name" property="clubName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        t.id, t.club_id, t.school_year, t.star_level, t.business_unit, t.basis_note,
+        t.publicity_id, t.register_user_id, t.register_time,
+        t.created_at, t.updated_at, t.deleted,
+        c.club_name AS club_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM club_rating t
+        LEFT JOIN club c ON c.id = t.club_id AND c.deleted = 0
+    </sql>
+
+    <sql id="List_Filters">
+        <!-- scope（§6）：星级按 club_id 归属；scopeUserId 限定为该学生所属社团的星级；
+             scopeCounselorId 限定为「该辅导员名下有学生是成员」的社团 -->
+        <if test="scopeUserId != null">
+            AND EXISTS (SELECT 1 FROM club_member sm
+                        WHERE sm.club_id = t.club_id AND sm.user_id = #{scopeUserId}
+                          AND sm.deleted = 0 AND sm.quit_date IS NULL)
+        </if>
+        <if test="scopeCounselorId != null">
+            AND EXISTS (SELECT 1 FROM club_member cm
+                        JOIN student_profile csp ON csp.user_id = cm.user_id AND csp.deleted = 0
+                        WHERE cm.club_id = t.club_id AND cm.deleted = 0 AND cm.quit_date IS NULL
+                          AND csp.counselor_id = #{scopeCounselorId})
+        </if>
+        <if test="clubId != null">AND t.club_id = #{clubId}</if>
+        <if test="schoolYear != null and schoolYear != ''">AND t.school_year = #{schoolYear}</if>
+        <if test="starLevel != null and starLevel != ''">AND t.star_level = #{starLevel}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (c.club_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR t.business_unit LIKE CONCAT('%', #{keyword}, '%')
+                 OR t.basis_note LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.ClubRating"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO club_rating
+            (club_id, school_year, star_level, business_unit, basis_note, publicity_id,
+             register_user_id, register_time, created_at, updated_at, deleted)
+        VALUES
+            (#{clubId}, #{schoolYear}, #{starLevel}, #{businessUnit}, #{basisNote}, #{publicityId},
+             #{registerUserId}, #{registerTime}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.id = #{id} AND t.deleted = 0
+    </select>
+
+    <!-- 一个社团一个学年只有一条有效星级（前置校验） -->
+    <select id="selectByClubAndYear" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.club_id = #{clubId} AND t.school_year = #{schoolYear} AND t.deleted = 0
+        ORDER BY t.id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY t.school_year DESC, t.id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="selectCount" resultType="long">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <!-- 增量修改（动态 set）：club_id 不允许改；本表无状态机，故不设 fromStatus 前置态 -->
+    <update id="update">
+        UPDATE club_rating
+        <set>
+            <if test="r.schoolYear != null">school_year = #{r.schoolYear},</if>
+            <if test="r.starLevel != null">star_level = #{r.starLevel},</if>
+            <if test="r.businessUnit != null">business_unit = #{r.businessUnit},</if>
+            <if test="r.basisNote != null">basis_note = #{r.basisNote},</if>
+            <if test="r.publicityId != null">publicity_id = #{r.publicityId},</if>
+            <if test="r.registerUserId != null">register_user_id = #{r.registerUserId},</if>
+            <if test="r.registerTime != null">register_time = #{r.registerTime},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{r.id} AND deleted = 0
+    </update>
+
+    <update id="softDelete">
+        UPDATE club_rating
+        SET deleted = 1, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <select id="countByClubAndYear" resultType="long">
+        SELECT COUNT(*)
+        FROM club_rating t
+        WHERE t.club_id = #{clubId} AND t.school_year = #{schoolYear} AND t.deleted = 0
+    </select>
+
+    <select id="countByStarLevel" resultType="long">
+        SELECT COUNT(*)
+        FROM club_rating t
+        WHERE t.deleted = 0
+        <if test="starLevel != null and starLevel != ''">AND t.star_level = #{starLevel}</if>
+    </select>
+
+    <select id="countGroupByStarLevel" resultType="java.util.LinkedHashMap">
+        SELECT t.star_level AS star_level, COUNT(*) AS total
+        FROM club_rating t
+        WHERE t.deleted = 0
+        <if test="schoolYear != null and schoolYear != ''">AND t.school_year = #{schoolYear}</if>
+        GROUP BY t.star_level
+        ORDER BY t.star_level
+    </select>
+
+</mapper>

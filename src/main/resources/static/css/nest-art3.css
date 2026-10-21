@@ -1,0 +1,168 @@
+/*! nest-art3.css — 学工平台 艺术层第三级（第二十轮：灵动有创意的现成配方）
+ *
+ *  这一层只放「有出处」的东西，并且全部离线可用（vendored 到 /libs/，零 CDN）：
+ *    · CSS-Pattern（Afif13，MIT，0 字节 JS）—— 点阵/网格/斜纹底纹，用 CSS 渐变实现
+ *    · Splitting.js v1.1.0 MIT —— 由 nest-art3.js 拆字后给 .word/.char 加状态类
+ *    · embla-carousel v8.6.0 MIT —— 横向卡片的滑动容器与左右按钮外观
+ *
+ *  设计纪律（沿用第十七/十八轮的性能与可访问性红线）：
+ *    · 只动 transform / opacity，绝不动画 filter: blur 半径（Chromium 会为每个半径编译新 shader）
+ *    · 装饰一律 pointer-events:none，绝不吃掉点击与键盘焦点
+ *    · 终态写在基础规则里；动画只放进 @media (prefers-reduced-motion: no-preference)
+ *    · 颜色一律显式 rgba / 令牌，不用 color-mix / oklch（老 Chrome 兜底）
+ */
+
+/* ── ① 共享零件：弹窗遮罩 / 图标底 / 危险胶囊 / 列表过渡 ─────────────────
+   这三个类是给「旧词汇」收口用的：老页面里写的是
+     absolute inset-0 bg-slate-900/60 backdrop-blur-sm   → .nx-scrim
+     h-14 w-14 rounded-2xl bg-gradient-to-br from-primary to-blue-400 shadow-lg shadow-primary/30 → .nx-tile-icon
+     hover:bg-red-500/10 text-red-500                     → .nx-danger-soft
+   换类名而不是改脚本，脚本里的 classList 判断不受影响。 */
+.nx-scrim {
+  background-color: rgba(9, 11, 15, .62);
+  background-image: radial-gradient(120% 90% at 50% 0%, rgba(62, 99, 221, .14), transparent 70%);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.dark .nx-scrim { background-color: rgba(0, 0, 0, .68); }
+
+.nx-tile-icon {
+  background-image: linear-gradient(135deg, var(--nx-brand-strong, #3e63dd), rgba(62, 99, 221, .62));
+  color: #fff;
+  box-shadow: var(--nx-shadow-2, 0 6px 16px rgba(20, 22, 26, .12));
+}
+
+.nx-danger-soft { color: #b4232a; }
+.nx-danger-soft:hover { background-color: rgba(229, 72, 77, .12); }
+.dark .nx-danger-soft { color: #ff8b8f; }
+.dark .nx-danger-soft:hover { background-color: rgba(255, 99, 105, .16); }
+
+/* 幽灵图标按钮：老页面写的是 hover:bg-slate-100 dark:hover:bg-slate-700，
+   换成令牌底（浅色 rgba(20,22,26,.06) / 深色 rgba(241,242,244,.09)）。 */
+.nx-icon-ghost { border-radius: 999px; transition: background-color .18s var(--ease-3, ease), color .18s var(--ease-3, ease); }
+.nx-icon-ghost:hover { background-color: rgba(20, 22, 26, .06); }
+.dark .nx-icon-ghost:hover { background-color: rgba(241, 242, 244, .09); }
+
+/* 列表增删的兜底过渡（auto-animate 加载失败时也有一点体感；不依赖 JS） */
+[data-nx-autoanimate] > * { transition: opacity .22s var(--ease-3, ease), transform .22s var(--ease-3, ease); }
+
+/* ── ② 标题拆字（Splitting.js 输出 .word > .char）────────────────────────
+   终态：可见、无位移。只有开了「不减少动效」才把初始态压下去 ——
+   否则 prefers-reduced-motion 的用户会停在 opacity:0 的空白标题上（阻断级事故）。 */
+.nx-split-line { display: block; }
+.nx-split-line .word { display: inline-block; overflow: hidden; vertical-align: bottom; }
+.nx-split-line .char { display: inline-block; will-change: transform; }
+
+@media (prefers-reduced-motion: no-preference) {
+  html:not(.nx-art3-off) .nx-split-line:not(.nx-split-in) .char {
+    opacity: 0;
+    transform: translateY(.55em) rotate(2deg);
+  }
+  html:not(.nx-art3-off) .nx-split-line.nx-split-in .char {
+    opacity: 1;
+    transform: none;
+    transition: transform .62s var(--ease-3, cubic-bezier(.22, 1, .36, 1)),
+                opacity .5s linear;
+    transition-delay: calc(var(--nx-split-i, 0) * 26ms);
+  }
+}
+
+/* ── ③ 横向卡片行（embla-carousel）───────────────────────────────────── */
+.nx-carousel { position: relative; }
+.nx-carousel-viewport { overflow: hidden; }
+.nx-carousel-track { display: flex; gap: 1.25rem; align-items: stretch; }
+.nx-carousel-track > * { flex: 0 0 auto; }
+.nx-carousel-track > .nx-card { width: min(84vw, 22rem); }
+.nx-carousel-nav {
+  position: absolute;
+  top: calc(50% - 1.25rem);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--nx-sep, rgba(24, 28, 36, .07));
+  background-color: rgba(255, 255, 255, .82);
+  color: var(--nx-ink, #14161a);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+  transition: transform .18s var(--ease-3, ease), opacity .18s linear;
+}
+.dark .nx-carousel-nav { background-color: rgba(23, 24, 28, .82); color: #f1f2f4; }
+.nx-carousel-nav:hover { transform: scale(1.06); }
+.nx-carousel-nav:focus-visible { outline: 2px solid var(--nx-brand-strong, #3e63dd); outline-offset: 2px; }
+.nx-carousel-nav[disabled] { opacity: .35; cursor: default; transform: none; }
+.nx-carousel-nav--prev { left: -0.5rem; }
+.nx-carousel-nav--next { right: -0.5rem; }
+/* 没接上 embla 时退化成原生横向滚动：仍然可用，只是没有吸附 */
+.nx-carousel-viewport[data-nx-carousel-fallback] { overflow-x: auto; scroll-snap-type: x mandatory; }
+.nx-carousel-viewport[data-nx-carousel-fallback] > .nx-carousel-track > * { scroll-snap-align: start; }
+
+/* ── ④ 底纹（CSS-Pattern by Afif13，MIT；只做背景，不吃事件）────────────
+   用法：<div class="nx-pattern nx-pattern-dots"></div>，自己加 absolute inset-0 + -z-10。 */
+.nx-pattern {
+  pointer-events: none;
+  background-repeat: repeat;
+  background-position: 0 0;
+}
+.nx-pattern-dots {
+  background-image: radial-gradient(rgba(20, 22, 26, .16) 1px, transparent 1.4px);
+  background-size: 22px 22px;
+  -webkit-mask-image: radial-gradient(70% 60% at 50% 40%, #000 35%, transparent 100%);
+  mask-image: radial-gradient(70% 60% at 50% 40%, #000 35%, transparent 100%);
+}
+.dark .nx-pattern-dots { background-image: radial-gradient(rgba(241, 242, 244, .18) 1px, transparent 1.4px); }
+.nx-pattern-grid {
+  background-image:
+    linear-gradient(to right, rgba(20, 22, 26, .07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(20, 22, 26, .07) 1px, transparent 1px);
+  background-size: 64px 64px;
+  -webkit-mask-image: radial-gradient(80% 70% at 50% 30%, #000 30%, transparent 100%);
+  mask-image: radial-gradient(80% 70% at 50% 30%, #000 30%, transparent 100%);
+}
+.dark .nx-pattern-grid {
+  background-image:
+    linear-gradient(to right, rgba(241, 242, 244, .08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(241, 242, 244, .08) 1px, transparent 1px);
+}
+.nx-pattern-diagonal {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(20, 22, 26, .05) 0 1px,
+    transparent 1px 12px
+  );
+  -webkit-mask-image: linear-gradient(to bottom, #000, transparent);
+  mask-image: linear-gradient(to bottom, #000, transparent);
+}
+.dark .nx-pattern-diagonal {
+  background-image: repeating-linear-gradient(-45deg, rgba(241, 242, 244, .06) 0 1px, transparent 1px 12px);
+}
+
+/* ── ⑤ 滚动进度条（纯 CSS + 一行 JS 在 nest-ui 里已有的 scroll 事件上写 --nx-progress） */
+.nx-scroll-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 2px;
+  z-index: 60;
+  transform: scaleX(var(--nx-progress, 0));
+  transform-origin: 0 50%;
+  background-image: linear-gradient(90deg, var(--nx-brand-strong, #3e63dd), rgba(62, 99, 221, .35));
+  pointer-events: none;
+}
+
+/* ── ⑥ 让 canvas 粒子层真的看得见（2026-10 真机差分定位，两个独立原因）
+   #nx-particles 是 z-index:-10 的 fixed 层，按绘制顺序它站在「body 自己的背景」之下：
+   body 的底色（.bg-base-100 或 .nx-page 的 --nx-canvas）在流块级背景阶段绘制，正好盖住它。
+   把 host 的 z 抬到 2147483000 后 canvas 立刻可见（differ 3017px），证明是层叠而非库问题。
+   页面底色并不因此丢失：daisyUI 的 :root 已经在 html 上画了 base-100，
+   而 --nx-canvas 与 base-100 同值（浅 #f5f3ef / 深 #0d0e11），所以 body 这层清成透明是视觉无差的。
+   注：.nx-aurora 的静态底是 body 里的一个 -z-10 兄弟层（DOM 在粒子 host 之前），同 z 按 DOM 顺序绘制，
+   因此它仍然在粒子之下、仍然可见。 */
+body.bg-base-100,
+body.nx-page {
+  background-color: transparent;
+}
+

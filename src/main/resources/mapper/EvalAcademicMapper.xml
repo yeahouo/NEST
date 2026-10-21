@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.EvalAcademicMapper">
+
+    <!-- A 台账处处要显示姓名/学号/班级/专业/年级，统一在这里 JOIN（口径与 EvalSummaryMapper 一致：
+         users.real_name 优先，空则 nickname，再空则 username），避免每个查询各写一遍 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.EvalAcademic">
+        <id column="id" property="id"/>
+        <result column="student_id" property="studentId"/>
+        <result column="academic_term" property="academicTerm"/>
+        <result column="required_avg" property="requiredAvg"/>
+        <result column="elective_avg" property="electiveAvg"/>
+        <result column="total_credits" property="totalCredits"/>
+        <result column="course_count" property="courseCount"/>
+        <result column="score_a" property="scoreA"/>
+        <result column="source" property="source"/>
+        <result column="imported_by" property="importedBy"/>
+        <result column="note" property="note"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="major" property="major"/>
+        <result column="grade" property="grade"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        a.id, a.student_id, a.academic_term, a.required_avg, a.elective_avg, a.total_credits,
+        a.course_count, a.score_a, a.source, a.imported_by, a.note, a.created_at, a.updated_at, a.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(sp.student_no, u.student_id) AS student_no,
+        COALESCE(NULLIF(sp.class_name, ''), '未填班级') AS class_name,
+        sp.major AS major,
+        sp.grade AS grade
+    </sql>
+
+    <sql id="Joined_From">
+        FROM eval_academic a
+        LEFT JOIN users u ON u.id = a.student_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = a.student_id AND sp.deleted = 0
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.EvalAcademic"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO eval_academic
+            (student_id, academic_term, required_avg, elective_avg, total_credits, course_count,
+             score_a, source, imported_by, note, created_at, updated_at, deleted)
+        VALUES
+            (#{studentId}, #{academicTerm}, #{requiredAvg}, #{electiveAvg}, #{totalCredits}, #{courseCount},
+             #{scoreA}, #{source}, #{importedBy}, #{note}, NOW(), NOW(), 0)
+    </insert>
+
+    <update id="update" parameterType="com.umi.nest.entity.EvalAcademic">
+        UPDATE eval_academic
+        SET required_avg = #{requiredAvg},
+            elective_avg = #{electiveAvg},
+            total_credits = #{totalCredits},
+            course_count = #{courseCount},
+            score_a = #{scoreA},
+            source = #{source},
+            imported_by = #{importedBy},
+            note = #{note},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <select id="findByStudentTerm" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE a.student_id = #{studentId} AND a.academic_term = #{academicTerm} AND a.deleted = 0
+        LIMIT 1
+    </select>
+
+    <!-- compute 一次取全该学期台账：μ 的最高/最低/人数、专业年级分组、M 计算都在服务层用这一份数据算，
+         避免 SQL 与 Java 各算一套口径 -->
+    <select id="listByTerm" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE a.academic_term = #{academicTerm} AND a.deleted = 0
+        ORDER BY a.student_id
+    </select>
+
+    <!-- 待补清单：在读学生里「没有台账行」或「有行但 score_a 为空」的。
+         刻意不算「已登记但 A 为 0」的（0 分也是分，不补 0 指的是不替缺数据造 0） -->
+    <select id="listMissingByTerm" resultType="java.util.Map">
+        SELECT sp.user_id AS studentId,
+               COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS studentName,
+               COALESCE(sp.student_no, u.student_id) AS studentNo,
+               COALESCE(NULLIF(sp.class_name, ''), '未填班级') AS className,
+               sp.major AS major,
+               sp.grade AS grade
+        FROM student_profile sp
+        LEFT JOIN users u ON u.id = sp.user_id AND u.deleted = 0
+        LEFT JOIN eval_academic a ON a.student_id = sp.user_id
+             AND a.academic_term = #{academicTerm} AND a.deleted = 0
+        WHERE sp.deleted = 0
+          AND sp.status = 'active'
+          AND (a.id IS NULL OR a.score_a IS NULL)
+        ORDER BY sp.major, sp.grade, sp.class_name, studentNo
+    </select>
+
+    <select id="countByTerm" resultType="int">
+        SELECT COUNT(*)
+        FROM eval_academic
+        WHERE academic_term = #{academicTerm} AND deleted = 0 AND score_a IS NOT NULL
+    </select>
+
+    <!-- CSV 导入：文件里只有学号，这里把它换成 user_id（学生档案里同号多条时取最早一条） -->
+    <select id="findUserIdByStudentNo" resultType="java.lang.Long">
+        SELECT sp.user_id
+        FROM student_profile sp
+        WHERE sp.deleted = 0 AND sp.student_no = #{studentNo}
+        ORDER BY sp.id
+        LIMIT 1
+    </select>
+
+</mapper>

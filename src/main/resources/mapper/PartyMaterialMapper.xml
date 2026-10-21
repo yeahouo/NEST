@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.PartyMaterialMapper">
+
+    <!--
+      材料清单（学工 P16）。
+
+      口径（§11.2-8）：只登记「材料名 + 应交阶段 + 已交与否 + 备注 + 附件文件名」，
+      **不生成官方表格 PDF**（三张考察表字段结构未获全文 §11.1-②，禁止臆造版式）。
+      required 只是提示口径（必备/选备），**不阻断阶段推进**（§11.2-1）。
+      material_name 只登记名称，口径取自 §11.1 有来源的名目。
+      本 XML 无裸 '<'。
+    -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.PartyMaterial">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="material_name" property="materialName"/>
+        <result column="stage" property="stage"/>
+        <result column="required" property="required"/>
+        <result column="submitted" property="submitted"/>
+        <result column="submit_date" property="submitDate"/>
+        <result column="attachment_name" property="attachmentName"/>
+        <result column="note" property="note"/>
+        <result column="rule_ref" property="ruleRef"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="user_name" property="userName"/>
+        <result column="student_no" property="studentNo"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        m.id, m.user_id, m.material_name, m.stage, m.required, m.submitted, m.submit_date,
+        m.attachment_name, m.note, m.rule_ref, m.created_by, m.created_at, m.updated_at, m.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.username) AS user_name,
+        u.student_id AS student_no
+    </sql>
+
+    <sql id="Joined_From">
+        FROM party_material m
+        LEFT JOIN users u ON u.id = m.user_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = m.user_id AND sp.deleted = 0
+    </sql>
+
+    <sql id="List_Filters">
+        <if test="userId != null">AND m.user_id = #{userId}</if>
+        <!-- 辅导员范围：只见 student_profile.counselor_id 名下学生（§11.2-5） -->
+        <if test="counselorId != null">AND sp.counselor_id = #{counselorId}</if>
+        <if test="stage != null and stage != ''">AND m.stage = #{stage}</if>
+        <if test="submitted != null">AND m.submitted = #{submitted}</if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.PartyMaterial" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO party_material
+            (user_id, material_name, stage, required, submitted, submit_date,
+             attachment_name, note, rule_ref, created_by, created_at, updated_at, deleted)
+        VALUES
+            (#{userId}, #{materialName}, #{stage}, #{required}, #{submitted}, #{submitDate},
+             #{attachmentName}, #{note}, #{ruleRef}, #{createdBy}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE m.id = #{id} AND m.deleted = 0
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE m.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY m.stage ASC, m.id ASC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE m.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <!-- 增量修改：不含 user_id / stage（材料所属学生与应交阶段一经登记不改） -->
+    <update id="update">
+        UPDATE party_material
+        SET material_name = #{material.materialName},
+            required = #{material.required},
+            submitted = #{material.submitted},
+            submit_date = #{material.submitDate},
+            attachment_name = #{material.attachmentName},
+            note = #{material.note},
+            rule_ref = #{material.ruleRef},
+            updated_at = NOW()
+        WHERE id = #{material.id} AND deleted = 0
+    </update>
+
+    <!-- 交件/退件登记 -->
+    <update id="submit">
+        UPDATE party_material
+        SET submitted = #{submitted},
+            submit_date = #{submitDate},
+            attachment_name = #{attachmentName},
+            note = #{note},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <select id="countGroupByStage" resultType="java.util.LinkedHashMap">
+        SELECT m.stage AS stage,
+               COUNT(*) AS total,
+               SUM(CASE WHEN m.submitted = 1 THEN 1 ELSE 0 END) AS submitted_total
+        FROM party_material m
+        WHERE m.deleted = 0
+        GROUP BY m.stage
+        ORDER BY m.stage
+    </select>
+
+    <select id="countSubmittedByUserAndStage" resultType="long">
+        SELECT COUNT(*)
+        FROM party_material m
+        WHERE m.user_id = #{userId} AND m.stage = #{stage} AND m.deleted = 0 AND m.submitted = 1
+    </select>
+
+</mapper>

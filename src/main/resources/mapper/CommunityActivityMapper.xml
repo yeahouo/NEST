@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.CommunityActivityMapper">
+
+    <!-- 社区活动（学工 P15）。signup_count 只统计未驳回的报名，便于直接展示名额占用。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.CommunityActivity">
+        <id column="id" property="id"/>
+        <result column="title" property="title"/>
+        <result column="activity_type" property="activityType"/>
+        <result column="term" property="term"/>
+        <result column="level" property="level"/>
+        <result column="start_at" property="startAt"/>
+        <result column="end_at" property="endAt"/>
+        <result column="location" property="location"/>
+        <result column="signup_deadline" property="signupDeadline"/>
+        <result column="quota" property="quota"/>
+        <result column="content" property="content"/>
+        <result column="host" property="host"/>
+        <result column="status" property="status"/>
+        <result column="notice_url" property="noticeUrl"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="created_by_name" property="createdByName"/>
+        <result column="signup_count" property="signupCount"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        a.id, a.title, a.activity_type, a.term, a.level, a.start_at, a.end_at, a.location,
+        a.signup_deadline, a.quota, a.content, a.host, a.status, a.notice_url, a.created_by,
+        a.created_at, a.updated_at, a.deleted,
+        COALESCE(NULLIF(c.real_name, ''), c.nickname, c.username) AS created_by_name,
+        (SELECT COUNT(*) FROM community_activity_signup s
+          WHERE s.activity_id = a.id AND s.deleted = 0 AND s.status != 'rejected') AS signup_count
+    </sql>
+
+    <sql id="Joined_From">
+        FROM community_activity a
+        LEFT JOIN users c ON c.id = a.created_by
+    </sql>
+
+    <sql id="List_Filters">
+        <if test="term != null and term != ''">AND a.term = #{term}</if>
+        <if test="activityType != null and activityType != ''">AND a.activity_type = #{activityType}</if>
+        <if test="level != null and level != ''">AND a.level = #{level}</if>
+        <if test="status != null and status != ''">AND a.status = #{status}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (a.title LIKE CONCAT('%', #{keyword}, '%')
+                 OR a.host LIKE CONCAT('%', #{keyword}, '%')
+                 OR a.location LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <!-- 学生端看不到草稿与已取消的活动 -->
+        <if test="hideDraft">AND a.status != 'draft' AND a.status != 'cancelled'</if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.CommunityActivity" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO community_activity
+            (title, activity_type, term, level, start_at, end_at, location, signup_deadline,
+             quota, content, host, status, notice_url, created_by, created_at, updated_at, deleted)
+        VALUES
+            (#{title}, #{activityType}, #{term}, #{level}, #{startAt}, #{endAt}, #{location}, #{signupDeadline},
+             #{quota}, #{content}, #{host}, #{status}, #{noticeUrl}, #{createdBy}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE a.id = #{id} AND a.deleted = 0
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE a.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY a.start_at DESC, a.id DESC
+    </select>
+
+    <!-- CAS：id + deleted + status=fromStatus -->
+    <update id="update">
+        UPDATE community_activity
+        SET title = #{activity.title},
+            activity_type = #{activity.activityType},
+            term = #{activity.term},
+            level = #{activity.level},
+            start_at = #{activity.startAt},
+            end_at = #{activity.endAt},
+            location = #{activity.location},
+            signup_deadline = #{activity.signupDeadline},
+            quota = #{activity.quota},
+            content = #{activity.content},
+            host = #{activity.host},
+            status = #{activity.status},
+            notice_url = #{activity.noticeUrl},
+            updated_at = NOW()
+        WHERE id = #{activity.id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE community_activity
+        SET status = #{toStatus}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <select id="countGroupByStatus" resultType="java.util.LinkedHashMap">
+        SELECT a.status AS status, COUNT(*) AS total
+        FROM community_activity a
+        WHERE a.deleted = 0
+        <if test="term != null and term != ''">AND a.term = #{term}</if>
+        GROUP BY a.status
+        ORDER BY a.status
+    </select>
+
+    <select id="countGroupByType" resultType="java.util.LinkedHashMap">
+        SELECT a.activity_type AS activity_type, COUNT(*) AS total
+        FROM community_activity a
+        WHERE a.deleted = 0
+        <if test="term != null and term != ''">AND a.term = #{term}</if>
+        GROUP BY a.activity_type
+        ORDER BY a.activity_type
+    </select>
+
+    <select id="summary" resultType="java.util.LinkedHashMap">
+        SELECT (SELECT COUNT(*) FROM community_activity a WHERE a.deleted = 0
+                 <if test="term != null and term != ''">AND a.term = #{term}</if>) AS total,
+               (SELECT COUNT(*) FROM community_activity a WHERE a.deleted = 0 AND a.status = 'signup'
+                 <if test="term != null and term != ''">AND a.term = #{term}</if>) AS signup_open,
+               (SELECT COUNT(*) FROM community_activity_signup s
+                 WHERE s.deleted = 0) AS signup_total,
+               (SELECT COUNT(*) FROM community_activity_signup s
+                 WHERE s.deleted = 0 AND s.status = 'attended') AS attended_total,
+               (SELECT COUNT(*) FROM community_activity_signup s
+                 WHERE s.deleted = 0 AND s.award != 'none') AS award_total
+    </select>
+
+</mapper>

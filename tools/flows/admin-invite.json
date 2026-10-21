@@ -1,0 +1,14 @@
+{
+  "port": 9222,
+  "cookie": { "name": "JSESSIONID", "value": "__SID__", "url": "http://127.0.0.1:8080" },
+  "page": { "url": "http://127.0.0.1:8080/admin-invitation-codes.html?cb=572", "width": 1440, "height": 1100, "waitMs": 3000 },
+  "steps": [
+    { "name": "1-boot", "eval": "JSON.stringify({nestUI: typeof NestUI, rows: document.querySelectorAll('table tbody tr').length, copyBtns: document.querySelectorAll('[onclick*=\"copyCode\"]').length, toggleBtns: document.querySelectorAll('[onclick*=\"toggleCode\"]').length, tableText: document.body.innerText.replace(/\\s+/g,' ').slice(0,200)})" },
+    { "name": "2-open-create", "eval": "(function(){ document.querySelector('[onclick*=\"openCreateModal\"]').click(); return 'clicked'; })()", "waitMs": 900 },
+    { "name": "3-create-state", "eval": "(function(){ var m=document.getElementById('create-modal'); var ids=[]; m.querySelectorAll('input,select,textarea').forEach(function(e){ if(e.id) ids.push(e.id); }); return JSON.stringify({visible: !m.classList.contains('hidden'), fields: ids, text: m.innerText.replace(/\\s+/g,' ').slice(0,160)}); })()" },
+    { "name": "4-close-create", "eval": "(function(){ var b=document.querySelector('[onclick*=\"closeCreateModal\"],[onclick*=\"closeCreate\"]'); if(!b) return 'no-btn'; b.click(); return 'closed'; })()", "waitMs": 500 },
+    { "name": "5-copy-code", "eval": "(function(){ var b=document.querySelector('[onclick*=\"copyCode\"]'); if(!b) return 'no-btn'; b.click(); return 'clicked :: ' + (b.getAttribute('onclick')||'').slice(0,40); })()", "waitMs": 1600 },
+    { "name": "6-copy-result", "eval": "(function(){ var t=[]; document.querySelectorAll('.nx-toast-text').forEach(function(e){ t.push(e.textContent.trim().slice(0,120)); }); return JSON.stringify({toasts:t, hasClipboard: !!(navigator.clipboard && navigator.clipboard.writeText)}); })()" },
+    { "name": "7-shot", "shot": "target\\flow-admin-invite.png" }
+  ]
+}

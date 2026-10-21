@@ -1,0 +1,91 @@
+{
+  "port": 9222,
+  "cookie": { "name": "JSESSIONID", "value": "__SID__", "url": "http://127.0.0.1:8080" },
+  "page": { "url": "http://127.0.0.1:8080/dashboard.html?cb=500", "width": 1440, "height": 1000, "waitMs": 3200 },
+  "steps": [
+    {
+      "name": "1-boot",
+      "eval": "JSON.stringify({path: location.pathname, nestUI: typeof NestUI, version: window.NestUI && NestUI.version, dark: document.documentElement.classList.contains('dark'), themeBtns: document.querySelectorAll('[data-nx-theme-toggle]').length, metaTheme: (document.querySelector('meta[name=theme-color]') || {}).content || null, progress: !!document.querySelector('.nx-progress-top'), chip: !!document.querySelector('.nx-cmdk-chip')})"
+    },
+    {
+      "name": "2-theme-toggle",
+      "eval": "(function(){ var b = document.querySelector('[data-nx-theme-toggle]'); if (!b) return 'no-toggle'; var was = document.documentElement.classList.contains('dark'); b.click(); return JSON.stringify({was: was, now: document.documentElement.classList.contains('dark'), stored: localStorage.getItem('nest-theme'), meta: (document.querySelector('meta[name=theme-color]') || {}).content || null, vt: document.documentElement.getAttribute('data-vt'), scheme: document.documentElement.style.colorScheme, bodyBg: getComputedStyle(document.body).backgroundColor}); })()",
+      "waitMs": 400
+    },
+    {
+      "name": "3-theme-restore",
+      "eval": "(function(){ var b = document.querySelector('[data-nx-theme-toggle]'); if (b) b.click(); return JSON.stringify({dark: document.documentElement.classList.contains('dark'), stored: localStorage.getItem('nest-theme')}); })()",
+      "waitMs": 400
+    },
+    {
+      "name": "4-palette-open",
+      "eval": "(function(){ document.dispatchEvent(new KeyboardEvent('keydown', {key: 'k', ctrlKey: true, bubbles: true})); return 'sent'; })()",
+      "waitMs": 700
+    },
+    {
+      "name": "5-palette-shape",
+      "eval": "JSON.stringify({open: !!(document.querySelector('.nx-cmdk') && document.querySelector('.nx-cmdk').classList.contains('is-open')), items: document.querySelectorAll('.nx-cmdk-item').length, groups: document.querySelectorAll('.nx-cmdk-group').length, bodyLocked: document.body.classList.contains('nx-noscroll'), hasInput: !!document.querySelector('.nx-cmdk input')})"
+    },
+    {
+      "name": "6-palette-filter",
+      "eval": "(function(){ var i = document.querySelector('.nx-cmdk input'); if (!i) return 'no-input'; var before = document.querySelectorAll('.nx-cmdk-item').length; i.value = 'dark'; i.dispatchEvent(new Event('input', {bubbles: true})); return JSON.stringify({before: before, after: document.querySelectorAll('.nx-cmdk-item').length, first: (document.querySelector('.nx-cmdk-item') || {}).textContent}); })()",
+      "waitMs": 500
+    },
+    {
+      "name": "7-palette-esc",
+      "eval": "(function(){ document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})); return 'esc'; })()",
+      "waitMs": 400
+    },
+    {
+      "name": "8-palette-closed",
+      "eval": "JSON.stringify({open: !!(document.querySelector('.nx-cmdk') && document.querySelector('.nx-cmdk').classList.contains('is-open')), bodyLocked: document.body.classList.contains('nx-noscroll')})"
+    },
+    {
+      "name": "9-toast",
+      "eval": "(function(){ NestUI.toast('交互层自测：这是一条提示', 'ok', 4000); return JSON.stringify({stack: !!document.querySelector('.nx-toast-stack'), toasts: document.querySelectorAll('.nx-toast').length, text: (document.querySelector('.nx-toast-text') || {}).textContent}); })()",
+      "waitMs": 500
+    },
+    {
+      "name": "10-copy-fallback",
+      "eval": "(async function(){ var ok = await NestUI.copy('copy-probe-123'); return JSON.stringify({returned: ok, clipboardApi: typeof navigator.clipboard, toasts: document.querySelectorAll('.nx-toast').length, lastText: (Array.prototype.slice.call(document.querySelectorAll('.nx-toast-text')).pop() || {}).textContent}); })()",
+      "waitMs": 400
+    },
+    {
+      "name": "11-ripple",
+      "eval": "(function(){ var t = document.querySelector('.nx-btn, .nx-tab, .nx-icon-btn'); if (!t) return 'no-target'; t.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true, button: 0, clientX: 10, clientY: 10})); return JSON.stringify({hosts: document.querySelectorAll('.nx-ripple-host').length, ripples: document.querySelectorAll('.nx-ripple').length, tag: t.tagName, cls: t.className.slice(0, 40)}); })()",
+      "waitMs": 300
+    },
+    {
+      "name": "12-scroll-elevate",
+      "eval": "(function(){ window.scrollTo(0, 900); return 'scrolled'; })()",
+      "waitMs": 600
+    },
+    {
+      "name": "13-elevate-state",
+      "eval": "JSON.stringify({elevated: document.querySelectorAll('[data-nx-scrolled=\"1\"]').length, progressWidth: (document.querySelector('.nx-progress-top') || {}).offsetWidth || 0, pageWidth: window.innerWidth, scrollY: Math.round(window.scrollY)})"
+    },
+    {
+      "name": "14-tour",
+      "eval": "(function(){ return JSON.stringify({nestTour: typeof NestTour, driver: typeof window.driver, startFn: typeof window.NestTour && typeof NestTour.start, popovers: document.querySelectorAll('.driver-popover').length, tourFlag: localStorage.getItem('nest-tour-done') || localStorage.getItem('nest-tour-seen')}); })()"
+    },
+    {
+      "name": "15-tour-start",
+      "eval": "(function(){ if (window.NestTour && NestTour.start) { NestTour.start(); return 'started'; } return 'no-api'; })()",
+      "waitMs": 1200
+    },
+    {
+      "name": "16-tour-state",
+      "eval": "JSON.stringify({popovers: document.querySelectorAll('.driver-popover').length, title: (document.querySelector('.driver-popover-title') || {}).textContent || null, desc: ((document.querySelector('.driver-popover-description') || {}).textContent || '').slice(0, 60), hasNext: !!document.querySelector('.driver-popover-next-btn')})"
+    },
+    {
+      "name": "17-scroll-back",
+      "eval": "(function(){ window.scrollTo(0, 0); return 'top'; })()",
+      "waitMs": 500
+    },
+    {
+      "name": "18-final",
+      "eval": "JSON.stringify({elevated: document.querySelectorAll('[data-nx-scrolled=\"1\"]').length, noscroll: document.body.classList.contains('nx-noscroll'), hOverflow: document.documentElement.scrollWidth > window.innerWidth + 1})"
+    },
+    { "name": "19-shot", "shot": "target\\sweep-shared-ui.png" }
+  ]
+}

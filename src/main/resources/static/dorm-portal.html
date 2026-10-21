@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html data-theme="nestlight" lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+  <title>学工平台 · 学生门户</title>
+  <link href="/manifest.webmanifest" rel="manifest"/>
+  <meta content="#3e63dd" name="theme-color"/>
+  <link href="/icons/icon-192.png" rel="icon" sizes="192x192" type="image/png"/>
+  <link href="/icons/apple-touch-icon.png" rel="apple-touch-icon"/>
+  <meta content="yes" name="apple-mobile-web-app-capable"/>
+  <meta content="default" name="apple-mobile-web-app-status-bar-style"/>
+  <meta content="学工平台" name="apple-mobile-web-app-title"/>
+  <script defer src="/pwa.js"></script>
+  <!--
+    主题必须在样式表之前定下来。放到 defer 的共享脚本里会先按浅色画一帧、
+    再翻成深色 —— 也就是俗称的「闪白」，比没有深色模式更难受。
+    所以这段必须内联，且必须排在 <link rel="stylesheet"> 前面。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+<link rel="stylesheet" href="/css/nest-art3.css">
+  <style>
+    /* .tab-active 的外观已并入 nest.css 的 .nx-tab.tab-active（第十二轮统一），这里不再重复定义 */
+    .mono { font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content selection:bg-primary/30">
+<div class="relative z-10 flex min-h-screen flex-col">
+  <header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none px-6 py-2 md:px-20">
+    <div class="navbar-start w-auto min-w-0 flex-1 items-center gap-3">
+      <div class="text-primary"><span class="material-symbols-outlined text-3xl">home_work</span></div>
+      <div>
+        <h2 class="nx-brand text-xl leading-tight">学工平台 <span class="text-primary">宿舍分配</span></h2>
+        <p class="text-xs nx-muted">学生门户</p>
+      </div>
+    </div>
+    <div class="navbar-end w-auto flex-none items-center gap-1 md:gap-2">
+      <span id="who" class="text-sm hidden md:inline nx-muted"></span>
+      <button onclick="location.href='index.html'" class="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-primary/10 transition-colors">
+        <span class="material-symbols-outlined text-xl">apps</span><span class="text-sm font-medium hidden md:inline">返回系统</span>
+      </button>
+      <button onclick="logout()" class="flex items-center gap-2 px-4 py-2 rounded-full transition-colors nx-danger-soft">
+        <span class="material-symbols-outlined text-xl">logout</span><span class="text-sm font-medium hidden md:inline">退出</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="flex-1 px-6 pb-16 pt-10 md:px-20">
+    <div class="mx-auto max-w-6xl nx-rise">
+
+      <!-- 未绑定学号 -->
+      <section id="bind-view" class="hidden">
+        <div class="mx-auto max-w-xl rounded-box border border-base-300 bg-base-200 p-8 shadow-xl">
+          <p class="nx-kicker">Residence / Student portal</p>
+          <div class="mb-4 mt-2 flex items-center gap-3">
+            <span class="material-symbols-outlined text-primary text-3xl">link</span>
+            <h1 class="font-serif text-2xl leading-tight">绑定学号</h1>
+          </div>
+          <p class="nx-muted mb-6" id="bind-message"></p>
+          <label class="block text-sm font-medium mb-2">学号</label>
+          <input id="bind-no" class="input input-bordered mb-4 h-12 w-full" placeholder="例如 2023001"/>
+          <button onclick="doBind()" class="w-full nx-btn nx-btn-primary nx-btn-lg">
+            绑定并进入
+          </button>
+          <p class="text-xs mt-4 nx-muted">只允许绑定一次。如果学号填错需要修改，请联系宿管老师。</p>
+        </div>
+      </section>
+
+      <!-- 主界面 -->
+      <section id="main-view" class="hidden">
+        <header class="mb-8 border-b border-base-300 pb-6">
+          <h1 class="font-serif text-3xl leading-tight sm:text-4xl">你好，<span id="stu-name">同学</span></h1>
+          <p class="mt-3 text-sm nx-muted" id="stu-meta"></p>
+        </header>
+
+        <nav class="mb-8 flex flex-wrap gap-1.5 rounded-box border border-base-300 bg-base-200 p-1.5" id="tabs">
+          <button data-tab="alloc" class="tab-btn tab-active nx-tab">
+            <span class="material-symbols-outlined align-middle text-base">bed</span> 我的宿舍</button>
+          <button data-tab="why" class="tab-btn nx-tab">
+            <span class="material-symbols-outlined align-middle text-base">help</span> 为什么这样分</button>
+          <button data-tab="psyche" class="tab-btn nx-tab">
+            <span class="material-symbols-outlined align-middle text-base">psychology</span> 我的心理画像</button>
+          <button data-tab="survey" class="tab-btn nx-tab">
+            <span class="material-symbols-outlined align-middle text-base">edit_note</span> 问卷与自述</button>
+          <button data-tab="pref" class="tab-btn nx-tab">
+            <span class="material-symbols-outlined align-middle text-base">group</span> 我的志愿</button>
+          <button data-tab="appeal" class="tab-btn nx-tab">
+            <span class="material-symbols-outlined align-middle text-base">swap_horiz</span> 我想换室友</button>
+          <button data-tab="policy" class="tab-btn nx-tab">
+            <span class="material-symbols-outlined align-middle text-base">gavel</span> 分配规则</button>
+        </nav>
+
+        <div id="panel-alloc" class="panel"></div>
+        <div id="panel-why" class="panel hidden"></div>
+        <div id="panel-psyche" class="panel hidden"></div>
+        <div id="panel-survey" class="panel hidden"></div>
+        <div id="panel-pref" class="panel hidden"></div>
+        <div id="panel-appeal" class="panel hidden"></div>
+        <div id="panel-policy" class="panel hidden"></div>
+      </section>
+
+      <div id="global-error" class="mt-6 hidden rounded-box border border-error/20 bg-error/10 p-4 text-sm text-error"></div>
+    </div>
+  </main>
+  <footer class="px-6 md:px-20 py-6 text-xs border-t border-base-300 nx-muted">
+    学工平台 · 宿舍智能分配与可解释决策支持系统 · 厦门大学嘉庚学院大学生创新创业训练计划
+  </footer>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let ME = null, PSYCHE = null, POLICY = null, QUESTIONNAIRE = null, ALLOC = null;
+
+function err(e) {
+  const box = $('global-error');
+  box.textContent = String(e && e.message || e);
+  box.classList.remove('hidden');
+  setTimeout(() => box.classList.add('hidden'), 8000);
+}
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function pct(x) { return x == null ? '—' : (Number(x) * 100).toFixed(0) + '%'; }
+function num(x, d = 2) { return x == null || Number.isNaN(Number(x)) ? '—' : Number(x).toFixed(d); }
+
+async function api(url, opts) {
+  const res = await fetch(url, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts || {}));
+  let j;
+  try { j = await res.json(); } catch (e) { throw new Error('服务器返回了无法解析的内容（HTTP ' + res.status + '）'); }
+  if (j.code !== 200) {
+    const msg = j.message || ('请求失败 HTTP ' + res.status);
+    if (msg.indexOf('LOGIN_REQUIRED') >= 0) { location.href = 'login.html?next=' + encodeURIComponent('dorm-portal.html'); return new Promise(() => {}); }
+    throw new Error(msg);
+  }
+  return j.data;
+}
+async function post(url, body) { return api(url, { method: 'POST', body: JSON.stringify(body) }); }
+
+// ── 统一对话框的页内兜底（nest-ui.js 是 defer 加载的，所以调用时才看 window.NestUI） ──
+function nxAlert(message, options) {
+  if (window.NestUI && NestUI.dialog) return NestUI.dialog.alert(message, options);
+  window.alert(message);
+  return Promise.resolve();
+}
+
+async function logout() { try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {} location.href = 'login.html'; }
+
+// ── 启动 ──────────────────────────────────────────────
+async function boot() {
+  try {
+    const me = await api('/api/dorm/portal/me');
+    ME = me;
+    if (!me.bound) {
+      $('bind-message').textContent = me.message || '';
+      $('bind-view').classList.remove('hidden');
+      return;
+    }
+    renderShell(me);
+  } catch (e) {
+    if (String(e.message).indexOf('LOGIN_REQUIRED') >= 0) return;
+    err(e);
+  }
+}
+function renderShell(me) {
+  $('bind-view').classList.add('hidden');
+  $('main-view').classList.remove('hidden');
+  $('stu-name').textContent = me.student.name;
+  $('who').textContent = me.student.studentNo + ' · ' + me.student.name;
+  $('stu-meta').textContent = [me.student.gender === 'MALE' ? '男' : '女', me.student.grade + '级',
+    me.student.major, me.student.majorCluster].join(' · ');
+  ALLOC = me;
+  renderAlloc();
+}
+
+async function doBind() {
+  const no = $('bind-no').value.trim();
+  if (!no) { err(new Error('请输入学号')); return; }
+  try { await post('/api/dorm/portal/bind', { studentNo: no }); location.reload(); }
+  catch (e) { err(e); }
+}
+
+// ── Tab 切换 ──────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tab-active'));
+    btn.classList.add('tab-active');
+    document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden'));
+    const tab = btn.dataset.tab;
+    $('panel-' + tab).classList.remove('hidden');
+    try {
+      if (tab === 'why') await renderWhy();
+      if (tab === 'psyche') await renderPsyche();
+      if (tab === 'survey') await renderSurvey();
+      if (tab === 'pref') await renderPref();
+      if (tab === 'appeal') await renderAppeal();
+      if (tab === 'policy') await renderPolicy();
+    } catch (e) { err(e); }
+  });
+});
+
+function card(title, icon, body, extra) {
+  return `<div class="p-6 mb-6 ${extra||''} nx-panel">
+    <div class="flex items-center gap-2 mb-4">
+      <span class="material-symbols-outlined text-primary">${icon}</span>
+      <h3 class="font-bold text-lg">${esc(title)}</h3>
+    </div>${body}</div>`;
+}
+function kv(k, v) {
+  return `<div class="flex justify-between py-1.5 border-b border-primary/5 last:border-0">
+    <span class="text-sm nx-muted">${esc(k)}</span>
+    <span class="font-medium text-sm mono text-right">${v}</span></div>`;
+}
+
+// ── 我的宿舍 ──────────────────────────────────────────
+function renderAlloc() {
+  const a = ALLOC;
+  if (!a.allocated) {
+    $('panel-alloc').innerHTML = card('还没有分配结果', 'hourglass_empty',
+      `<p class="nx-muted">${esc(a.reason || '学校还没有发布分配结果。')}</p>`);
+    return;
+  }
+  const r = a.room || {};
+  const mates = (a.roommates || []).map(m =>
+    `<div class="flex items-center gap-3 p-3 rounded-md bg-primary/5">
+       <span class="material-symbols-outlined text-primary">person</span>
+       <div><div class="font-medium">${esc(m.name)}</div>
+       <div class="text-xs nx-muted">${esc(m.grade)}级 · ${esc(m.major)}</div></div></div>`).join('');
+  const w = a.explanation && a.explanation.explanation ? a.explanation.explanation : null;
+  const same = w ? `<div class="mt-4 text-sm nx-muted">
+      本房间平均相容度 <b class="mono">${num(w.roomMeanCompat)}</b>（取值 −1..1，负分代表明显冲突），
+      最需要留意的一对 <b class="mono">${num(w.roomWorstCompat)}</b>。
+      <button onclick="document.querySelector('[data-tab=why]').click()" class="text-primary font-medium ml-1">看完整解释 →</button></div>` : '';
+
+  $('panel-alloc').innerHTML =
+    card('我的房间', 'bed', `
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
+        <div><div class="text-xs nx-muted">房间号</div><div class="text-2xl font-black mono">${esc(r.label || '—')}</div></div>
+        <div><div class="text-xs nx-muted">楼栋</div><div class="text-2xl font-black mono">${esc(r.buildingId || '—')}</div></div>
+        <div><div class="text-xs nx-muted">室友人数</div><div class="text-2xl font-black mono">${(a.roommates || []).length}</div></div>
+      </div>
+      ${same}`) +
+    card('我的室友', 'groups', mates || '<p class="nx-muted">这间房目前只有你一个人。</p>') +
+    (a.isAppealed ? card('提示', 'info', '<p class="text-sm nx-muted">你当前的房间是采纳申诉后调整过的结果。</p>') : '');
+}
+
+// ── 为什么这样分（四维解释） ──────────────────────────
+async function renderWhy() {
+  if (!ALLOC.allocated) { $('panel-why').innerHTML = card('暂无分配', 'hourglass_empty', '<p>还没有分配结果，无法解释。</p>'); return; }
+  const resp = ALLOC.explanation && ALLOC.explanation.explanation ? ALLOC.explanation : await api('/api/dorm/portal/allocation');
+  ALLOC = Object.assign(ALLOC, resp);
+  const w = resp.explanation && resp.explanation.explanation ? resp.explanation.explanation : resp.explanation;
+  if (!w) { $('panel-why').innerHTML = card('解释不可用', 'report', '<p>系统没有为你的这一批分配生成解释。</p>'); return; }
+
+  const dims = (w.dimensions || []).slice(0, 8).map(d => {
+    const cls = d.contribution < 0 ? 'text-red-600' : 'text-emerald-600';
+    return `<div class="flex items-start justify-between gap-4 py-2 border-b border-primary/5 last:border-0">
+      <div><div class="font-medium text-sm">${esc(d.dimension)} <span class="font-normal nx-muted">与 ${esc(d.otherName)}</span></div>
+      <div class="text-xs nx-muted">你的取值 <span class="mono">${num(d.mine,3)}</span> · 对方 <span class="mono">${num(d.theirs,3)}</span> · 差异 <span class="mono">${num(d.gap,3)}</span> · ${esc(d.comment)}</div></div>
+      <div class="text-right whitespace-nowrap ${cls} font-bold text-sm mono">${d.contribution > 0 ? '+' : ''}${num(d.contribution,3)}</div>
+    </div>`;
+  }).join('');
+
+  const prefs = (w.preferences || []).map(p => `<div class="flex items-start gap-2 py-2 border-b border-primary/5 last:border-0">
+      <span class="material-symbols-outlined text-base ${p.satisfied ? 'text-success' : 'text-warning'}">${p.satisfied ? 'check_circle' : 'cancel'}</span>
+      <div><div class="text-sm">${esc(p.kind)} · ${esc(p.otherName)} —
+        <b class="${p.satisfied ? 'text-success' : 'text-warning'}">${p.satisfied ? '已满足' : '未满足'}</b></div>
+      ${p.reason ? `<div class="text-xs nx-muted">${esc(p.reason)}</div>` : ''}</div></div>`).join('');
+
+  const cons = (w.constraints || []).map(c => `<div class="flex items-start gap-2 py-2 border-b border-primary/5 last:border-0">
+      <span class="material-symbols-outlined text-base text-primary">${c.binding ? 'lock' : 'lock_open'}</span>
+      <div><div class="text-sm"><b>${esc(c.rule)}</b> ${c.binding ? '<span class="text-xs text-warning">（对你产生了实际约束）</span>' : ''}</div>
+      <div class="text-xs nx-muted">${esc(c.detail)}</div></div></div>`).join('');
+
+  const comp = (w.comparatives || []).map(c => `<div class="flex justify-between py-2 border-b border-primary/5 last:border-0 text-sm">
+      <span class="nx-muted">${esc(c.comment)}</span>
+      <span class="font-bold mono ${c.delta < 0 ? 'text-error' : 'text-success'}">${c.delta > 0 ? '+' : ''}${num(c.delta,3)}</span></div>`).join('');
+
+  $('panel-why').innerHTML =
+    card('一句话总结', 'summarize', `<p class="leading-relaxed">${esc(w.narrative || '')}</p>`) +
+    card('① 约束层：哪些规则决定了你的去向', 'rule', cons || '<p class="text-sm nx-muted">没有触发任何硬约束。</p>') +
+    card('② 相容度层：你和室友的具体差异', 'compare_arrows', dims || '<p class="text-sm nx-muted">这间房只有你一个人，还没有可比的室友。</p>') +
+    card('③ 志愿层：你填的想同住志愿', 'favorite', prefs || '<p class="text-sm nx-muted">你这一批没有填想同住的志愿。</p>') +
+    card('④ 对比层：换一种分法会差多少', 'alt_route', comp || '<p class="text-sm nx-muted">没有可对比的替代方案。</p>') +
+    (resp.explanation && resp.explanation.source === 'ON_DEMAND'
+      ? '<p class="text-xs nx-muted">（本页解释为现场计算）</p>' : '');
+}
+
+// ── 我的心理画像 ──────────────────────────────────────
+async function renderPsyche() {
+  PSYCHE = PSYCHE || await api('/api/dorm/portal/psyche');
+  const p = PSYCHE.profile;
+  const cur = (PSYCHE.currentFeatures && PSYCHE.currentFeatures.values) || {};
+  const rows = Object.keys(cur).map(k => {
+    const used = !['学业拼搏'].includes(k);
+    return `<div class="flex items-center justify-between py-2 border-b border-primary/5 last:border-0">
+      <div><span class="text-sm font-medium">${esc(k)}</span>
+        ${used ? '' : '<span class="ml-2 text-xs nx-muted">仅用于实验评估，不参与分配</span>'}</div>
+      <span class="mono text-sm ${cur[k] == null ? 'nx-muted' : 'font-bold'}">${cur[k] == null ? '未采集（用均值）' : num(cur[k],3)}</span>
+    </div>`;
+  }).join('');
+
+  let prof = '<p class="text-sm nx-muted">还没有生成画像。去「问卷与自述」写两句话，管理员就能提取你的特征。</p>';
+  if (p) {
+    const ev = (p.evidence || []).map(e =>
+      `<div class="py-2 border-b border-primary/5 last:border-0">
+        <div class="text-sm font-medium">${esc(e.dimension)} <span class="text-xs nx-muted">来源 ${esc(e.source)}</span></div>
+        <div class="text-xs italic mt-1 nx-muted">「${esc(e.quote)}」</div>
+        <div class="text-xs nx-muted mt-0.5">${esc(e.reasoning)}</div></div>`).join('');
+    prof = `<p class="text-sm nx-muted mb-4">${esc(p.narrative || '')}</p>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 text-center">
+        <div class="p-3 rounded-md bg-primary/5"><div class="text-xs nx-muted">提取方式</div><div class="font-bold">${esc(p.method)}</div></div>
+        <div class="p-3 rounded-md bg-primary/5"><div class="text-xs nx-muted">覆盖率</div><div class="font-bold mono">${pct(p.coverage)}</div></div>
+        <div class="p-3 rounded-md bg-primary/5"><div class="text-xs nx-muted">素材字数</div><div class="font-bold mono">${p.textChars || 0}</div></div>
+        <div class="p-3 rounded-md bg-primary/5"><div class="text-xs nx-muted">是否已采用</div><div class="font-bold">${p.applied ? '是' : '否'}</div></div>
+      </div>
+      <h4 class="font-bold text-sm mb-2">逐维证据（系统按这些原话下的判断）</h4>${ev || '<p class="text-sm nx-muted">本次提取没有留下证据。</p>'}`;
+  }
+
+  $('panel-psyche').innerHTML =
+    card('我当前被用于分配的特征', 'badge',
+      rows + `<p class="text-xs mt-3 nx-muted">${esc(PSYCHE.explain || '')}</p>`) +
+    card('提取结果与证据', 'fact_check', prof);
+}
+
+// ── 问卷与自述 ────────────────────────────────────────
+async function renderSurvey() {
+  QUESTIONNAIRE = QUESTIONNAIRE || await api('/api/dorm/portal/questionnaire');
+  const mine = QUESTIONNAIRE.myAnswers || {};
+  const items = (QUESTIONNAIRE.items || []).filter(i => i.kind !== 'TEXT');
+  const inputs = items.map(it => {
+    const has = mine[it.code] != null;
+    const opts = (it.options || []).map((o, idx) =>
+      `<label class="inline-flex items-center gap-1.5 mr-4 mb-1 text-sm">
+        <input type="radio" name="q_${it.code}" value="${o.value}" ${has && Number(mine[it.code]) === Number(o.value) ? 'checked' : ''}/>
+        <span>${esc(o.label)}</span></label>`).join('');
+    return `<div class="py-3 border-b border-primary/5 last:border-0">
+      <div class="flex items-start justify-between gap-3 mb-2">
+        <div class="text-sm font-medium">${it.no}. ${esc(it.prompt)}</div>
+        ${has ? '<span class="text-xs text-success whitespace-nowrap">已答</span>' : ''}
+      </div>
+      ${opts}
+      ${it.hint ? `<div class="text-xs mt-1 nx-muted">${esc(it.hint)}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  $('panel-survey').innerHTML =
+    card('心理与生活习惯问卷', 'edit_note',
+      `<p class="text-sm nx-muted mb-4">已答 ${QUESTIONNAIRE.answeredCount || 0} / ${items.length} 题。
+        问卷答案的权重高于文字推断——因为它是你自己明确说的。</p>
+       <div id="quiz">${inputs}</div>
+       <button onclick="saveAnswers()" class="mt-5 nx-btn nx-btn-primary nx-btn-lg">保存作答</button>`) +
+    card('用你自己的话描述一下', 'chat',
+      `<p class="text-sm nx-muted mb-3">
+        比如「我一般几点睡几点起」「抽不抽烟」「爱不爱干净」「喜欢安静还是热闹」「打不打游戏」。
+        写室友的习惯时请写明是室友——系统会把主语是别人的句子排除掉，不会算到你头上。</p>
+       <textarea id="free-text" rows="6" class="w-full rounded-md border-primary/20 bg-base-200 px-4 py-3"
+         placeholder="我一般晚上十一点半睡，早上七点起……"></textarea>
+       <label class="flex items-center gap-2 mt-3 text-sm">
+         <input type="checkbox" id="consent" checked/>
+         <span>我同意把这段文字用于宿舍匹配的特征提取</span></label>
+       <button onclick="saveText()" class="mt-4 nx-btn nx-btn-primary nx-btn-lg">提交自述</button>
+       <div id="my-texts" class="mt-5"></div>`);
+  renderMyTexts();
+}
+
+function renderMyTexts() {
+  const texts = PSYCHE_MINE || [];
+  const box = $('my-texts');
+  if (!box) return;
+  box.innerHTML = texts.length
+    ? '<h4 class="font-bold text-sm mb-2">我提交过的素材</h4>' + texts.map(t =>
+      `<div class="p-3 rounded-md bg-primary/5 mb-2">
+        <div class="flex justify-between text-xs mb-1 nx-muted">
+          <span>${esc(t.kind)} · ${t.char_count} 字</span>
+          <span>${t.consent ? '已授权提取' : '未授权提取'}</span></div>
+        <div class="text-sm whitespace-pre-wrap">${esc(t.content)}</div></div>`).join('')
+    : '';
+}
+
+async function saveAnswers() {
+  const items = (QUESTIONNAIRE.items || []).filter(i => i.kind !== 'TEXT');
+  const out = {};
+  for (const it of items) {
+    const el = document.querySelector(`input[name="q_${it.code}"]:checked`);
+    if (el) out[it.code] = Number(el.value);
+  }
+  if (!Object.keys(out).length) { err(new Error('还没有选择任何答案')); return; }
+  try {
+    const r = await post('/api/dorm/portal/answers', { answers: out });
+    await nxAlert('已保存 ' + r.saved + ' 题。' + (r.remaining && r.remaining.length ? '还有 ' + r.remaining.length + ' 题没答。' : '问卷已答完。'));
+    QUESTIONNAIRE = null; renderSurvey();
+  } catch (e) { err(e); }
+}
+async function saveText() {
+  const content = $('free-text').value.trim();
+  if (content.length < 10) { err(new Error('至少写十个字，太短提取不出东西')); return; }
+  try {
+    await post('/api/dorm/portal/text', { kind: 'SELF_INTRO', content: content, consent: $('consent').checked });
+    $('free-text').value = '';
+    PSYCHE = null; PSYCHE_MINE = null;
+    await refreshTexts();
+    await nxAlert('已提交。管理员运行一次提取后，你就能在「我的心理画像」里看到系统读出了什么、依据是哪句话。');
+  } catch (e) { err(e); }
+}
+let PSYCHE_MINE = null;
+async function refreshTexts() {
+  const p = await api('/api/dorm/portal/psyche');
+  PSYCHE = p; PSYCHE_MINE = p.texts || [];
+  renderMyTexts();
+}
+
+// ── 我的志愿 ──────────────────────────────────────────
+let PREF = null, DRAFT = null, FOUND = [];
+
+async function renderPref() {
+  try { PREF = await api('/api/dorm/portal/preference'); }
+  catch (e) { err(e); return; }
+  DRAFT = {
+    want: (PREF.wantRoommates || []).map(x => x.studentId),
+    avoid: (PREF.avoidRoommates || []).map(x => x.studentId),
+    buildings: (PREF.preferredBuildings || []).slice()
+  };
+  FOUND = [];
+  const L = PREF.limits || {};
+  const rules = (PREF.rules || []).map(r =>
+    `<li class="flex items-start gap-2 py-1"><span class="material-symbols-outlined text-base text-primary">check</span><span class="text-sm">${esc(r)}</span></li>`).join('');
+  $('panel-pref').innerHTML =
+    (PREF.note ? `<div class="p-3 rounded-md bg-warning/10 text-sm mb-6">${esc(PREF.note)}</div>` : '') +
+    card('我的志愿', 'group',
+      `<p class="text-sm nx-muted mb-4">
+         志愿是分配时权重最高的一个输入。填完点保存，可以随时回来改。你所在的分块是
+         <b class="text-primary">${esc(PREF.myBlockText || PREF.myBlock || '')}</b>，
+         只有同一个块里的同学才可能和你住到一间房。</p>
+       <div class="mb-5"><div class="text-xs mb-2 nx-muted">想同住（最多 ${L.wantRoommates || 5} 位）</div>
+         <div id="draft-want"></div></div>
+       <div class="mb-5"><div class="text-xs mb-2 nx-muted">不想同住（最多 ${L.avoidRoommates || 5} 位）</div>
+         <div id="draft-avoid"></div></div>
+       <div class="mb-5"><div class="text-xs mb-2 nx-muted">楼栋志愿（最多 ${L.buildings || 3} 个，命中会加分）</div>
+         <div id="draft-bld"></div></div>
+       <div class="flex gap-2 mb-4">
+         <input id="mate-q" class="flex-1 rounded-md border-primary/20 bg-base-200 px-4 py-3"
+                placeholder="搜同学的学号片段或姓名（至少 2 个字符）"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();searchMates();}"/>
+         <button type="button" onclick="searchMates()"
+                 class="px-5 py-3 rounded-full bg-primary/10 font-bold hover:bg-primary/20">搜索</button></div>
+       <div id="mate-results" class="mb-4"></div>
+       <button type="button" onclick="savePref()"
+               class="nx-btn nx-btn-primary nx-btn-lg">保存志愿</button>`) +
+    card('规则与隐私', 'shield_lock',
+      `<ul>${rules}</ul><p class="text-sm nx-muted mt-3">${esc(PREF.privacy || '')}</p>`);
+  paintPref();
+}
+
+/** 按 id 找回那个人（已保存的志愿带着 why / canShareRoom，搜索到的也带着）。 */
+function mateInfo(id) {
+  const all = [].concat(PREF.wantRoommates || [], PREF.avoidRoommates || [], FOUND);
+  return all.find(m => m.studentId === id) || { studentId: id, name: '同学 ' + id, canShareRoom: null };
+}
+
+/** 把草稿渲染成可移除的胶囊，并刷新楼栋与搜索结果。 */
+function paintPref() {
+  const chip = (key, id) => {
+    const m = mateInfo(id);
+    const bad = m.canShareRoom === false;
+    const badge = bad ? '<span class="ml-1 text-xs text-warning">跨块·分不到</span>'
+      : (m.mutual ? '<span class="ml-1 text-xs text-success">对方也填了你</span>' : '');
+    return `<span class="inline-flex items-center mr-2 mb-2 px-3 py-1.5 rounded-full text-sm ${bad ? 'bg-warning/10' : 'bg-primary/5'}">
+      ${esc(m.name)}${m.studentNo ? '<span class="text-xs ml-1 nx-muted">' + esc(m.studentNo) + '</span>' : ''}${badge}
+      <button type="button" title="移除" onclick="dropPref('${key}',${id})"
+        class="ml-2 hover:text-red-500 font-bold leading-none nx-muted">&times;</button></span>`;
+  };
+  const box = (key, empty) => DRAFT[key].length
+    ? DRAFT[key].map(id => chip(key, id)).join('')
+    : `<span class="text-sm nx-muted">${empty}</span>`;
+  $('draft-want').innerHTML = box('want', '还没有填。这是对分配结果影响最大的一个输入。');
+  $('draft-avoid').innerHTML = box('avoid', '还没有填。');
+  const bs = PREF.buildings || [];
+  $('draft-bld').innerHTML = bs.length
+    ? bs.map((b, i) => {
+        const on = DRAFT.buildings.indexOf(b) >= 0;
+        return `<button type="button" onclick="toggleBuilding(${i})"
+          class="mr-2 mb-2 px-3 py-1.5 rounded-full text-sm ${on ? 'bg-primary text-white' : 'bg-primary/5 nx-muted'}">${esc(b)}</button>`;
+      }).join('')
+    : '<span class="text-sm nx-muted">系统里还没有房间数据，暂时不能填楼栋志愿。</span>';
+  paintMates();
+}
+
+function paintMates(meta) {
+  const t = meta && meta.truncated ? '（结果较多，只显示前几条，试试更精确的关键字）' : '';
+  $('mate-results').innerHTML = FOUND.length
+    ? `<div class="text-xs mb-1 nx-muted">搜索结果${t}</div>` + FOUND.map(m => {
+        const bad = m.canShareRoom === false;
+        const inW = DRAFT.want.indexOf(m.studentId) >= 0, inA = DRAFT.avoid.indexOf(m.studentId) >= 0;
+        return `<div class="flex items-center justify-between py-2 border-b border-primary/5 last:border-0">
+          <div class="text-sm pr-3"><b>${esc(m.name)}</b>
+            <span class="text-xs ml-1 nx-muted">${esc(m.studentNo || '')}</span>
+            <div class="text-xs ${bad ? 'text-warning' : 'nx-muted'}">${esc(m.why || '')}</div></div>
+          <div class="flex gap-2 shrink-0">
+            <button type="button" onclick="addPref('want',${m.studentId})"
+              class="px-3 py-1.5 rounded-full text-xs ${inW ? 'bg-success/10' : 'bg-success/10'}">想同住</button>
+            <button type="button" onclick="addPref('avoid',${m.studentId})"
+              class="px-3 py-1.5 rounded-full text-xs ${inA ? 'bg-error/10' : 'bg-error/10'}">不想同住</button></div></div>`;
+      }).join('')
+    : '<span class="text-sm nx-muted">输入学号片段或姓名后点「搜索」。</span>';
+}
+
+function dropPref(key, id) { DRAFT[key] = DRAFT[key].filter(x => x !== id); paintPref(); }
+
+function toggleBuilding(i) {
+  const b = (PREF.buildings || [])[i];
+  const k = DRAFT.buildings.indexOf(b);
+  if (k >= 0) DRAFT.buildings.splice(k, 1); else DRAFT.buildings.push(b);
+  paintPref();
+}
+
+/** 两个名单互斥，点已选中的按钮就是取消。 */
+function addPref(key, id) {
+  if (DRAFT[key].indexOf(id) >= 0) { DRAFT[key] = DRAFT[key].filter(x => x !== id); paintPref(); return; }
+  const other = key === 'want' ? 'avoid' : 'want';
+  DRAFT[other] = DRAFT[other].filter(x => x !== id);
+  DRAFT[key].push(id);
+  paintPref();
+}
+
+async function searchMates() {
+  const q = ($('mate-q').value || '').trim();
+  if (q.length < 2) { err(new Error('请至少输入 2 个字符')); return; }
+  try {
+    const r = await api('/api/dorm/portal/classmates?q=' + encodeURIComponent(q));
+    FOUND = r.results || [];
+    paintMates(r);
+  } catch (e) { err(e); }
+}
+
+async function savePref() {
+  try {
+    const r = await post('/api/dorm/portal/preference',
+      { wantRoommates: DRAFT.want, avoidRoommates: DRAFT.avoid, buildings: DRAFT.buildings });
+    await nxAlert(r.message || '志愿已保存。');
+    await renderPref();
+  } catch (e) { err(e); }
+}
+
+// ── 我想换室友 ────────────────────────────────────────
+async function renderAppeal() {
+  const hist = await api('/api/dorm/portal/appeals');
+  const mates = (ALLOC.roommates || []).map(m =>
+    `<label class="inline-flex items-center gap-2 mr-4 mb-2 text-sm px-3 py-2 rounded-full bg-primary/5">
+      <input type="checkbox" name="want" value="${m.studentId}"/><span>${esc(m.name)}</span></label>`).join('');
+  const rows = (hist || []).map(a => {
+    const ok = a.status === 'SATISFIED';
+    return `<div class="p-3 rounded-md ${ok ? 'bg-success/10' : 'bg-primary/5'} mb-2">
+      <div class="flex justify-between text-xs mb-1">
+        <span class="font-bold">${esc(a.status)}</span><span class="nx-muted">${esc(a.created_at || '')}</span></div>
+      <div class="text-sm">${esc(a.message || '')}</div>
+      <div class="text-xs mt-1 nx-muted">范围：${esc(a.scope || '')} · 耗时 ${a.elapsed_ms || 0} ms
+        ${a.cost_delta != null ? '· 代价变化 ' + num(a.cost_delta,3) + '（预算 ' + num(a.cost_budget,3) + '）' : ''}</div>
+      ${a.handled_by ? `<div class="text-xs mt-1 nx-muted">处理人：${esc(a.handled_by)}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  $('panel-appeal').innerHTML =
+    card('写下你想同住的人', 'swap_horiz',
+      `<p class="text-sm nx-muted mb-3">
+        只能填学号范围内的同学。系统会先做硬约束判定（性别、年级、特殊需求），
+        再做房间级和块级的局部试算，并给出明确结论：能满足 / 不可能满足 / 在我搜过的范围内没找到。
+        <b>「没找到」不等于「无解」</b>——搜索范围会写在结论里。</p>
+       <input id="want-ids" class="w-full rounded-md border-primary/20 bg-base-200 px-4 py-3 mb-3"
+         placeholder="输入学生 id，逗号分隔，例如 458,710"/>
+       ${mates ? '<div class="mb-3"><div class="text-xs mb-1 nx-muted">或直接勾选现在的室友：</div>' + mates + '</div>' : ''}
+       <button onclick="doAppeal()" class="nx-btn nx-btn-primary nx-btn-lg">试算并提交</button>`) +
+    card('我的诉求记录', 'history', rows || '<p class="text-sm nx-muted">你还没有提过诉求。</p>');
+}
+async function doAppeal() {
+  const txt = ($('want-ids').value || '').split(/[,，\s]+/).filter(Boolean).map(Number).filter(n => !isNaN(n));
+  document.querySelectorAll('input[name=want]:checked').forEach(c => txt.push(Number(c.value)));
+  if (!txt.length) { err(new Error('请填写或勾选至少一位同学')); return; }
+  try {
+    const r = await post('/api/dorm/portal/appeal', { wantRoomWith: txt });
+    const res = r.result || {};
+    let msg = '结论：' + res.status + '\n\n' + (res.message || '');
+    if (res.suggestions && res.suggestions.length) {
+      msg += '\n\n建议的调整：' + res.suggestions.map(s => s.note).join('；');
+    }
+    msg += '\n\n搜索范围：' + (res.scope || '');
+    await nxAlert(msg);
+    $('panel-appeal').innerHTML = ''; renderAppeal();
+  } catch (e) { err(e); }
+}
+
+// ── 分配规则 ──────────────────────────────────────────
+async function renderPolicy() {
+  POLICY = POLICY || await api('/api/dorm/portal/policy');
+  const hard = (POLICY.hardConstraints || []).map(c =>
+    `<li class="flex items-start gap-2 py-1"><span class="material-symbols-outlined text-base text-primary">check</span><span class="text-sm">${esc(c)}</span></li>`).join('');
+  $('panel-policy').innerHTML =
+    card('硬约束（绝不违反）', 'rule', `<ul>${hard}</ul>
+      <p class="text-sm nx-muted mt-3">当前这批共 ${POLICY.students || 0} 名学生、${POLICY.rooms || 0} 间房。</p>`) +
+    card('优化目标', 'target', `<p class="text-sm leading-relaxed">${esc(POLICY.objective || '')}</p>`) +
+    card('关于「阻塞对」', 'info', `<p class="text-sm leading-relaxed">${esc(POLICY.blockingPair || '')}</p>`) +
+    card('为什么有时会跨不过去', 'account_tree', `<p class="text-sm leading-relaxed">${esc(POLICY.studentSizeNote || '')}</p>`);
+}
+
+boot();
+</script>
+  <script defer src="/js/nest-ui.js"></script>
+    <script defer src="/libs/animejs/anime.umd.min.js"></script>
+    <script defer src="/libs/countup/countUp.umd.js"></script>
+    <script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+    <script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+    <script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+</body>
+</html>

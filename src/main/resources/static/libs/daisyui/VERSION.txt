@@ -1,0 +1,53 @@
+daisyUI —— 整站设计系统（第十八轮）
+====================================
+
+upstream : https://github.com/saadeghi/daisyui
+version  : 4.12.24
+license  : MIT（见同目录 LICENSE，版权行 © 2020 Pouya Saadeghi）
+stars    : 42,583 ★ / 1,707 forks（2026-10-15 实测；建于 2020-11-28，最近推送 2026-10-12）
+homepage : https://daisyui.com
+
+为什么是它
+----------
+用户要求「整站重新设计，并且必须去找成熟的艺术前端设计，不许自己发明」。在
+Tailwind 生态里能同时满足下面三条的只有它：
+
+  1) 是一套成熟的、有出处的设计系统（42.5k★、每周仍在推、MIT）；
+  2) 是 **Tailwind 插件** —— 组件类照样由 tools/webbuild 的 Tailwind CLI 编译进
+     我们本地那一张 nest.css，不需要 CDN、不需要 React、不需要换构建方式；
+  3) 主题是「设计令牌」而不是写死的外观 —— 可以把我们自己的艺术向取值（暖纸底、
+     靛蓝品牌、紫/琥珀重音、胶囊圆角）喂进去，让它的组件看起来仍是我们这一套。
+
+对比过的其它候选（2026-10-15 实测，均在 GitHub API 上取数）
+----------------------------------------------------------
+  tabler/tabler            41,862★ MIT    —— Bootstrap 系完整后台模板，CSS 前缀与
+                                              Tailwind preflight 冲突，接进来要处理两套
+                                              reset；
+  ant-design/ant-design    99,749★ MIT    —— React 组件，纯 HTML 页面用不上；
+  heroui-inc/heroui        30,921★ Apache —— 同上，React；
+  radix-ui/themes           8,765★ MIT    —— 可用但偏「产品感」，且要另写一套类名；
+  shadcn-ui/ui            125,464★ MIT    —— 是「复制粘贴进 React 项目」的模式库，
+                                              不是能编译进单张 CSS 的插件。
+
+这里放的是什么
+--------------
+只放许可证与上游说明（审计用）。真正被构建消费的是
+tools/webbuild/node_modules/daisyui（由 tools/webbuild/package.json 的
+devDependencies 固定到 ^4.12.24）—— 它是 **构建期依赖**，不会随页面发到浏览器：
+产物仍是 src/main/resources/static/css/nest.css 一张文件。
+
+怎么用
+------
+1) 主题已在 tools/webbuild/tailwind.config.js 里定义：nestlight / nestdark；
+2) 页面用 data-theme 选主题（nest-ui.js 的 paintTheme() 会跟着深浅切换写这个属性）；
+3) 组件直接写类名：class="btn btn-primary" / "card bg-base-200" / "input input-bordered" ...
+
+坑（实测）
+---------
+* daisyUI 4 只兼容 Tailwind 3；Tailwind 4 要用 daisyUI 5。本项目是 tailwindcss
+  3.4.17，所以钉在 ^4.12.24，**不要**顺手升到 5。
+* 它的 base 层会给 `:root, [data-theme]` 设 html 的 background-color 与 color。
+  我们的页面是 body 上画底色的（bg-background-light），所以观感不受影响，
+  但换主题时必须把 data-theme 一起写掉，否则深色页面会闪一下浅色底。
+* 主题名是自己起的（nestlight/nestdark），不是它的内置主题名；用内置名会覆盖成
+  它的配色，与我们第十七轮的暖纸/靛蓝令牌打架。

@@ -1,0 +1,5 @@
+@tsparticles/slim@4.4.0
+license: MIT
+file: tsparticles.slim.bundle.min.js (IIFE, global 	sParticles)
+source: npm tarball @tsparticles/slim@4.4.0
+fetched: 2026-10-15

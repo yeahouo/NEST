@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="nestlight">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>综测管理 · 学工平台</title>
+  <!--
+    主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
+    daisyUI 的组件颜色跟的是 [data-theme] 属性（不是 .dark 类），两处都必须写，
+    与 nest-ui.js 的 paintTheme() 保持一致。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/nest-art3.css">
+</head>
+
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content">
+
+<header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none border-0 p-0">
+  <div class="navbar mx-auto min-h-0 w-full max-w-7xl gap-3 px-5 py-2 md:px-8">
+    <div class="navbar-start gap-3">
+      <a class="flex items-center gap-3" href="teacher-dashboard.html">
+        <span class="nx-logo">
+          <span class="material-symbols-outlined text-xl">terminal</span>
+        </span>
+        <span class="hidden text-lg font-black uppercase tracking-tight sm:inline">学工平台</span>
+      </a>
+      <span class="hidden h-5 w-px bg-base-300 lg:block"></span>
+      <span class="hidden font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65 lg:block">§ 08 · Staff affairs / Evaluation</span>
+    </div>
+    <div class="navbar-end gap-1.5">
+      <a class="btn btn-ghost btn-sm gap-2 rounded-full" href="teacher-dashboard.html">
+        <span class="material-symbols-outlined text-lg">dashboard</span>
+        <span class="hidden md:inline">工作台</span>
+      </a>
+      <button aria-label="切换深色 / 浅色模式" class="nx-icon-btn" data-nx-theme-toggle title="切换深色 / 浅色模式" type="button">
+        <span class="material-symbols-outlined nx-theme-icon-light text-xl">dark_mode</span>
+        <span class="material-symbols-outlined nx-theme-icon-dark text-xl">light_mode</span>
+      </button>
+      <a class="nx-icon-btn" href="settings.html" title="设置">
+        <span class="material-symbols-outlined text-xl">settings</span>
+      </a>
+      <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="logout-btn" type="button">
+        <span class="material-symbols-outlined text-lg">logout</span>
+        <span class="hidden md:inline">退出登录</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="flex-1 px-5 py-8 md:px-8 md:py-12">
+  <div class="mx-auto w-full max-w-7xl">
+
+    <!-- ── 刊头：等宽小标 + 衬线大标题 + 发丝分隔线 ───────────────────── -->
+    <header class="mb-8 border-b border-base-300 pb-6">
+      <p class="nx-kicker">§ 08 · Staff / Evaluation</p>
+      <h1 data-nx-split="1" class="mt-2 font-serif text-3xl leading-tight sm:text-4xl lg:text-5xl">综测管理</h1>
+      <p class="mt-4 max-w-2xl text-sm text-base-content/70">
+        查看学生德智体美劳五维自评，录入辅导员评分（优先级高于自评），再按学院口径重算总分与班级排名。
+      </p>
+    </header>
+
+    <!-- ── 筛选条 ─────────────────────────────────────────────────── -->
+    <section class="mb-6 grid gap-3 md:grid-cols-[auto_auto_1fr_auto_auto] md:items-end">
+      <label class="flex flex-col gap-1">
+        <span class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学期</span>
+        <select class="select select-bordered select-sm" id="filter-term"></select>
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">班级</span>
+        <select class="select select-bordered select-sm" id="filter-class"></select>
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">搜索</span>
+        <input class="input input-bordered input-sm" id="filter-keyword" placeholder="姓名 / 学号" type="search"/>
+      </label>
+      <button class="btn btn-ghost btn-sm rounded-full gap-2" id="filter-search" type="button">
+        <span class="material-symbols-outlined text-lg">search</span>
+        <span>查询</span>
+      </button>
+      <button class="btn btn-primary btn-sm rounded-full gap-2" id="eval-compute" type="button">
+        <span class="material-symbols-outlined text-lg">calculate</span>
+        <span>重算汇总</span>
+      </button>
+    </section>
+
+    <section class="mb-6 flex flex-wrap items-center gap-2 rounded-box border border-base-300 bg-base-100 p-1.5" id="eval-scope">
+      <span class="px-2 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">范围</span>
+      <button class="nx-tab is-active" data-scope="mine" type="button">我的学生</button>
+      <button class="nx-tab" data-scope="all" type="button">全院</button>
+    </section>
+
+    <section id="eval-stats" class="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300 md:grid-cols-6"></section>
+
+    <div id="eval-message" class="alert hidden mb-6 items-start gap-2"></div>
+
+    <!-- ── 汇总列表 ───────────────────────────────────────────────── -->
+    <section id="eval-list" class="grid gap-4 md:grid-cols-2" data-nx-autoanimate="1"></section>
+
+    <p id="eval-empty" class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60">
+      该学期还没有综测记录，等学生提交自评后点「重算汇总」。
+    </p>
+
+    <nav class="mt-6 flex flex-wrap items-center gap-2">
+      <button class="btn btn-ghost btn-sm rounded-full" id="eval-prev" type="button">上一页</button>
+      <span class="font-mono text-xs text-base-content/70" id="eval-page">第 1 / 1 页</span>
+      <button class="btn btn-ghost btn-sm rounded-full" id="eval-next" type="button">下一页</button>
+      <span class="ml-auto text-xs text-base-content/60" id="eval-total"></span>
+    </nav>
+
+  </div>
+</main>
+
+<!-- ── 学生综测明细与评分弹窗（遮罩与弹窗体是同一个元素，卡片是 firstElementChild） ── -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="student-dialog">
+  <div class="max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-box border border-base-300 bg-base-100 shadow-2xl">
+    <header class="flex items-center justify-between gap-3 border-b border-base-300 px-5 py-4">
+      <h2 class="text-lg font-bold" id="dialog-title">学生综测明细</h2>
+      <button class="nx-icon-btn" id="dialog-close" type="button">
+        <span class="material-symbols-outlined text-xl">close</span>
+      </button>
+    </header>
+    <div class="px-5 py-4">
+      <dl class="grid grid-cols-2 gap-3 text-sm md:grid-cols-4" id="dialog-record"></dl>
+      <div class="mt-4 grid grid-cols-3 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300" id="dialog-summary"></div>
+      <div id="dialog-message" class="alert hidden mt-4 items-start gap-2"></div>
+      <div class="mt-4 grid gap-4" id="dialog-dimensions"></div>
+    </div>
+    <footer class="flex items-center justify-end gap-2 border-t border-base-300 px-5 py-4">
+      <button class="btn btn-ghost btn-sm rounded-full" id="dialog-cancel" type="button">取消</button>
+      <button class="btn btn-primary btn-sm rounded-full gap-2" id="dialog-save" type="button">
+        <span class="material-symbols-outlined text-lg">save</span>
+        <span>保存评分</span>
+      </button>
+    </footer>
+  </div>
+</div>
+
+<footer class="nx-hairline-t border-base-300 px-5 py-6 md:px-8">
+  <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
+    <p class="font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65">学工平台 · Comprehensive Evaluation</p>
+    <p class="text-xs text-base-content/60">辅导员评分优先于自评；重算按班级总分排名，同分并列。</p>
+  </div>
+</footer>
+
+<script>
+  // ─────────────────────────────── 状态 ───────────────────────────────
+  let isAdmin = false;
+  let scope = 'mine';
+  let term = '';
+  let classFilter = '';
+  let keyword = '';
+  let pageNo = 1;
+  let openUserId = null;
+
+  function escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function plain(value) {
+    if (value === null || value === undefined || value === '') { return '—'; }
+    return String(value);
+  }
+
+  async function callApi(url, options) {
+    const response = await fetch(url, options);
+    return response.json();
+  }
+
+  function showMessage(target, text, type) {
+    const box = document.getElementById(target);
+    const tone = type === 'success' ? 'alert-success' : 'alert-error';
+    const icon = type === 'success' ? 'check_circle' : 'error';
+    box.classList.remove('hidden');
+    box.className = 'alert items-start gap-2 ' + tone;
+    box.innerHTML = '<span class="material-symbols-outlined text-lg">' + icon
+        + '</span><span class="text-sm">' + escapeHtml(text) + '</span>';
+  }
+
+  function clearMessage(target) {
+    document.getElementById(target).classList.add('hidden');
+  }
+
+  // ─────────────────────────────── 读数据 ─────────────────────────────
+  async function checkAuth() {
+    try {
+      const result = await callApi('/api/auth/me');
+      if (result.code !== 200) { window.location.href = 'login.html'; return null; }
+      const role = result.data && result.data.role;
+      if (role !== 'teacher' && role !== 'admin') { window.location.href = 'evaluation.html'; return null; }
+      isAdmin = role === 'admin';
+      scope = isAdmin ? 'all' : 'mine';
+      return result.data;
+    } catch (error) {
+      window.location.href = 'login.html';
+      return null;
+    }
+  }
+
+  function statCell(label, value) {
+    return '<div class="flex flex-col gap-1 bg-base-100 p-5">'
+        + '<dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">' + label + '</dt>'
+        + '<dd class="mt-1 font-serif text-xl">' + value + '</dd></div>';
+  }
+
+  function renderStats(stats) {
+    const host = document.getElementById('eval-stats');
+    const data = stats || {};
+    host.innerHTML = statCell('在册学生', plain(data.students))
+        + statCell('已出分', plain(data.graded))
+        + statCell('未出分', plain(data.ungraded))
+        + statCell('平均分', plain(data.average))
+        + statCell('最高分', plain(data.highest))
+        + statCell('优秀', plain(data.excellent));
+  }
+
+  function gradeBadge(level) {
+    if (level === '优秀') { return 'badge badge-success badge-sm whitespace-nowrap'; }
+    if (level === '良好') { return 'badge badge-info badge-sm whitespace-nowrap'; }
+    if (level === '合格') { return 'badge badge-warning badge-sm whitespace-nowrap'; }
+    if (level === '不合格') { return 'badge badge-error badge-sm whitespace-nowrap'; }
+    return 'badge badge-ghost badge-sm whitespace-nowrap';
+  }
+
+  function studentCard(row) {
+    const rank = row.rankInClass ? '第 ' + row.rankInClass + ' 名' : '未重算';
+    return '<article class="card rounded-box border border-base-300 bg-base-200 shadow-xl">'
+        + '<div class="flex flex-wrap items-center justify-between gap-3 px-5 py-4">'
+        + '<div class="flex items-center gap-3">'
+        + '<span class="nx-tile-icon"><span class="material-symbols-outlined text-lg">person</span></span>'
+        + '<div>'
+        + '<p class="text-sm font-bold">' + escapeHtml(row.studentName || row.studentNo || '—') + '</p>'
+        + '<p class="text-xs text-base-content/65">' + escapeHtml(row.className || '未填班级') + ' · ' + escapeHtml(row.studentNo || '') + '</p>'
+        + '</div>'
+        + '</div>'
+        + '<div class="text-right">'
+        + '<p class="font-serif text-xl">' + plain(row.totalScore) + '</p>'
+        + '<p class="text-xs text-base-content/65">' + escapeHtml(rank) + '</p>'
+        + '</div>'
+        + '<div class="flex w-full items-center justify-between gap-2 border-t border-base-300 pt-3">'
+        + '<span class="' + gradeBadge(row.gradeLevel) + '">' + escapeHtml(row.gradeLevel || '未评级') + '</span>'
+        + '<button class="btn btn-ghost btn-sm rounded-full gap-1" data-student="' + row.studentId + '" type="button">'
+        + '<span class="material-symbols-outlined text-lg">edit_note</span><span>明细评分</span></button>'
+        + '</div>'
+        + '</div></article>';
+  }
+
+  function renderList(page) {
+    const host = document.getElementById('eval-list');
+    const items = page.items || [];
+    host.innerHTML = items.map(studentCard).join('');
+    const empty = document.getElementById('eval-empty');
+    if (items.length === 0) { empty.classList.remove('hidden'); } else { empty.classList.add('hidden'); }
+    host.querySelectorAll('button[data-student]').forEach(function (button) {
+      button.addEventListener('click', function () { openStudent(button.getAttribute('data-student')); });
+    });
+    const total = page.total || 0;
+    const pages = page.pages || 0;
+    document.getElementById('eval-page').textContent = '第 ' + (page.page || 1) + ' / ' + Math.max(1, pages) + ' 页';
+    document.getElementById('eval-total').textContent = '共 ' + total + ' 名学生有记录';
+    document.getElementById('eval-prev').disabled = (page.page || 1) <= 1;
+    document.getElementById('eval-next').disabled = (page.page || 1) >= Math.max(1, pages);
+  }
+
+  function renderTermOptions(terms, selected) {
+    const host = document.getElementById('filter-term');
+    host.innerHTML = (terms || []).map(function (item) {
+      const chosen = item === selected ? ' selected' : '';
+      return '<option value="' + escapeHtml(item) + '"' + chosen + '>' + escapeHtml(item) + '</option>';
+    }).join('');
+  }
+
+  function renderClassOptions(classes) {
+    const host = document.getElementById('filter-class');
+    const head = '<option value="">全部班级</option>';
+    host.innerHTML = head + (classes || []).map(function (item) {
+      const chosen = item === classFilter ? ' selected' : '';
+      return '<option value="' + escapeHtml(item) + '"' + chosen + '>' + escapeHtml(item) + '</option>';
+    }).join('');
+  }
+
+  function listQuery() {
+    const params = new URLSearchParams();
+    params.set('term', term);
+    params.set('page', pageNo);
+    params.set('size', 20);
+    params.set('scope', scope);
+    if (classFilter) { params.set('className', classFilter); }
+    if (keyword) { params.set('keyword', keyword); }
+    return params.toString();
+  }
+
+  async function loadList() {
+    const result = await callApi('/api/eval/summary?' + listQuery());
+    if (result.code !== 200) {
+      showMessage('eval-message', result.message || '读不到综测汇总', 'error');
+      return;
+    }
+    renderTermOptions(result.data.terms, result.data.term);
+    renderClassOptions(result.data.classes);
+    renderStats(result.data.stats);
+    renderList(result.data);
+  }
+
+  // ─────────────────────────────── 弹窗 ───────────────────────────────
+  function openDialog() {
+    const dialog = document.getElementById('student-dialog');
+    dialog.classList.remove('hidden');
+    dialog.classList.add('flex');
+  }
+
+  function closeDialog() {
+    const dialog = document.getElementById('student-dialog');
+    dialog.classList.add('hidden');
+    dialog.classList.remove('flex');
+    openUserId = null;
+  }
+
+  function recordCell(label, value) {
+    return '<div><dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/60">'
+        + label + '</dt><dd class="mt-1">' + escapeHtml(plain(value)) + '</dd></div>';
+  }
+
+  function scoreRow(item) {
+    const id = item.id;
+    const value = item.counselorScore === null || item.counselorScore === undefined ? '' : plain(item.counselorScore);
+    const selfText = item.selfScore === null || item.selfScore === undefined ? '未自评' : plain(item.selfScore);
+    return '<div class="grid items-center gap-3 border-t border-base-300 px-4 py-3 md:grid-cols-[minmax(0,1fr)_auto]">'
+        + '<div>'
+        + '<div class="flex flex-wrap items-center gap-2">'
+        + '<span class="text-sm font-bold">' + escapeHtml(item.name) + '</span>'
+        + '<span class="badge badge-ghost badge-sm">满分 ' + plain(item.maxScore) + '</span>'
+        + '<span class="badge badge-info badge-sm">自评 ' + escapeHtml(selfText) + '</span>'
+        + '<span class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/60">权重 ' + plain(item.weight) + '</span>'
+        + '</div>'
+        + '<p class="mt-1 text-xs text-base-content/65">' + escapeHtml(item.description || '') + '</p>'
+        + '</div>'
+        + '<div class="flex items-center gap-2">'
+        + '<input class="input input-bordered input-sm w-24" data-counselor="' + id + '" id="counselor-' + id
+        + '" type="number" min="0" max="' + plain(item.maxScore) + '" step="0.5" placeholder="评分" value="' + escapeHtml(value) + '" />'
+        + '<input class="input input-bordered input-sm w-40" data-evidence="' + id + '" id="evidence-' + id
+        + '" type="text" placeholder="评分说明（可空）" value="' + escapeHtml(item.evidence || '') + '" />'
+        + '</div></div>';
+  }
+
+  function dimensionBlock(dim) {
+    const items = dim.items || [];
+    return '<section class="rounded-box border border-base-300 bg-base-200">'
+        + '<header class="flex flex-wrap items-center justify-between gap-2 px-4 py-3">'
+        + '<p class="text-sm font-bold">' + escapeHtml(dim.name) + '　<span class="font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/60">' + escapeHtml(dim.code) + '</span></p>'
+        + '<p class="text-xs text-base-content/65">维度得分 ' + plain(dim.score) + ' · 已评 ' + plain(dim.scored) + ' / ' + plain(dim.itemCount) + '</p>'
+        + '</header>'
+        + items.map(scoreRow).join('')
+        + '</section>';
+  }
+
+  function summaryCell(label, value) {
+    return '<div class="flex flex-col gap-1 bg-base-100 p-4">'
+        + '<dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">' + label + '</dt>'
+        + '<dd class="mt-1 font-serif text-lg">' + value + '</dd></div>';
+  }
+
+  async function openStudent(userId) {
+    clearMessage('dialog-message');
+    const result = await callApi('/api/eval/student/' + userId + '?term=' + encodeURIComponent(term));
+    if (result.code !== 200) {
+      showMessage('eval-message', result.message || '读不到学生综测明细', 'error');
+      return;
+    }
+    const data = result.data;
+    const student = data.student || {};
+    const summary = data.summary || {};
+    openUserId = student.userId || userId;
+    document.getElementById('dialog-title').textContent = (student.name || '学生') + ' · 综测明细';
+    document.getElementById('dialog-record').innerHTML = recordCell('学号', student.studentNo)
+        + recordCell('班级', student.className)
+        + recordCell('专业', student.major)
+        + recordCell('辅导员', student.counselorName);
+    document.getElementById('dialog-summary').innerHTML = summaryCell('总分', plain(summary.totalScore))
+        + summaryCell('班级排名', summary.rankInClass ? '第 ' + summary.rankInClass + ' 名' : '未重算')
+        + summaryCell('等级', plain(summary.gradeLevel));
+    const dims = data.dimensions || [];
+    document.getElementById('dialog-dimensions').innerHTML = dims.length === 0
+        ? '<p class="rounded-box border border-dashed border-base-300 p-6 text-center text-sm text-base-content/60">该学生这个学期还没有任何得分记录。</p>'
+        : dims.map(dimensionBlock).join('');
+    openDialog();
+  }
+
+  async function saveScores() {
+    if (!openUserId) { return; }
+    const scores = [];
+    document.querySelectorAll('#dialog-dimensions input[data-counselor]').forEach(function (input) {
+      const id = input.getAttribute('data-counselor');
+      const value = input.value.trim();
+      if (value === '') { return; }
+      const evidence = document.getElementById('evidence-' + id);
+      scores.push({ indicatorId: Number(id), score: value, evidence: evidence ? evidence.value.trim() : '' });
+    });
+    if (scores.length === 0) {
+      showMessage('dialog-message', '请至少录入一项评分再保存', 'error');
+      return;
+    }
+    const result = await callApi('/api/eval/student/' + openUserId, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ term: term, scores: scores })
+    });
+    if (result.code !== 200) {
+      showMessage('dialog-message', result.message || '保存失败', 'error');
+      return;
+    }
+    showMessage('dialog-message', result.message || '已保存', 'success');
+    await openStudent(openUserId);
+    await loadList();
+  }
+
+  async function compute() {
+    const result = await callApi('/api/eval/compute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ term: term, className: classFilter })
+    });
+    if (result.code !== 200) {
+      showMessage('eval-message', result.message || '重算失败', 'error');
+      return;
+    }
+    showMessage('eval-message', result.message || '已重算', 'success');
+    pageNo = 1;
+    await loadList();
+  }
+
+  function setScope(next) {
+    scope = next;
+    document.querySelectorAll('#eval-scope .nx-tab').forEach(function (tab) {
+      const value = tab.getAttribute('data-scope');
+      tab.classList.toggle('is-active', value === scope);
+    });
+  }
+
+  function logout() {
+    callApi('/api/auth/logout', { method: 'POST' }).then(function () {
+      window.location.href = 'login.html';
+    });
+  }
+
+  document.getElementById('logout-btn').addEventListener('click', logout);
+  document.getElementById('eval-compute').addEventListener('click', compute);
+  document.getElementById('dialog-close').addEventListener('click', closeDialog);
+  document.getElementById('dialog-cancel').addEventListener('click', closeDialog);
+  document.getElementById('dialog-save').addEventListener('click', saveScores);
+  document.getElementById('eval-prev').addEventListener('click', function () {
+    if (pageNo > 1) { pageNo = pageNo - 1; loadList(); }
+  });
+  document.getElementById('eval-next').addEventListener('click', function () {
+    pageNo = pageNo + 1;
+    loadList();
+  });
+  document.getElementById('filter-search').addEventListener('click', function () {
+    keyword = document.getElementById('filter-keyword').value.trim();
+    classFilter = document.getElementById('filter-class').value;
+    pageNo = 1;
+    clearMessage('eval-message');
+    loadList();
+  });
+  document.getElementById('filter-term').addEventListener('change', function (event) {
+    term = event.target.value;
+    pageNo = 1;
+    clearMessage('eval-message');
+    loadList();
+  });
+  document.getElementById('filter-class').addEventListener('change', function (event) {
+    classFilter = event.target.value;
+    pageNo = 1;
+    loadList();
+  });
+  document.querySelectorAll('#eval-scope .nx-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      setScope(tab.getAttribute('data-scope'));
+      pageNo = 1;
+      loadList();
+    });
+  });
+  document.getElementById('student-dialog').addEventListener('click', function (event) {
+    if (event.target === event.currentTarget) { closeDialog(); }
+  });
+
+  document.addEventListener('DOMContentLoaded', async function () {
+    clearMessage('eval-message');
+    const me = await checkAuth();
+    if (!me) { return; }
+    // 从辅导员工作台跳过来时带 ?term=/&keyword=，首屏直接筛到该学期与这名学生
+    const boot = new URLSearchParams(window.location.search);
+    if (boot.get('term')) { term = boot.get('term'); }
+    if (boot.get('keyword')) {
+      keyword = boot.get('keyword');
+      document.getElementById('filter-keyword').value = keyword;
+    }
+    setScope(scope);
+    await loadList();
+  });
+</script>
+<script defer src="/js/nest-ui.js"></script>
+<script defer src="/libs/animejs/anime.umd.min.js"></script>
+<script defer src="/libs/countup/countUp.umd.js"></script>
+<script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+<script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+<script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "port": 9222,
+  "clearCache": true,
+  "media": { "features": [{ "name": "prefers-reduced-motion", "value": "reduce" }] },
+  "page": { "url": "http://127.0.0.1:8080/art.html?cb=art3r", "width": 1440, "height": 1000, "waitMs": 3200 },
+  "steps": [
+    {
+      "name": "clean",
+      "eval": "try{localStorage.setItem('nest-theme','light');localStorage.removeItem('nest-art-motion');}catch(e){};location.reload();'reloading'",
+      "waitMs": 4000
+    },
+    {
+      "name": "state-reduced",
+      "eval": "(()=>{const hero=document.querySelector('[data-art-shader=\"hero\"]');const m=hero&&hero.paperShaderMount;const A=window.NestArt||{};return JSON.stringify({reduceMatches:window.matchMedia('(prefers-reduced-motion: reduce)').matches,art:{state:A.state,motion:A.motion,theme:A.theme,canvases:A.canvases,error:A.error},static:document.documentElement.classList.contains('art-static'),heroSpeed:m?m.currentSpeed:null,heroFrame:m?Math.round(m.currentFrame):null,lenis:typeof window.Lenis,revealed:document.querySelectorAll('[data-art-reveal].is-in').length,revealTotal:document.querySelectorAll('[data-art-reveal]').length,motionBtn:document.getElementById('artMotion').textContent+'|'+document.getElementById('artMotion').getAttribute('aria-pressed')});})()"
+    },
+    { "name": "wait", "eval": "'tick'", "waitMs": 1400 },
+    {
+      "name": "frame-still",
+      "eval": "JSON.stringify({speed:window.NestArt.speed,frame:Math.round(window.NestArt.frame)})"
+    },
+    { "name": "shot-reduced", "shot": true, "file": "target/zz-art-reduced-full.png" },
+    {
+      "name": "motion-force-on",
+      "eval": "document.getElementById('artMotion').click();'clicked'",
+      "waitMs": 900
+    },
+    {
+      "name": "after-force-on",
+      "eval": "JSON.stringify({motion:window.NestArt.motion,static:document.documentElement.classList.contains('art-static'),speed:window.NestArt.speed,note:'reduced-motion 下用户手动开启动效应当也能生效'})"
+    }
+  ]
+}

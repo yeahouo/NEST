@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.AwardPunishmentMapper">
+
+    <!-- 奖惩记录列表要显示学生姓名/学号/班级与录入人，统一在这里 JOIN：
+         users u（学生）、student_profile sp（学号/班级/辅导员）、users o（录入人） -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.AwardPunishment">
+        <id column="id" property="id"/>
+        <result column="student_id" property="studentId"/>
+        <result column="kind" property="kind"/>
+        <result column="level" property="level"/>
+        <result column="title" property="title"/>
+        <result column="reason" property="reason"/>
+        <result column="amount" property="amount"/>
+        <result column="doc_no" property="docNo"/>
+        <result column="granted_on" property="grantedOn"/>
+        <result column="revoked_on" property="revokedOn"/>
+        <result column="operator_id" property="operatorId"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="operator_name" property="operatorName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        a.id, a.student_id, a.kind, a.level, a.title, a.reason, a.amount, a.doc_no,
+        a.granted_on, a.revoked_on, a.operator_id, a.created_at, a.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(sp.student_no, u.student_id) AS student_no,
+        COALESCE(sp.class_name, u.class_name) AS class_name,
+        COALESCE(NULLIF(o.real_name, ''), o.username) AS operator_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM award_punishment a
+        LEFT JOIN users u ON u.id = a.student_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = a.student_id AND sp.deleted = 0
+        LEFT JOIN users o ON o.id = a.operator_id
+    </sql>
+
+    <sql id="Filters">
+        <if test="studentId != null">AND a.student_id = #{studentId}</if>
+        <if test="kind != null and kind != ''">AND a.kind = #{kind}</if>
+        <if test="level != null and level != ''">AND a.level = #{level}</if>
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (a.title LIKE CONCAT('%', #{keyword}, '%')
+                 OR a.reason LIKE CONCAT('%', #{keyword}, '%')
+                 OR a.doc_no LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.student_no LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.AwardPunishment"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO award_punishment
+            (student_id, kind, level, title, reason, amount, doc_no, granted_on,
+             revoked_on, operator_id, created_at)
+        VALUES
+            (#{studentId}, #{kind}, #{level}, #{title}, #{reason}, #{amount}, #{docNo}, #{grantedOn},
+             #{revokedOn}, #{operatorId}, NOW())
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE a.id = #{id} AND a.deleted = 0
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE a.deleted = 0
+        <include refid="Filters"/>
+        ORDER BY a.granted_on DESC, a.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="count" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE a.deleted = 0
+        <include refid="Filters"/>
+    </select>
+
+    <!-- 全列覆盖式更新：service 先 findById 再改字段，所以这里可以整体覆盖 -->
+    <update id="update" parameterType="com.umi.nest.entity.AwardPunishment">
+        UPDATE award_punishment
+        SET kind = #{kind},
+            level = #{level},
+            title = #{title},
+            reason = #{reason},
+            amount = #{amount},
+            doc_no = #{docNo},
+            granted_on = #{grantedOn},
+            revoked_on = #{revokedOn}
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <update id="softDelete">
+        UPDATE award_punishment
+        SET deleted = 1
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <select id="countGroupByKind" resultType="java.util.Map">
+        SELECT a.kind AS kind, COUNT(*) AS cnt
+        <include refid="Joined_From"/>
+        WHERE a.deleted = 0
+        <if test="studentId != null">AND a.student_id = #{studentId}</if>
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+        GROUP BY a.kind
+    </select>
+
+</mapper>

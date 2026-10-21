@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.HonorBatchMapper">
+
+    <!-- 批次要显示创建人，统一在这里 JOIN users（与 EvalSummaryMapper 的姓名口径一致：
+         real_name 优先，空则 nickname，再空则 username，避免出现空白的「创建人」列） -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.HonorBatch">
+        <id column="id" property="id"/>
+        <result column="batch_name" property="batchName"/>
+        <result column="honor_type" property="honorType"/>
+        <result column="academic_year" property="academicYear"/>
+        <result column="eval_term" property="evalTerm"/>
+        <result column="quota" property="quota"/>
+        <result column="quota_note" property="quotaNote"/>
+        <result column="criteria" property="criteria"/>
+        <result column="materials" property="materials"/>
+        <result column="apply_start" property="applyStart"/>
+        <result column="apply_end" property="applyEnd"/>
+        <result column="review_end" property="reviewEnd"/>
+        <result column="publicity_days" property="publicityDays"/>
+        <result column="publicity_start" property="publicityStart"/>
+        <result column="publicity_end" property="publicityEnd"/>
+        <result column="status" property="status"/>
+        <result column="notice_title" property="noticeTitle"/>
+        <result column="notice_url" property="noticeUrl"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="created_by_name" property="createdByName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        b.id, b.batch_name, b.honor_type, b.academic_year, b.eval_term, b.quota, b.quota_note,
+        b.criteria, b.materials, b.apply_start, b.apply_end, b.review_end, b.publicity_days,
+        b.publicity_start, b.publicity_end, b.status, b.notice_title, b.notice_url,
+        b.created_by, b.created_at, b.updated_at, b.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS created_by_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM honor_batch b
+        LEFT JOIN users u ON u.id = b.created_by AND u.deleted = 0
+    </sql>
+
+    <sql id="List_Filters">
+        <if test="hideDraft">AND b.status != 'draft'</if>
+        <if test="status != null and status != ''">AND b.status = #{status}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (b.batch_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR b.notice_title LIKE CONCAT('%', #{keyword}, '%')
+                 OR b.academic_year LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.HonorBatch"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO honor_batch
+            (batch_name, honor_type, academic_year, eval_term, quota, quota_note, criteria, materials,
+             apply_start, apply_end, review_end, publicity_days, status, notice_title, notice_url,
+             created_by, created_at, updated_at, deleted)
+        VALUES
+            (#{batchName}, #{honorType}, #{academicYear}, #{evalTerm}, #{quota}, #{quotaNote},
+             #{criteria}, #{materials}, #{applyStart}, #{applyEnd}, #{reviewEnd}, #{publicityDays},
+             #{status}, #{noticeTitle}, #{noticeUrl}, #{createdBy}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE b.id = #{id} AND b.deleted = 0
+    </select>
+
+    <!-- 排序：正在进行的批次排前面（管理员一进来就看当前要办的事），已结束的沉底；
+         同状态下按申报截止日近的优先，没有截止日的排最后，最后用 id 保证顺序稳定 -->
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE b.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY FIELD(b.status, 'recruiting', 'reviewing', 'publicity', 'draft', 'finished'),
+                 b.apply_end IS NULL, b.apply_end DESC, b.id DESC
+    </select>
+
+    <!-- CAS：status = fromStatus 是并发闸门。只改管理员在草稿/申报期能改的字段，
+         status 不由本语句推进（推进走 updateStatus / startPublicity） -->
+    <update id="update">
+        UPDATE honor_batch
+        SET batch_name = #{batch.batchName},
+            honor_type = #{batch.honorType},
+            academic_year = #{batch.academicYear},
+            eval_term = #{batch.evalTerm},
+            quota = #{batch.quota},
+            quota_note = #{batch.quotaNote},
+            criteria = #{batch.criteria},
+            materials = #{batch.materials},
+            apply_start = #{batch.applyStart},
+            apply_end = #{batch.applyEnd},
+            review_end = #{batch.reviewEnd},
+            publicity_days = #{batch.publicityDays},
+            notice_title = #{batch.noticeTitle},
+            notice_url = #{batch.noticeUrl},
+            updated_at = NOW()
+        WHERE id = #{batch.id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE honor_batch
+        SET status = #{toStatus}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <update id="startPublicity">
+        UPDATE honor_batch
+        SET status = 'publicity',
+            publicity_days = #{publicityDays},
+            publicity_start = #{publicityStart},
+            publicity_end = #{publicityEnd},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- 注意：XML 里不能写裸 `<`（会 SAXParseException 且 mvn test 查不出来），所以用 &lt;。
+         apply_end 当天仍可申报（通知写「5/13 24:00」时记 5/14），故用严格小于次日 -->
+    <update id="closeExpiredRecruiting">
+        UPDATE honor_batch
+        SET status = 'reviewing', updated_at = NOW()
+        WHERE deleted = 0
+          AND status = 'recruiting'
+          AND apply_end IS NOT NULL
+          AND apply_end &lt; CURDATE()
+    </update>
+
+    <select id="countGroupByStatus" resultType="java.util.Map">
+        SELECT status AS status, COUNT(*) AS cnt
+        FROM honor_batch
+        WHERE deleted = 0
+        GROUP BY status
+    </select>
+
+</mapper>

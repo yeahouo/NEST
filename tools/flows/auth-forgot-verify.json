@@ -1,0 +1,16 @@
+{
+  "port": 9222,
+  "cookie": { "name": "JSESSIONID", "value": "__SID__", "url": "http://127.0.0.1:8080" },
+  "page": { "url": "http://127.0.0.1:8080/forgot-password.html?cb=531", "width": 1440, "height": 1100, "waitMs": 2500 },
+  "steps": [
+    { "name": "1-fill-and-submit", "eval": "(function(){ document.getElementById('phone').value = '__PHONE__'; document.getElementById('verificationCode').value = '__CODE__'; document.getElementById('resetBtn').click(); return 'clicked'; })()", "waitMs": 2800 },
+    { "name": "2-after-verify", "eval": "JSON.stringify({path: location.pathname, errHidden: document.getElementById('errorMsg').classList.contains('hidden'), err: document.getElementById('errorMsg').textContent, resetPhone: sessionStorage.getItem('resetPhone'), resetCodeLength: (sessionStorage.getItem('resetCode') || '').length})" },
+    { "name": "3-pw-mismatch", "eval": "(function(){ document.getElementById('newPassword').value = 'probe123456'; document.getElementById('confirmPassword').value = 'probe654321'; document.getElementById('resetPasswordForm').requestSubmit(); return 'submitted'; })()", "waitMs": 1200 },
+    { "name": "4-mismatch-result", "eval": "JSON.stringify({err: document.getElementById('errorMsg').textContent, hidden: document.getElementById('errorMsg').classList.contains('hidden'), path: location.pathname})" },
+    { "name": "5-short-pw", "eval": "(function(){ document.getElementById('newPassword').value = '123'; document.getElementById('confirmPassword').value = '123'; document.getElementById('resetPasswordForm').requestSubmit(); return 'submitted'; })()", "waitMs": 1500 },
+    { "name": "6-short-result", "eval": "JSON.stringify({err: document.getElementById('errorMsg').textContent, hidden: document.getElementById('errorMsg').classList.contains('hidden'), path: location.pathname})" },
+    { "name": "7-valid-pw", "eval": "(function(){ document.getElementById('newPassword').value = 'probe123456'; document.getElementById('confirmPassword').value = 'probe123456'; document.getElementById('resetPasswordForm').requestSubmit(); return 'submitted'; })()", "waitMs": 3000 },
+    { "name": "8-after-reset", "eval": "JSON.stringify({path: location.pathname, title: document.title, resetPhoneStillThere: sessionStorage.getItem('resetPhone'), bodyText: document.body.innerText.replace(/\\s+/g, ' ').slice(0, 160)})" },
+    { "name": "9-shot", "shot": "target\\flow-auth-reset-done.png" }
+  ]
+}

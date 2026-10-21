@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.CommunityViolationMapper">
+
+    <!-- 社区违规台账（学工 P15）。handling 是状态列（CAS 谓词用它）；rule_ref 必填。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.CommunityViolation">
+        <id column="id" property="id"/>
+        <result column="student_id" property="studentId"/>
+        <result column="building" property="building"/>
+        <result column="room_no" property="roomNo"/>
+        <result column="inspection_id" property="inspectionId"/>
+        <result column="late_id" property="lateId"/>
+        <result column="type" property="type"/>
+        <result column="occurred_at" property="occurredAt"/>
+        <result column="detail" property="detail"/>
+        <result column="rule_ref" property="ruleRef"/>
+        <result column="advice" property="advice"/>
+        <result column="handling" property="handling"/>
+        <result column="counselor_id" property="counselorId"/>
+        <result column="handled_by" property="handledBy"/>
+        <result column="handled_at" property="handledAt"/>
+        <result column="result_note" property="resultNote"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="counselor_name" property="counselorName"/>
+        <result column="handled_by_name" property="handledByName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        v.id, v.student_id, v.building, v.room_no, v.inspection_id, v.late_id, v.type, v.occurred_at,
+        v.detail, v.rule_ref, v.advice, v.handling, v.counselor_id, v.handled_by, v.handled_at,
+        v.result_note, v.created_at, v.updated_at, v.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        p.student_no AS student_no,
+        p.class_name AS class_name,
+        COALESCE(NULLIF(cs.real_name, ''), cs.nickname, cs.username) AS counselor_name,
+        COALESCE(NULLIF(hb.real_name, ''), hb.nickname, hb.username) AS handled_by_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM community_violation v
+        LEFT JOIN users u ON u.id = v.student_id
+        LEFT JOIN student_profile p ON p.user_id = v.student_id AND p.deleted = 0
+        LEFT JOIN users cs ON cs.id = v.counselor_id
+        LEFT JOIN users hb ON hb.id = v.handled_by
+    </sql>
+
+    <sql id="List_Filters">
+        <if test="studentId != null">AND v.student_id = #{studentId}</if>
+        <if test="building != null and building != ''">AND v.building = #{building}</if>
+        <if test="type != null and type != ''">AND v.type = #{type}</if>
+        <if test="advice != null and advice != ''">AND v.advice = #{advice}</if>
+        <if test="handling != null and handling != ''">AND v.handling = #{handling}</if>
+        <if test="startDate != null">AND DATE(v.occurred_at) &gt;= #{startDate}</if>
+        <if test="endDate != null">AND DATE(v.occurred_at) &lt;= #{endDate}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (v.detail LIKE CONCAT('%', #{keyword}, '%')
+                 OR v.rule_ref LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.real_name LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="counselorId != null">
+            AND EXISTS (SELECT 1 FROM student_profile sp
+                         WHERE sp.deleted = 0 AND sp.counselor_id = #{counselorId}
+                           AND sp.user_id = v.student_id)
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.CommunityViolation" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO community_violation
+            (student_id, building, room_no, inspection_id, late_id, type, occurred_at, detail,
+             rule_ref, advice, handling, counselor_id, handled_by, handled_at, result_note,
+             created_at, updated_at, deleted)
+        VALUES
+            (#{studentId}, #{building}, #{roomNo}, #{inspectionId}, #{lateId}, #{type}, #{occurredAt}, #{detail},
+             #{ruleRef}, #{advice}, #{handling}, #{counselorId}, #{handledBy}, #{handledAt}, #{resultNote},
+             NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE v.id = #{id} AND v.deleted = 0
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE v.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY v.occurred_at DESC, v.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countList" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE v.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <!-- CAS：只改事实与建议字段，不动 handling（处理推进走 handle） -->
+    <update id="update">
+        UPDATE community_violation
+        SET building = #{violation.building},
+            room_no = #{violation.roomNo},
+            type = #{violation.type},
+            occurred_at = #{violation.occurredAt},
+            detail = #{violation.detail},
+            rule_ref = #{violation.ruleRef},
+            advice = #{violation.advice},
+            updated_at = NOW()
+        WHERE id = #{violation.id} AND deleted = 0 AND handling = #{fromStatus}
+    </update>
+
+    <update id="handle">
+        UPDATE community_violation
+        SET handling = #{handling},
+            result_note = #{resultNote},
+            handled_by = #{handledBy},
+            handled_at = #{handledAt},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND handling = #{fromStatus}
+    </update>
+
+    <sql id="Stat_Filters">
+        <if test="startDate != null">AND DATE(v.occurred_at) &gt;= #{startDate}</if>
+        <if test="endDate != null">AND DATE(v.occurred_at) &lt;= #{endDate}</if>
+        <if test="counselorId != null">
+            AND EXISTS (SELECT 1 FROM student_profile sp
+                         WHERE sp.deleted = 0 AND sp.counselor_id = #{counselorId}
+                           AND sp.user_id = v.student_id)
+        </if>
+    </sql>
+
+    <select id="countGroupByType" resultType="java.util.LinkedHashMap">
+        SELECT v.type AS type, COUNT(*) AS total
+        FROM community_violation v
+        WHERE v.deleted = 0
+        <include refid="Stat_Filters"/>
+        GROUP BY v.type
+        ORDER BY v.type
+    </select>
+
+    <select id="countGroupByAdvice" resultType="java.util.LinkedHashMap">
+        SELECT v.advice AS advice, COUNT(*) AS total
+        FROM community_violation v
+        WHERE v.deleted = 0
+        <include refid="Stat_Filters"/>
+        GROUP BY v.advice
+        ORDER BY v.advice
+    </select>
+
+    <select id="summary" resultType="java.util.LinkedHashMap">
+        SELECT COUNT(*) AS total,
+               SUM(CASE WHEN v.handling = 'pending' THEN 1 ELSE 0 END) AS pending,
+               SUM(CASE WHEN v.handling = 'notified' THEN 1 ELSE 0 END) AS notified,
+               SUM(CASE WHEN v.handling = 'closed' THEN 1 ELSE 0 END) AS closed,
+               SUM(CASE WHEN v.advice = 'education' THEN 1 ELSE 0 END) AS education,
+               SUM(CASE WHEN v.advice = 'circulated' THEN 1 ELSE 0 END) AS circulated,
+               SUM(CASE WHEN v.advice = 'warning' THEN 1 ELSE 0 END) AS warning,
+               SUM(CASE WHEN v.advice = 'serious_warning' THEN 1 ELSE 0 END) AS serious_warning,
+               SUM(CASE WHEN v.advice = 'recorded' THEN 1 ELSE 0 END) AS recorded
+        FROM community_violation v
+        WHERE v.deleted = 0
+        <include refid="Stat_Filters"/>
+    </select>
+
+</mapper>

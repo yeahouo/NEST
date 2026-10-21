@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.StudentLoanMapper">
+
+    <!-- 显式 resultMap（项目约定：不依赖隐式驼峰映射） -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.StudentLoan">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="academic_year" property="academicYear"/>
+        <result column="origin_province" property="originProvince"/>
+        <result column="origin_city" property="originCity"/>
+        <result column="origin_county" property="originCounty"/>
+        <result column="bank_name" property="bankName"/>
+        <result column="contract_no" property="contractNo"/>
+        <result column="receipt_no" property="receiptNo"/>
+        <result column="amount" property="amount"/>
+        <result column="disbursed" property="disbursed"/>
+        <result column="disbursed_at" property="disbursedAt"/>
+        <result column="status" property="status"/>
+        <result column="return_reason" property="returnReason"/>
+        <result column="submitted_at" property="submittedAt"/>
+        <result column="counselor_id" property="counselorId"/>
+        <result column="counselor_at" property="counselorAt"/>
+        <result column="reviewer_id" property="reviewerId"/>
+        <result column="reviewed_at" property="reviewedAt"/>
+        <result column="remark" property="remark"/>
+        <result column="evidence_url" property="evidenceUrl"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <!-- 非表字段（JOIN 得来） -->
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="counselor_name" property="counselorName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        l.id, l.user_id, l.academic_year, l.origin_province, l.origin_city, l.origin_county,
+        l.bank_name, l.contract_no, l.receipt_no, l.amount, l.disbursed, l.disbursed_at,
+        l.status, l.return_reason, l.submitted_at, l.counselor_id, l.counselor_at,
+        l.reviewer_id, l.reviewed_at, l.remark, l.evidence_url,
+        l.created_at, l.updated_at, l.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        sp.student_no AS student_no,
+        sp.class_name AS class_name,
+        cm.real_name AS counselor_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM student_loan l
+        LEFT JOIN users u ON u.id = l.user_id
+        LEFT JOIN student_profile sp ON sp.user_id = l.user_id AND sp.deleted = 0
+        LEFT JOIN users cm ON cm.id = sp.counselor_id
+    </sql>
+
+    <sql id="Review_Filters">
+        <if test="status != null and status != ''">
+            AND l.status = #{status}
+        </if>
+        <if test="academicYear != null and academicYear != ''">
+            AND l.academic_year = #{academicYear}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.student_no LIKE CONCAT('%', #{keyword}, '%')
+                 OR l.contract_no LIKE CONCAT('%', #{keyword}, '%')
+                 OR l.bank_name LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="scopeCounselorId != null">
+            AND sp.counselor_id = #{scopeCounselorId}
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.StudentLoan"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO student_loan
+            (user_id, academic_year, origin_province, origin_city, origin_county,
+             bank_name, contract_no, receipt_no, amount, disbursed, disbursed_at,
+             status, submitted_at, remark, evidence_url, created_at, updated_at, deleted)
+        VALUES
+            (#{userId}, #{academicYear}, #{originProvince}, #{originCity}, #{originCounty},
+             #{bankName}, #{contractNo}, #{receiptNo}, #{amount}, #{disbursed}, #{disbursedAt},
+             #{status}, NOW(), #{remark}, #{evidenceUrl}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE l.id = #{id} AND l.deleted = 0
+    </select>
+
+    <select id="listMine" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE l.user_id = #{userId} AND l.deleted = 0
+        <if test="status != null and status != ''">
+            AND l.status = #{status}
+        </if>
+        <if test="academicYear != null and academicYear != ''">
+            AND l.academic_year = #{academicYear}
+        </if>
+        ORDER BY l.created_at DESC, l.id DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countMine" resultType="int">
+        SELECT COUNT(*)
+        FROM student_loan l
+        WHERE l.user_id = #{userId} AND l.deleted = 0
+        <if test="status != null and status != ''">
+            AND l.status = #{status}
+        </if>
+        <if test="academicYear != null and academicYear != ''">
+            AND l.academic_year = #{academicYear}
+        </if>
+    </select>
+
+    <select id="listForReview" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE l.deleted = 0
+        <include refid="Review_Filters"/>
+        ORDER BY l.created_at DESC, l.id DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countForReview" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE l.deleted = 0
+        <include refid="Review_Filters"/>
+    </select>
+
+    <select id="countByStatus" resultType="java.util.Map">
+        SELECT l.status AS status, COUNT(*) AS cnt
+        <include refid="Joined_From"/>
+        WHERE l.deleted = 0
+        <if test="academicYear != null and academicYear != ''">
+            AND l.academic_year = #{academicYear}
+        </if>
+        <if test="scopeCounselorId != null">
+            AND sp.counselor_id = #{scopeCounselorId}
+        </if>
+        GROUP BY l.status
+    </select>
+
+    <select id="listForExport" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE l.deleted = 0
+        <if test="status != null and status != ''">
+            AND l.status = #{status}
+        </if>
+        <if test="academicYear != null and academicYear != ''">
+            AND l.academic_year = #{academicYear}
+        </if>
+        <if test="scopeCounselorId != null">
+            AND sp.counselor_id = #{scopeCounselorId}
+        </if>
+        ORDER BY l.academic_year DESC, l.id ASC
+        LIMIT #{limit}
+    </select>
+
+    <select id="listAcademicYears" resultType="string">
+        SELECT DISTINCT academic_year FROM student_loan WHERE deleted = 0 ORDER BY academic_year DESC
+    </select>
+
+    <update id="updateByStudent" parameterType="com.umi.nest.entity.StudentLoan">
+        UPDATE student_loan
+        SET academic_year   = #{academicYear},
+            origin_province = #{originProvince},
+            origin_city     = #{originCity},
+            origin_county   = #{originCounty},
+            bank_name       = #{bankName},
+            contract_no     = #{contractNo},
+            receipt_no      = #{receiptNo},
+            amount          = #{amount},
+            disbursed       = #{disbursed},
+            disbursed_at    = #{disbursedAt},
+            remark          = #{remark},
+            evidence_url    = #{evidenceUrl},
+            status          = 'submitted',
+            return_reason   = NULL,
+            submitted_at    = NOW(),
+            updated_at      = NOW()
+        WHERE id = #{id}
+          AND user_id = #{userId}
+          AND deleted = 0
+          AND status IN ('submitted', 'returned')
+    </update>
+
+    <update id="withdraw">
+        UPDATE student_loan
+        SET status = 'withdrawn', updated_at = NOW()
+        WHERE id = #{id}
+          AND user_id = #{userId}
+          AND deleted = 0
+          AND status IN ('submitted', 'returned')
+    </update>
+
+    <update id="counselorReview">
+        UPDATE student_loan
+        SET status       = #{toStatus},
+            return_reason = #{reason},
+            counselor_id  = #{counselorId},
+            counselor_at  = NOW(),
+            updated_at    = NOW()
+        WHERE id = #{id}
+          AND deleted = 0
+          AND status = #{fromStatus}
+    </update>
+
+    <update id="confirm">
+        UPDATE student_loan
+        SET status      = 'confirmed',
+            reviewer_id = #{reviewerId},
+            reviewed_at = NOW(),
+            updated_at  = NOW()
+        WHERE id = #{id}
+          AND deleted = 0
+          AND status = 'counselor_approved'
+    </update>
+
+    <update id="updateDisbursed">
+        UPDATE student_loan
+        SET disbursed    = #{disbursed},
+            disbursed_at = #{disbursedAt},
+            updated_at   = NOW()
+        WHERE id = #{id}
+          AND user_id = #{userId}
+          AND deleted = 0
+          AND status IN ('submitted', 'returned', 'counselor_approved', 'confirmed')
+    </update>
+
+</mapper>

@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.CommunityInspectionMapper">
+
+    <!-- 宿舍检查记录（学工 P15）。整改闭环的状态列是 rectify_status（CAS 谓词用它）。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.CommunityInspection">
+        <id column="id" property="id"/>
+        <result column="batch_id" property="batchId"/>
+        <result column="building" property="building"/>
+        <result column="room_no" property="roomNo"/>
+        <result column="leader_student_id" property="leaderStudentId"/>
+        <result column="check_date" property="checkDate"/>
+        <result column="inspector_id" property="inspectorId"/>
+        <result column="item_json" property="itemJson"/>
+        <result column="score" property="score"/>
+        <result column="grade" property="grade"/>
+        <result column="problems" property="problems"/>
+        <result column="rectify_required" property="rectifyRequired"/>
+        <result column="rectify_deadline" property="rectifyDeadline"/>
+        <result column="rectify_status" property="rectifyStatus"/>
+        <result column="rectify_note" property="rectifyNote"/>
+        <result column="rectify_at" property="rectifyAt"/>
+        <result column="recheck_by" property="recheckBy"/>
+        <result column="recheck_at" property="recheckAt"/>
+        <result column="recheck_result" property="recheckResult"/>
+        <result column="source" property="source"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="batch_name" property="batchName"/>
+        <result column="term" property="term"/>
+        <result column="batch_status" property="batchStatus"/>
+        <result column="inspector_name" property="inspectorName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        i.id, i.batch_id, i.building, i.room_no, i.leader_student_id, i.check_date, i.inspector_id,
+        i.item_json, i.score, i.grade, i.problems, i.rectify_required, i.rectify_deadline,
+        i.rectify_status, i.rectify_note, i.rectify_at, i.recheck_by, i.recheck_at, i.recheck_result,
+        i.source, i.created_at, i.updated_at, i.deleted,
+        b.batch_name AS batch_name,
+        b.term AS term,
+        b.status AS batch_status,
+        COALESCE(NULLIF(ins.real_name, ''), ins.nickname, ins.username) AS inspector_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM community_inspection i
+        INNER JOIN community_batch b ON b.id = i.batch_id AND b.deleted = 0
+        LEFT JOIN users ins ON ins.id = i.inspector_id
+    </sql>
+
+    <!-- 各入口共用的过滤条件；publishedOnly / rectifiedOnly 是学生端的两个裁剪开关 -->
+    <sql id="List_Filters">
+        <if test="batchId != null">AND i.batch_id = #{batchId}</if>
+        <if test="term != null and term != ''">AND b.term = #{term}</if>
+        <if test="building != null and building != ''">AND i.building = #{building}</if>
+        <if test="roomNo != null and roomNo != ''">AND i.room_no = #{roomNo}</if>
+        <if test="grade != null and grade != ''">AND i.grade = #{grade}</if>
+        <if test="rectifyStatus != null and rectifyStatus != ''">AND i.rectify_status = #{rectifyStatus}</if>
+        <if test="source != null and source != ''">AND i.source = #{source}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (i.building LIKE CONCAT('%', #{keyword}, '%')
+                 OR i.room_no LIKE CONCAT('%', #{keyword}, '%')
+                 OR i.problems LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="counselorId != null">
+            AND EXISTS (SELECT 1 FROM student_profile p
+                         WHERE p.deleted = 0 AND p.counselor_id = #{counselorId}
+                           AND p.dorm_building = i.building AND p.dorm_room = i.room_no)
+        </if>
+        <!-- 学生端裁剪：只放已公布 / 已结束批次的记录（checking/scored/draft 一律不下发） -->
+        <if test="publishedOnly">AND b.status IN ('published', 'finished')</if>
+        <if test="rectifiedOnly">AND i.rectify_status != 'none'</if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.CommunityInspection" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO community_inspection
+            (batch_id, building, room_no, leader_student_id, check_date, inspector_id, item_json,
+             score, grade, problems, rectify_required, rectify_deadline, rectify_status,
+             rectify_note, rectify_at, recheck_by, recheck_at, recheck_result, source,
+             created_at, updated_at, deleted)
+        VALUES
+            (#{batchId}, #{building}, #{roomNo}, #{leaderStudentId}, #{checkDate}, #{inspectorId}, #{itemJson},
+             #{score}, #{grade}, #{problems}, #{rectifyRequired}, #{rectifyDeadline}, #{rectifyStatus},
+             #{rectifyNote}, #{rectifyAt}, #{recheckBy}, #{recheckAt}, #{recheckResult}, #{source},
+             NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE i.id = #{id} AND i.deleted = 0
+    </select>
+
+    <select id="findByBatchRoom" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE i.batch_id = #{batchId} AND i.building = #{building} AND i.room_no = #{roomNo}
+          AND i.deleted = 0
+        LIMIT 1
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE i.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY i.check_date DESC, i.building ASC, i.room_no ASC, i.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countList" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE i.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <!-- CAS：整改状态流转（pending/submitted/rejected 三态之间），三条件缺一不可 -->
+    <update id="submitRectify">
+        UPDATE community_inspection
+        SET rectify_status = 'submitted',
+            rectify_note = #{note},
+            rectify_at = #{at},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND rectify_status = #{fromStatus}
+    </update>
+
+    <update id="recheck">
+        UPDATE community_inspection
+        SET rectify_status = #{toStatus},
+            recheck_result = #{result},
+            recheck_by = #{by},
+            recheck_at = #{at},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND rectify_status = #{fromStatus}
+    </update>
+
+    <!-- 逻辑删除同样带批次状态条件：已公布/已结束批次的记录 SQL 层面就删不掉（前置校验之外的第二道闸） -->
+    <update id="logicalDelete">
+        UPDATE community_inspection i
+        INNER JOIN community_batch b ON b.id = i.batch_id
+        SET i.deleted = 1, i.updated_at = NOW()
+        WHERE i.id = #{id} AND i.deleted = 0 AND b.status IN ('checking', 'scored')
+    </update>
+
+    <sql id="Stat_Filters">
+        <if test="batchId != null">AND i.batch_id = #{batchId}</if>
+        <if test="term != null and term != ''">AND b.term = #{term}</if>
+        <if test="building != null and building != ''">AND i.building = #{building}</if>
+        <if test="counselorId != null">
+            AND EXISTS (SELECT 1 FROM student_profile p
+                         WHERE p.deleted = 0 AND p.counselor_id = #{counselorId}
+                           AND p.dorm_building = i.building AND p.dorm_room = i.room_no)
+        </if>
+    </sql>
+
+    <select id="countGroupByGrade" resultType="java.util.LinkedHashMap">
+        SELECT i.grade AS grade, COUNT(*) AS total
+        <include refid="Joined_From"/>
+        WHERE i.deleted = 0
+        <include refid="Stat_Filters"/>
+        GROUP BY i.grade
+        ORDER BY i.grade
+    </select>
+
+    <select id="countGroupByRectify" resultType="java.util.LinkedHashMap">
+        SELECT i.rectify_status AS rectify_status, COUNT(*) AS total
+        <include refid="Joined_From"/>
+        WHERE i.deleted = 0
+        <include refid="Stat_Filters"/>
+        GROUP BY i.rectify_status
+        ORDER BY i.rectify_status
+    </select>
+
+    <select id="summary" resultType="java.util.LinkedHashMap">
+        SELECT COUNT(*) AS total,
+               ROUND(AVG(i.score), 2) AS avg_score,
+               MIN(i.score) AS min_score,
+               MAX(i.score) AS max_score,
+               SUM(CASE WHEN i.grade = 'excellent' THEN 1 ELSE 0 END) AS excellent,
+               SUM(CASE WHEN i.grade = 'good' THEN 1 ELSE 0 END) AS good,
+               SUM(CASE WHEN i.grade = 'pass' THEN 1 ELSE 0 END) AS pass,
+               SUM(CASE WHEN i.grade = 'fail' THEN 1 ELSE 0 END) AS fail,
+               SUM(CASE WHEN i.rectify_status = 'pending' THEN 1 ELSE 0 END) AS rectify_pending,
+               SUM(CASE WHEN i.rectify_status = 'submitted' THEN 1 ELSE 0 END) AS rectify_submitted,
+               SUM(CASE WHEN i.rectify_status = 'accepted' THEN 1 ELSE 0 END) AS rectify_accepted,
+               SUM(CASE WHEN i.rectify_status = 'rejected' THEN 1 ELSE 0 END) AS rectify_rejected
+        <include refid="Joined_From"/>
+        WHERE i.deleted = 0
+        <include refid="Stat_Filters"/>
+    </select>
+
+    <select id="latestCheckDate" resultType="java.time.LocalDate">
+        SELECT MAX(i.check_date)
+        FROM community_inspection i
+        WHERE i.deleted = 0 AND i.building = #{building} AND i.room_no = #{roomNo}
+    </select>
+
+    <select id="countRoomOfCounselor" resultType="int">
+        SELECT COUNT(*)
+        FROM student_profile p
+        WHERE p.deleted = 0 AND p.counselor_id = #{counselorId}
+          AND p.dorm_building = #{building} AND p.dorm_room = #{roomNo}
+    </select>
+
+    <select id="findRoomLeader" resultType="java.lang.Long">
+        SELECT p.user_id
+        FROM student_profile p
+        WHERE p.deleted = 0 AND p.dorm_building = #{building} AND p.dorm_room = #{roomNo}
+        ORDER BY p.id ASC
+        LIMIT 1
+    </select>
+
+</mapper>

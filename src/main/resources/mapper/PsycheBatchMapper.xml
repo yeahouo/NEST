@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.PsycheBatchMapper">
+
+    <!-- 学工 P14：普查批次。列表带出量表名与创建人姓名（JOIN，非表字段）。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.PsycheBatch">
+        <id column="id" property="id"/>
+        <result column="batch_name" property="batchName"/>
+        <result column="grade" property="grade"/>
+        <result column="academic_year" property="academicYear"/>
+        <result column="instrument_id" property="instrumentId"/>
+        <result column="open_at" property="openAt"/>
+        <result column="close_at" property="closeAt"/>
+        <result column="interview_required" property="interviewRequired"/>
+        <result column="interview_note" property="interviewNote"/>
+        <result column="notice_title" property="noticeTitle"/>
+        <result column="notice_url" property="noticeUrl"/>
+        <result column="status" property="status"/>
+        <result column="published_at" property="publishedAt"/>
+        <result column="closed_at" property="closedAt"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="instrument_name" property="instrumentName"/>
+        <result column="created_by_name" property="createdByName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        b.id, b.batch_name, b.grade, b.academic_year, b.instrument_id, b.open_at, b.close_at,
+        b.interview_required, b.interview_note, b.notice_title, b.notice_url, b.status,
+        b.published_at, b.closed_at, b.created_by, b.created_at, b.updated_at, b.deleted,
+        COALESCE(i.name, '') AS instrument_name,
+        COALESCE(NULLIF(c.real_name, ''), c.nickname, c.username) AS created_by_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM psyche_batch b
+        LEFT JOIN psyche_instrument i ON i.id = b.instrument_id
+        LEFT JOIN users c ON c.id = b.created_by
+    </sql>
+
+    <!-- 列表筛选：非 admin 时 hideDraft=true，草稿批次不对外可见（与 P12/P13 同口径） -->
+    <sql id="List_Filters">
+        <if test="hideDraft">AND b.status != 'draft'</if>
+        <if test="status != null and status != ''">AND b.status = #{status}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (b.batch_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR b.grade LIKE CONCAT('%', #{keyword}, '%')
+                 OR b.academic_year LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.PsycheBatch"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO psyche_batch
+            (batch_name, grade, academic_year, instrument_id, open_at, close_at,
+             interview_required, interview_note, notice_title, notice_url, status,
+             published_at, closed_at, created_by, created_at, updated_at, deleted)
+        VALUES
+            (#{batchName}, #{grade}, #{academicYear}, #{instrumentId}, #{openAt}, #{closeAt},
+             #{interviewRequired}, #{interviewNote}, #{noticeTitle}, #{noticeUrl}, #{status},
+             #{publishedAt}, #{closedAt}, #{createdBy}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE b.id = #{id} AND b.deleted = 0
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE b.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY b.grade DESC, b.id DESC
+    </select>
+
+    <!-- 增量修改：服务层已把「没传的字段」填成现值，这里整行覆盖 + CAS（status 必须还是 fromStatus） -->
+    <update id="update">
+        UPDATE psyche_batch
+        SET batch_name = #{batch.batchName},
+            grade = #{batch.grade},
+            academic_year = #{batch.academicYear},
+            instrument_id = #{batch.instrumentId},
+            open_at = #{batch.openAt},
+            close_at = #{batch.closeAt},
+            interview_required = #{batch.interviewRequired},
+            interview_note = #{batch.interviewNote},
+            notice_title = #{batch.noticeTitle},
+            notice_url = #{batch.noticeUrl},
+            updated_at = NOW()
+        WHERE id = #{batch.id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- draft → open（CAS），同时写 published_at -->
+    <update id="publish">
+        UPDATE psyche_batch
+        SET status = 'open', published_at = #{publishedAt}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- open → closed（CAS），同时写 closed_at -->
+    <update id="close">
+        UPDATE psyche_batch
+        SET status = 'closed', closed_at = #{closedAt}, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+</mapper>

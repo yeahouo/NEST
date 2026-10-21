@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="nestlight">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>奖惩管理 · 学工平台</title>
+  <!--
+    主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
+    daisyUI 的组件颜色跟的是 [data-theme] 属性（不是 .dark 类），两处都必须写，
+    与 nest-ui.js 的 paintTheme() 保持一致。
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('nest-theme');
+        var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) { document.documentElement.classList.add('dark'); }
+        document.documentElement.setAttribute('data-theme', dark ? 'nestdark' : 'nestlight');
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (err) { /* 隐私模式下 localStorage 会抛异常，跟随系统即可 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/libs/radix-colors/colors.css">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>
+  <link href="/libs/open-props/open-props.min.css" rel="stylesheet"/>
+  <link href="/css/nest-fonts.css" rel="stylesheet"/>
+  <link href="/css/nest.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/nest-art3.css">
+</head>
+
+<body data-nx-particles="soft" class="font-display nx-page min-h-screen bg-base-100 text-base-content">
+
+<header class="nx-topbar navbar nx-glass nx-hairline-b sticky top-0 z-50 min-h-0 gap-2 justify-between rounded-none border-0 p-0">
+  <div class="navbar mx-auto min-h-0 w-full max-w-7xl gap-3 px-5 py-2 md:px-8">
+    <div class="navbar-start gap-3">
+      <a class="flex items-center gap-3" href="teacher-dashboard.html">
+        <span class="nx-logo">
+          <span class="material-symbols-outlined text-xl">terminal</span>
+        </span>
+        <span class="hidden text-lg font-black uppercase tracking-tight sm:inline">学工平台</span>
+      </a>
+      <span class="hidden h-5 w-px bg-base-300 lg:block"></span>
+      <span class="hidden font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65 lg:block">§ 06 · Staff affairs / Awards</span>
+    </div>
+    <div class="navbar-end gap-1.5">
+      <a class="btn btn-ghost btn-sm gap-2 rounded-full" href="teacher-dashboard.html">
+        <span class="material-symbols-outlined text-lg">dashboard</span>
+        <span class="hidden md:inline">工作台</span>
+      </a>
+      <button aria-label="切换深色 / 浅色模式" class="nx-icon-btn" data-nx-theme-toggle title="切换深色 / 浅色模式" type="button">
+        <span class="material-symbols-outlined nx-theme-icon-light text-xl">dark_mode</span>
+        <span class="material-symbols-outlined nx-theme-icon-dark text-xl">light_mode</span>
+      </button>
+      <a class="nx-icon-btn" href="settings.html" title="设置">
+        <span class="material-symbols-outlined text-xl">settings</span>
+      </a>
+      <button class="btn btn-ghost btn-sm gap-2 rounded-full" id="logout-btn" type="button">
+        <span class="material-symbols-outlined text-lg">logout</span>
+        <span class="hidden md:inline">退出登录</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="flex-1 px-5 py-8 md:px-8 md:py-12">
+  <div class="mx-auto w-full max-w-7xl">
+
+    <!-- ── 刊头：等宽小标 + 衬线大标题 + 发丝分隔线 ───────────────────── -->
+    <header class="mb-8 border-b border-base-300 pb-6">
+      <p class="nx-kicker">§ 06 · Staff / Awards</p>
+      <h1 data-nx-split="1" class="mt-2 font-serif text-3xl leading-tight sm:text-4xl lg:text-5xl">奖惩管理</h1>
+      <p class="mt-4 max-w-2xl text-sm text-base-content/70">
+        奖励与处分是学工归档材料：录入后学生端立即可见。辅导员只能操作自己名下的学生，
+        管理员可以看全校；记录只做软删除，误删请联系管理员在审计日志里追溯。
+      </p>
+    </header>
+
+    <!-- ── 汇总发丝格 ─────────────────────────────────────────────── -->
+    <section id="award-stats" class="mb-8 grid grid-cols-3 gap-px overflow-hidden rounded-box border border-base-300 bg-base-300"></section>
+
+    <div id="award-message" class="alert hidden mb-6 items-start gap-2"></div>
+
+    <!-- ── 筛选条 ────────────────────────────────────────────────── -->
+    <section class="card mb-8 rounded-box border border-base-300 bg-base-200 p-5 shadow-xl">
+      <div class="flex flex-wrap items-end gap-3">
+        <label class="form-control w-40">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">类型</span>
+          <select class="select select-bordered select-sm" id="filter-kind">
+            <option value="">全部</option>
+            <option value="award">奖励</option>
+            <option value="punishment">处分</option>
+          </select>
+        </label>
+        <label class="form-control w-40">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">级别</span>
+          <select class="select select-bordered select-sm" id="filter-level">
+            <option value="">全部</option>
+            <option value="national">国家级</option>
+            <option value="provincial">省级</option>
+            <option value="school">校级</option>
+            <option value="college">院级</option>
+          </select>
+        </label>
+        <label class="form-control min-w-48 flex-1">
+          <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">关键字</span>
+          <input class="input input-bordered input-sm" id="filter-keyword" placeholder="姓名 / 学号 / 名称 / 文号" type="text"/>
+        </label>
+        <button class="btn btn-primary btn-sm rounded-full" id="filter-search" type="button">查询</button>
+        <button class="btn btn-neutral btn-sm rounded-full gap-2" id="award-create" type="button">
+          <span class="material-symbols-outlined text-lg">add</span>
+          录入奖惩
+        </button>
+      </div>
+      <div class="mt-4 flex flex-wrap items-center gap-2 rounded-box border border-base-300 bg-base-100 p-1.5" id="award-scope">
+        <span class="px-2 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">范围</span>
+        <button class="tab-btn nx-tab is-active" id="scope-mine" type="button">我的学生</button>
+        <button class="tab-btn nx-tab" id="scope-all" type="button">全校</button>
+      </div>
+    </section>
+
+    <section id="award-list" class="grid gap-6 md:grid-cols-2" data-nx-autoanimate="1"></section>
+
+    <p id="award-empty" class="hidden rounded-box border border-dashed border-base-300 p-10 text-center text-sm text-base-content/60">
+      没有符合条件的奖惩记录。
+    </p>
+
+    <div class="mt-8 flex flex-wrap items-center justify-between gap-3">
+      <p class="font-mono text-xs text-base-content/65" id="award-total"></p>
+      <div class="flex items-center gap-2">
+        <button class="btn btn-ghost btn-sm rounded-full" id="award-prev" type="button">上一页</button>
+        <span class="font-mono text-xs" id="award-page">1 / 1</span>
+        <button class="btn btn-ghost btn-sm rounded-full" id="award-next" type="button">下一页</button>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- ── 录入 / 编辑弹窗：遮罩与弹窗体是同一个元素，打开时必须补 flex ────────── -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="award-dialog">
+  <div class="card w-full max-w-2xl rounded-box border border-base-300 bg-base-200 p-6 shadow-2xl">
+    <div class="flex items-start justify-between gap-4">
+      <h2 class="font-serif text-2xl" id="dialog-title">录入奖惩</h2>
+      <button class="nx-icon-btn" id="dialog-close" title="关闭" type="button">
+        <span class="material-symbols-outlined text-xl">close</span>
+      </button>
+    </div>
+
+    <div class="mt-5 grid gap-4 md:grid-cols-2">
+      <label class="form-control md:col-span-2">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学生（姓名 / 学号搜索）</span>
+        <div class="flex flex-wrap gap-2">
+          <input class="input input-bordered input-sm min-w-40 flex-1" id="dialog-student-keyword" placeholder="如 王小明 或 2024001" type="text"/>
+          <button class="btn btn-ghost btn-sm rounded-full" id="dialog-student-search" type="button">搜索</button>
+        </div>
+        <select class="select select-bordered select-sm mt-2" id="dialog-student-select"></select>
+        <span class="mt-1 text-xs text-base-content/60" id="dialog-student-fixed"></span>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">类型</span>
+        <select class="select select-bordered select-sm" id="dialog-kind">
+          <option value="award">奖励</option>
+          <option value="punishment">处分</option>
+        </select>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">级别</span>
+        <select class="select select-bordered select-sm" id="dialog-level">
+          <option value="">未填写</option>
+          <option value="national">国家级</option>
+          <option value="provincial">省级</option>
+          <option value="school">校级</option>
+          <option value="college">院级</option>
+        </select>
+      </label>
+      <label class="form-control md:col-span-2">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">名称</span>
+        <input class="input input-bordered input-sm" id="dialog-name" placeholder="如 国家励志奖学金 / 校级三好学生" type="text"/>
+      </label>
+      <label class="form-control md:col-span-2">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">事由 / 说明</span>
+        <textarea class="textarea textarea-bordered" id="dialog-reason" placeholder="写明获奖事由或处分依据" rows="3"></textarea>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">金额（奖励）</span>
+        <input class="input input-bordered input-sm" id="dialog-amount" placeholder="如 5000" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">文号</span>
+        <input class="input input-bordered input-sm" id="dialog-doc-no" placeholder="如 嘉庚学〔2026〕12 号" type="text"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">日期</span>
+        <input class="input input-bordered input-sm" id="dialog-granted-on" placeholder="2026-09-01" type="date"/>
+      </label>
+      <label class="form-control">
+        <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">解除日期（处分）</span>
+        <input class="input input-bordered input-sm" id="dialog-revoked-on" placeholder="2027-09-01" type="date"/>
+      </label>
+    </div>
+
+    <div id="dialog-message" class="alert hidden mt-5 items-start gap-2"></div>
+
+    <div class="mt-6 flex flex-wrap items-center justify-end gap-2 border-t border-base-300 pt-5">
+      <button class="btn btn-ghost rounded-full" id="dialog-cancel" type="button">取消</button>
+      <button class="btn btn-primary rounded-full" id="dialog-save" type="button">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 删除确认 ──────────────────────────────────────────────────── -->
+<div class="absolute inset-0 nx-scrim modal-container-animate hidden items-center justify-center p-4" id="delete-dialog">
+  <div class="card w-full max-w-md rounded-box border border-base-300 bg-base-200 p-6 shadow-2xl">
+    <h2 class="font-serif text-2xl">删除这条记录？</h2>
+    <p class="mt-3 text-sm text-base-content/75" id="delete-text"></p>
+    <div class="mt-6 flex items-center justify-end gap-2">
+      <button class="btn btn-ghost rounded-full" id="delete-cancel" type="button">取消</button>
+      <button class="btn btn-error rounded-full" id="delete-confirm" type="button">删除</button>
+    </div>
+  </div>
+</div>
+
+<footer class="nx-hairline-t border-base-300 px-5 py-6 md:px-8">
+  <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
+    <p class="font-mono text-[10px] uppercase tracking-[0.22em] text-base-content/65">学工平台 · Awards &amp; Discipline</p>
+    <p class="text-xs text-base-content/60">奖惩记录属于学生事务归档材料，请如实录入并留存文号。</p>
+  </div>
+</footer>
+
+<script>
+  // ─────────────────────────────── 状态 ───────────────────────────────
+  let listPage = 1;
+  let listScope = 'mine';
+  let listPages = 1;
+  let editingId = null;
+  let deletingId = null;
+
+  const KIND_TEXT = { award: '奖励', punishment: '处分' };
+  const KIND_BADGE = { award: 'badge-success', punishment: 'badge-error' };
+  const LEVEL_TEXT = { national: '国家级', provincial: '省级', school: '校级', college: '院级' };
+
+  function escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  async function callApi(url, options) {
+    const response = await fetch(url, options);
+    return response.json();
+  }
+
+  function showMessage(text, type) {
+    const box = document.getElementById('award-message');
+    const tone = type === 'success' ? 'alert-success' : 'alert-error';
+    const icon = type === 'success' ? 'check_circle' : 'error';
+    box.classList.remove('hidden');
+    box.className = 'alert items-start gap-2 ' + tone;
+    box.innerHTML = '<span class="material-symbols-outlined text-lg">' + icon
+        + '</span><span class="text-sm">' + escapeHtml(text) + '</span>';
+  }
+
+  function clearMessage() {
+    document.getElementById('award-message').classList.add('hidden');
+  }
+
+  function showDialogMessage(text, type) {
+    const box = document.getElementById('dialog-message');
+    const tone = type === 'success' ? 'alert-success' : 'alert-error';
+    box.classList.remove('hidden');
+    box.className = 'alert items-start gap-2 ' + tone;
+    box.innerHTML = '<span class="text-sm">' + escapeHtml(text) + '</span>';
+  }
+
+  function clearDialogMessage() {
+    document.getElementById('dialog-message').classList.add('hidden');
+  }
+
+  // ─────────────────────────────── 读数据 ─────────────────────────────
+  async function checkAuth() {
+    try {
+      const result = await callApi('/api/auth/me');
+      if (result.code !== 200) { window.location.href = 'login.html'; return null; }
+      const role = result.data && result.data.role;
+      if (role !== 'teacher' && role !== 'admin') { window.location.href = 'award-punishment.html'; return null; }
+      if (role === 'admin') {
+        // 管理员默认看全校
+        setScope('all');
+      }
+      return result.data;
+    } catch (error) {
+      window.location.href = 'login.html';
+      return null;
+    }
+  }
+
+  function statCell(label, count) {
+    return '<div class="flex flex-col gap-1 bg-base-100 p-6">'
+        + '<dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">' + label + '</dt>'
+        + '<dd class="mt-1 font-serif text-2xl">' + count + '</dd></div>';
+  }
+
+  function renderStats(stats) {
+    const data = stats || {};
+    document.getElementById('award-stats').innerHTML = statCell('奖励', data.award || 0)
+        + statCell('处分', data.punishment || 0)
+        + statCell('合计', data.total || 0);
+  }
+
+  function moneyText(amount) {
+    if (amount === null || amount === undefined || amount === '') { return '—'; }
+    return '¥ ' + amount;
+  }
+
+  function recordHtml(item) {
+    const badge = KIND_BADGE[item.kind] || 'badge-ghost';
+    const kindText = KIND_TEXT[item.kind] || '记录';
+    const rows = [
+      ['学生', (item.studentName || '-') + ' · ' + (item.studentNo || '-')],
+      ['班级', item.className || '—'],
+      ['级别', LEVEL_TEXT[item.level] || '—'],
+      ['日期', item.grantedOn || '—'],
+      ['文号', item.docNo || '—'],
+      ['金额', moneyText(item.amount)]
+    ];
+    return '<article class="card rounded-box border border-base-300 bg-base-200 p-6 shadow-xl">'
+        + '<div class="flex items-start justify-between gap-3">'
+        + '<h2 class="text-lg font-bold leading-snug">' + escapeHtml(item.title) + '</h2>'
+        + '<span class="badge ' + badge + ' badge-sm whitespace-nowrap">' + kindText + '</span>'
+        + '</div>'
+        + '<dl class="mt-4 grid grid-cols-2 gap-x-6 gap-y-3">'
+        + rows.map(function (row) {
+          return '<div><dt class="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">'
+              + row[0] + '</dt><dd class="mt-0.5 text-sm">' + escapeHtml(row[1]) + '</dd></div>';
+        }).join('')
+        + '</dl>'
+        + (item.reason ? '<p class="mt-4 border-t border-base-300 pt-4 text-sm text-base-content/75">' + escapeHtml(item.reason) + '</p>' : '')
+        + '<div class="mt-5 flex items-center justify-end gap-2 border-t border-base-300 pt-4">'
+        + '<button class="btn btn-ghost btn-sm rounded-full" data-edit="' + item.id + '" type="button">编辑</button>'
+        + '<button class="btn btn-ghost btn-sm rounded-full text-error" data-delete="' + item.id + '" type="button">删除</button>'
+        + '</div></article>';
+  }
+
+  function query() {
+    const params = new URLSearchParams();
+    const kind = document.getElementById('filter-kind').value;
+    const level = document.getElementById('filter-level').value;
+    const keyword = document.getElementById('filter-keyword').value.trim();
+    if (kind) { params.set('kind', kind); }
+    if (level) { params.set('level', level); }
+    if (keyword) { params.set('keyword', keyword); }
+    params.set('scope', listScope);
+    params.set('page', String(listPage));
+    params.set('size', '20');
+    return params.toString();
+  }
+
+  async function load() {
+    const result = await callApi('/api/award-punishment?' + query());
+    if (result.code !== 200) {
+      showMessage(result.message || '读不到奖惩记录', 'error');
+      return;
+    }
+    renderStats(result.data.stats);
+    const items = result.data.items || [];
+    const host = document.getElementById('award-list');
+    host.innerHTML = items.map(recordHtml).join('');
+    host.querySelectorAll('[data-edit]').forEach(function (button) {
+      button.addEventListener('click', function () { openEdit(button.getAttribute('data-edit')); });
+    });
+    host.querySelectorAll('[data-delete]').forEach(function (button) {
+      button.addEventListener('click', function () { openDelete(button.getAttribute('data-delete')); });
+    });
+    document.getElementById('award-empty').classList.toggle('hidden', items.length > 0);
+    listPages = result.data.pages || 1;
+    document.getElementById('award-page').textContent = (result.data.page || 1) + ' / ' + listPages;
+    document.getElementById('award-total').textContent = '本页 ' + items.length + ' 条 / 共 ' + (result.data.total || 0) + ' 条';
+    document.getElementById('award-prev').disabled = listPage <= 1;
+    document.getElementById('award-next').disabled = listPage >= listPages;
+  }
+
+  async function openCreate() {
+    editingId = null;
+    document.getElementById('dialog-title').textContent = '录入奖惩';
+    document.getElementById('dialog-student-keyword').value = '';
+    document.getElementById('dialog-student-select').innerHTML = '<option value="">请先搜索学生</option>';
+    document.getElementById('dialog-student-select').classList.remove('hidden');
+    document.getElementById('dialog-student-keyword').classList.remove('hidden');
+    document.getElementById('dialog-student-search').classList.remove('hidden');
+    document.getElementById('dialog-student-fixed').textContent = '';
+    document.getElementById('dialog-kind').value = 'award';
+    document.getElementById('dialog-level').value = '';
+    document.getElementById('dialog-name').value = '';
+    document.getElementById('dialog-reason').value = '';
+    document.getElementById('dialog-amount').value = '';
+    document.getElementById('dialog-doc-no').value = '';
+    document.getElementById('dialog-granted-on').value = '';
+    document.getElementById('dialog-revoked-on').value = '';
+    clearDialogMessage();
+    await searchStudents('');
+    openDialog('award-dialog');
+    document.getElementById('dialog-name').focus();
+  }
+
+  async function openEdit(id) {
+    // 记录本身从当前列表数据里取，避免再发一次请求导致分页错位
+    const listResult = await callApi('/api/award-punishment?' + query());
+    const items = (listResult.data && listResult.data.items) || [];
+    const item = items.filter(function (row) { return String(row.id) === String(id); })[0];
+    if (!item) {
+      showMessage('这条记录已不在当前列表，请刷新后重试', 'error');
+      return;
+    }
+    editingId = item.id;
+    document.getElementById('dialog-title').textContent = '编辑奖惩';
+    document.getElementById('dialog-student-keyword').classList.add('hidden');
+    document.getElementById('dialog-student-search').classList.add('hidden');
+    document.getElementById('dialog-student-select').classList.add('hidden');
+    document.getElementById('dialog-student-fixed').textContent =
+        '学生：' + (item.studentName || '-') + ' · ' + (item.studentNo || '-') + '（编辑时不可更换学生）';
+    document.getElementById('dialog-kind').value = item.kind || 'award';
+    document.getElementById('dialog-level').value = item.level || '';
+    document.getElementById('dialog-name').value = item.title || '';
+    document.getElementById('dialog-reason').value = item.reason || '';
+    document.getElementById('dialog-amount').value = (item.amount === null || item.amount === undefined) ? '' : item.amount;
+    document.getElementById('dialog-doc-no').value = item.docNo || '';
+    document.getElementById('dialog-granted-on').value = item.grantedOn ? String(item.grantedOn).slice(0, 10) : '';
+    document.getElementById('dialog-revoked-on').value = item.revokedOn ? String(item.revokedOn).slice(0, 10) : '';
+    clearDialogMessage();
+    openDialog('award-dialog');
+  }
+
+  async function searchStudents(keyword) {
+    const params = new URLSearchParams();
+    // 和学生名册同一口径：辅导员只搜自己名下的学生，管理员才是全校
+    params.set('scope', listScope);
+    params.set('size', '50');
+    if (keyword) { params.set('keyword', keyword); }
+    const result = await callApi('/api/counselor/students?' + params.toString());
+    const select = document.getElementById('dialog-student-select');
+    if (result.code !== 200) {
+      select.innerHTML = '<option value="">搜索失败</option>';
+      return;
+    }
+    const items = (result.data && result.data.items) || [];
+    if (items.length === 0) {
+      select.innerHTML = '<option value="">没有匹配的学生</option>';
+      return;
+    }
+    select.innerHTML = '<option value="">请选择学生</option>' + items.map(function (row) {
+      return '<option value="' + row.userId + '">' + escapeHtml(row.name || row.username)
+          + ' · ' + escapeHtml(row.studentNo || '-') + ' · ' + escapeHtml(row.className || '-') + '</option>';
+    }).join('');
+  }
+
+  async function save() {
+    const kind = document.getElementById('dialog-kind').value;
+    const payload = {
+      kind: kind,
+      level: document.getElementById('dialog-level').value,
+      title: document.getElementById('dialog-name').value.trim(),
+      reason: document.getElementById('dialog-reason').value.trim(),
+      amount: kind === 'punishment' ? '' : document.getElementById('dialog-amount').value.trim(),
+      docNo: document.getElementById('dialog-doc-no').value.trim(),
+      grantedOn: document.getElementById('dialog-granted-on').value,
+      revokedOn: document.getElementById('dialog-revoked-on').value
+    };
+    let url = '/api/award-punishment';
+    let method = 'POST';
+    if (editingId) {
+      url = '/api/award-punishment/' + editingId;
+      method = 'PUT';
+    } else {
+      const studentId = document.getElementById('dialog-student-select').value;
+      if (!studentId) {
+        showDialogMessage('请先搜索并选择学生', 'error');
+        return;
+      }
+      payload.studentId = studentId;
+    }
+    const result = await callApi(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (result.code !== 200) {
+      showDialogMessage(result.message || '保存失败', 'error');
+      return;
+    }
+    closeDialog('award-dialog');
+    showMessage(result.message || '已保存', 'success');
+    await load();
+  }
+
+  async function doDelete() {
+    if (!deletingId) { return; }
+    const result = await callApi('/api/award-punishment/' + deletingId, { method: 'DELETE' });
+    closeDialog('delete-dialog');
+    if (result.code !== 200) {
+      showMessage(result.message || '删除失败', 'error');
+      return;
+    }
+    showMessage(result.message || '已删除', 'success');
+    await load();
+  }
+
+  // ─────────────────────────────── 交互 ──────────────────────────────
+  function openDialog(id) {
+    const dialog = document.getElementById(id);
+    dialog.classList.remove('hidden');
+    dialog.classList.add('flex');
+  }
+
+  function closeDialog(id) {
+    const dialog = document.getElementById(id);
+    dialog.classList.add('hidden');
+    dialog.classList.remove('flex');
+  }
+
+  function setScope(value) {
+    listScope = value;
+    listPage = 1;
+    const mineActive = value === 'mine';
+    const allActive = value === 'all';
+    document.getElementById('scope-mine').classList.toggle('is-active', mineActive);
+    document.getElementById('scope-all').classList.toggle('is-active', allActive);
+  }
+
+  function logout() {
+    callApi('/api/auth/logout', { method: 'POST' }).then(function () {
+      window.location.href = 'login.html';
+    });
+  }
+
+  document.getElementById('logout-btn').addEventListener('click', logout);
+  document.getElementById('filter-search').addEventListener('click', function () { listPage = 1; load(); });
+  document.getElementById('award-create').addEventListener('click', openCreate);
+  document.getElementById('scope-mine').addEventListener('click', function () { setScope('mine'); load(); });
+  document.getElementById('scope-all').addEventListener('click', function () { setScope('all'); load(); });
+  document.getElementById('award-prev').addEventListener('click', function () {
+    if (listPage > 1) { listPage = listPage - 1; load(); }
+  });
+  document.getElementById('award-next').addEventListener('click', function () {
+    if (listPage < listPages) { listPage = listPage + 1; load(); }
+  });
+  document.getElementById('dialog-close').addEventListener('click', function () { closeDialog('award-dialog'); });
+  document.getElementById('dialog-cancel').addEventListener('click', function () { closeDialog('award-dialog'); });
+  document.getElementById('dialog-save').addEventListener('click', save);
+  document.getElementById('dialog-student-search').addEventListener('click', function () {
+    searchStudents(document.getElementById('dialog-student-keyword').value.trim());
+  });
+  document.getElementById('delete-cancel').addEventListener('click', function () { closeDialog('delete-dialog'); });
+  document.getElementById('delete-confirm').addEventListener('click', doDelete);
+
+  document.addEventListener('DOMContentLoaded', async function () {
+    clearMessage();
+    const me = await checkAuth();
+    if (!me) { return; }
+    await load();
+  });
+</script>
+<script defer src="/js/nest-ui.js"></script>
+<script defer src="/libs/animejs/anime.umd.min.js"></script>
+<script defer src="/libs/countup/countUp.umd.js"></script>
+<script defer src="/libs/vanilla-tilt/vanilla-tilt.min.js"></script>
+<script defer src="/libs/canvas-confetti/confetti.browser.js"></script>
+<script defer src="/js/nest-motion.js"></script>
+<script defer src="/js/nest-particles.js"></script>
+<script defer src="/js/nest-art3.js"></script>
+</body>
+</html>

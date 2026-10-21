@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.VolunteerRecordMapper">
+
+    <!-- 志愿服务时长记录（学工 P17，S21）。学生姓名/学号与项目名由 JOIN 带出。
+         累计时长口径：只有 status='approved' AND deleted=0 才计入（见下方 sumHoursByUser）。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.VolunteerRecord">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="project_id" property="projectId"/>
+        <result column="service_date" property="serviceDate"/>
+        <result column="sign_in" property="signIn"/>
+        <result column="sign_out" property="signOut"/>
+        <result column="hours" property="hours"/>
+        <result column="hour_type" property="hourType"/>
+        <result column="source" property="source"/>
+        <result column="recorder_id" property="recorderId"/>
+        <result column="recorder_subject" property="recorderSubject"/>
+        <result column="status" property="status"/>
+        <result column="review_user_id" property="reviewUserId"/>
+        <result column="review_time" property="reviewTime"/>
+        <result column="reject_reason" property="rejectReason"/>
+        <result column="makeup_note" property="makeupNote"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="project_name" property="projectName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        t.id, t.user_id, t.project_id, t.service_date, t.sign_in, t.sign_out, t.hours, t.hour_type,
+        t.source, t.recorder_id, t.recorder_subject, t.status, t.review_user_id, t.review_time,
+        t.reject_reason, t.makeup_note, t.created_at, t.updated_at, t.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(sp.student_no, u.student_id) AS student_no,
+        COALESCE(sp.class_name, u.class_name) AS class_name,
+        p.project_name AS project_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM volunteer_record t
+        LEFT JOIN users u ON u.id = t.user_id AND u.deleted = 0
+        LEFT JOIN student_profile sp ON sp.user_id = t.user_id AND sp.deleted = 0
+        LEFT JOIN volunteer_project p ON p.id = t.project_id AND p.deleted = 0
+    </sql>
+
+    <sql id="List_Filters">
+        <!-- scope（§6）：学生按 t.user_id；辅导员按 student_profile.counselor_id 名下学生 -->
+        <if test="scopeUserId != null">AND t.user_id = #{scopeUserId}</if>
+        <if test="scopeCounselorId != null">AND sp.counselor_id = #{scopeCounselorId}</if>
+        <if test="projectId != null">AND t.project_id = #{projectId}</if>
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+        <if test="hourType != null and hourType != ''">AND t.hour_type = #{hourType}</if>
+        <if test="source != null and source != ''">AND t.source = #{source}</if>
+        <if test="startDate != null">AND t.service_date &gt;= #{startDate}</if>
+        <if test="endDate != null">AND t.service_date &lt;= #{endDate}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.student_no LIKE CONCAT('%', #{keyword}, '%')
+                 OR p.project_name LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.VolunteerRecord"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO volunteer_record
+            (user_id, project_id, service_date, sign_in, sign_out, hours, hour_type, source,
+             recorder_id, recorder_subject, status, review_user_id, review_time, reject_reason,
+             makeup_note, created_at, updated_at, deleted)
+        VALUES
+            (#{userId}, #{projectId}, #{serviceDate}, #{signIn}, #{signOut}, #{hours}, #{hourType}, #{source},
+             #{recorderId}, #{recorderSubject}, #{status}, #{reviewUserId}, #{reviewTime}, #{rejectReason},
+             #{makeupNote}, NOW(), NOW(), 0)
+    </insert>
+
+    <!-- 批量录入（POST /records/batch）：同事务逐条插入，service 保证同批口径一致 -->
+    <insert id="insertBatch" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO volunteer_record
+            (user_id, project_id, service_date, sign_in, sign_out, hours, hour_type, source,
+             recorder_id, recorder_subject, status, makeup_note, created_at, updated_at, deleted)
+        VALUES
+        <foreach collection="records" item="r" separator=",">
+            (#{r.userId}, #{r.projectId}, #{r.serviceDate}, #{r.signIn}, #{r.signOut}, #{r.hours},
+             #{r.hourType}, #{r.source}, #{r.recorderId}, #{r.recorderSubject}, #{r.status},
+             #{r.makeupNote}, NOW(), NOW(), 0)
+        </foreach>
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.id = #{id} AND t.deleted = 0
+    </select>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY t.service_date DESC, t.id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="selectCount" resultType="long">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE t.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <!-- 审核 CAS：pending → approved/rejected（§7-1）；终态不可重复审核（§7-2） -->
+    <update id="reviewRecord">
+        UPDATE volunteer_record
+        <set>
+            status = #{toStatus},
+            review_user_id = #{reviewUserId},
+            review_time = NOW(),
+            <if test="rejectReason != null">reject_reason = #{rejectReason},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- 增量修改（动态 set）：CAS 前置态由服务层显式给 -->
+    <update id="update">
+        UPDATE volunteer_record
+        <set>
+            <if test="r.projectId != null">project_id = #{r.projectId},</if>
+            <if test="r.serviceDate != null">service_date = #{r.serviceDate},</if>
+            <if test="r.signIn != null">sign_in = #{r.signIn},</if>
+            <if test="r.signOut != null">sign_out = #{r.signOut},</if>
+            <if test="r.hours != null">hours = #{r.hours},</if>
+            <if test="r.hourType != null">hour_type = #{r.hourType},</if>
+            <if test="r.source != null">source = #{r.source},</if>
+            <if test="r.recorderId != null">recorder_id = #{r.recorderId},</if>
+            <if test="r.recorderSubject != null">recorder_subject = #{r.recorderSubject},</if>
+            <if test="r.status != null">status = #{r.status},</if>
+            <if test="r.reviewUserId != null">review_user_id = #{r.reviewUserId},</if>
+            <if test="r.reviewTime != null">review_time = #{r.reviewTime},</if>
+            <if test="r.rejectReason != null">reject_reason = #{r.rejectReason},</if>
+            <if test="r.makeupNote != null">makeup_note = #{r.makeupNote},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{r.id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <update id="softDelete">
+        UPDATE volunteer_record
+        SET deleted = 1, updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <!-- 累计时长（S21 第三十条星级推算的唯一数据源）：只算 approved 且未删除。
+         hourType 为空 = 信用+荣誉合计；非空 = 只算该类型。日期区间为空 = 不限（学年区间由服务层算好传入）。 -->
+    <select id="sumHoursByUser" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(t.hours), 0)
+        FROM volunteer_record t
+        WHERE t.user_id = #{userId}
+          AND t.deleted = 0
+          AND t.status = 'approved'
+        <if test="hourType != null and hourType != ''">AND t.hour_type = #{hourType}</if>
+        <if test="startDate != null">AND t.service_date &gt;= #{startDate}</if>
+        <if test="endDate != null">AND t.service_date &lt;= #{endDate}</if>
+    </select>
+
+    <!-- 某学生某天已认定时长：S21 第二十二条「每天 8 小时上限」提示用（超出只提示、不硬拒） -->
+    <select id="sumHoursByUserAndDate" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(t.hours), 0)
+        FROM volunteer_record t
+        WHERE t.user_id = #{userId}
+          AND t.service_date = #{serviceDate}
+          AND t.deleted = 0
+          AND t.status = 'approved'
+    </select>
+
+    <!-- 某学生某天记录条数（补录/更正前置校验用；含未审核记录，便于提示重复录入） -->
+    <select id="countByUserAndDate" resultType="long">
+        SELECT COUNT(*)
+        FROM volunteer_record t
+        WHERE t.user_id = #{userId}
+          AND t.service_date = #{serviceDate}
+          AND t.deleted = 0
+    </select>
+
+    <select id="countByStatus" resultType="long">
+        SELECT COUNT(*)
+        FROM volunteer_record t
+        WHERE t.deleted = 0
+        <if test="status != null and status != ''">AND t.status = #{status}</if>
+    </select>
+
+    <select id="countGroupByStatus" resultType="java.util.LinkedHashMap">
+        SELECT t.status AS status, COUNT(*) AS total
+        FROM volunteer_record t
+        WHERE t.deleted = 0
+        <if test="userId != null">AND t.user_id = #{userId}</if>
+        GROUP BY t.status
+        ORDER BY t.status
+    </select>
+
+    <select id="countGroupBySource" resultType="java.util.LinkedHashMap">
+        SELECT t.source AS source, COUNT(*) AS total, COALESCE(SUM(t.hours), 0) AS hours
+        FROM volunteer_record t
+        WHERE t.deleted = 0
+        <if test="userId != null">AND t.user_id = #{userId}</if>
+        GROUP BY t.source
+        ORDER BY t.source
+    </select>
+
+</mapper>

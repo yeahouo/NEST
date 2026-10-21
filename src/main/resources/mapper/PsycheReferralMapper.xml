@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.PsycheReferralMapper">
+
+    <!-- 学工 P14：转介登记与跟踪（campus / hospital / family，只留痕不下结论）。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.PsycheReferral">
+        <id column="id" property="id"/>
+        <result column="student_id" property="studentId"/>
+        <result column="source_type" property="sourceType"/>
+        <result column="source_id" property="sourceId"/>
+        <result column="target" property="target"/>
+        <result column="reason" property="reason"/>
+        <result column="referred_by" property="referredBy"/>
+        <result column="referred_at" property="referredAt"/>
+        <result column="status" property="status"/>
+        <result column="follow_note" property="followNote"/>
+        <result column="closed_at" property="closedAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="referred_by_name" property="referredByName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        r.id, r.student_id, r.source_type, r.source_id, r.target, r.reason, r.referred_by,
+        r.referred_at, r.status, r.follow_note, r.closed_at, r.created_at, r.updated_at, r.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(u.student_id, '') AS student_no,
+        COALESCE(sp.class_name, '') AS class_name,
+        COALESCE(NULLIF(u2.real_name, ''), u2.nickname, u2.username) AS referred_by_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM psyche_referral r
+        LEFT JOIN users u ON u.id = r.student_id
+        LEFT JOIN student_profile sp ON sp.user_id = r.student_id AND sp.deleted = 0
+        LEFT JOIN users u2 ON u2.id = r.referred_by
+    </sql>
+
+    <!-- scope 非空 = teacher 口径：只看名下学生的转介 -->
+    <sql id="List_Filters">
+        <if test="target != null and target != ''">AND r.target = #{target}</if>
+        <if test="status != null and status != ''">AND r.status = #{status}</if>
+        <if test="scope != null">AND sp.counselor_id = #{scope}</if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.PsycheReferral"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO psyche_referral
+            (student_id, source_type, source_id, target, reason, referred_by, referred_at,
+             status, follow_note, closed_at, created_at, updated_at, deleted)
+        VALUES
+            (#{studentId}, #{sourceType}, #{sourceId}, #{target}, #{reason}, #{referredBy}, #{referredAt},
+             #{status}, #{followNote}, #{closedAt}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE r.id = #{id} AND r.deleted = 0
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE r.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY r.id DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="count" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE r.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <!-- 增量修改（CAS）：服务层已把没传的字段填成现值，status 必须还是 fromStatus -->
+    <update id="update">
+        UPDATE psyche_referral
+        SET target = #{referral.target},
+            reason = #{referral.reason},
+            status = #{referral.status},
+            follow_note = #{referral.followNote},
+            closed_at = #{referral.closedAt},
+            updated_at = NOW()
+        WHERE id = #{referral.id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+</mapper>

@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.StudentProfileMapper">
+
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.StudentProfile">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="major" property="major"/>
+        <result column="grade" property="grade"/>
+        <result column="counselor_id" property="counselorId"/>
+        <result column="dorm_building" property="dormBuilding"/>
+        <result column="dorm_room" property="dormRoom"/>
+        <result column="political_status" property="politicalStatus"/>
+        <result column="family_contact" property="familyContact"/>
+        <result column="family_income_level" property="familyIncomeLevel"/>
+        <result column="status" property="status"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="name" property="name"/>
+        <result column="username" property="username"/>
+        <result column="phone" property="phone"/>
+        <result column="counselor_name" property="counselorName"/>
+    </resultMap>
+
+    <!-- 姓名/手机号来自 users（账号资料），辅导员姓名再 JOIN 一次 users -->
+    <sql id="Joined_Columns">
+        sp.id, sp.user_id, sp.student_no, sp.class_name, sp.major, sp.grade,
+        sp.counselor_id, sp.dorm_building, sp.dorm_room, sp.political_status,
+        sp.family_contact, sp.family_income_level, sp.status, sp.created_at, sp.updated_at, sp.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS name,
+        u.username,
+        COALESCE(NULLIF(u.phone, ''), sp.family_contact) AS phone,
+        COALESCE(NULLIF(c.real_name, ''), c.username) AS counselor_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM student_profile sp
+        LEFT JOIN users u ON u.id = sp.user_id AND u.deleted = 0
+        LEFT JOIN users c ON c.id = sp.counselor_id
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.StudentProfile"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO student_profile
+            (user_id, student_no, class_name, major, grade, counselor_id, dorm_building, dorm_room,
+             political_status, family_contact, family_income_level, status, created_at, updated_at)
+        VALUES
+            (#{userId}, #{studentNo}, #{className}, #{major}, #{grade}, #{counselorId}, #{dormBuilding}, #{dormRoom},
+             #{politicalStatus}, #{familyContact}, #{familyIncomeLevel}, #{status}, NOW(), NOW())
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE sp.id = #{id} AND sp.deleted = 0
+    </select>
+
+    <select id="findByUserId" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE sp.user_id = #{userId} AND sp.deleted = 0
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE sp.deleted = 0
+        <if test="counselorId != null">AND sp.counselor_id = #{counselorId}</if>
+        <if test="className != null and className != ''">AND sp.class_name = #{className}</if>
+        <if test="status != null and status != ''">AND sp.status = #{status}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.student_no LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.major LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY sp.class_name, sp.student_no, sp.id
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="count" resultType="int">
+        SELECT COUNT(*)
+        FROM student_profile sp
+        LEFT JOIN users u ON u.id = sp.user_id AND u.deleted = 0
+        WHERE sp.deleted = 0
+        <if test="counselorId != null">AND sp.counselor_id = #{counselorId}</if>
+        <if test="className != null and className != ''">AND sp.class_name = #{className}</if>
+        <if test="status != null and status != ''">AND sp.status = #{status}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.student_no LIKE CONCAT('%', #{keyword}, '%')
+                 OR sp.major LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </select>
+
+    <update id="update" parameterType="com.umi.nest.entity.StudentProfile">
+        UPDATE student_profile
+        SET student_no = #{studentNo},
+            class_name = #{className},
+            major = #{major},
+            grade = #{grade},
+            counselor_id = #{counselorId},
+            dorm_building = #{dormBuilding},
+            dorm_room = #{dormRoom},
+            political_status = #{politicalStatus},
+            family_contact = #{familyContact},
+            family_income_level = #{familyIncomeLevel},
+            status = #{status},
+            updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <select id="countByCounselor" resultType="int">
+        SELECT COUNT(*) FROM student_profile
+        WHERE counselor_id = #{counselorId} AND deleted = 0 AND status = 'active'
+    </select>
+
+    <!-- 补录用：还没建学工档案的在读学生账号 -->
+    <select id="listMissingProfile" resultMap="BaseResultMap">
+        SELECT NULL AS id,
+               u.id AS user_id,
+               COALESCE(u.student_id, '') AS student_no,
+               COALESCE(u.class_name, '') AS class_name,
+               COALESCE(u.major, '') AS major,
+               COALESCE(u.grade, '') AS grade,
+               NULL AS counselor_id,
+               COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS name,
+               u.username,
+               u.phone,
+               NULL AS counselor_name
+        FROM users u
+        LEFT JOIN student_profile sp ON sp.user_id = u.id AND sp.deleted = 0
+        WHERE u.deleted = 0 AND u.role = 'student' AND u.status = 1 AND sp.id IS NULL
+        ORDER BY u.id
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countMissingProfile" resultType="int">
+        SELECT COUNT(*)
+        FROM users u
+        LEFT JOIN student_profile sp ON sp.user_id = u.id AND sp.deleted = 0
+        WHERE u.deleted = 0 AND u.role = 'student' AND u.status = 1 AND sp.id IS NULL
+    </select>
+
+    <!-- 名册里出现过的班级（筛选下拉用）；传 counselorId 时只统计名下 -->
+    <select id="listClassNames" resultType="java.lang.String">
+        SELECT DISTINCT sp.class_name
+        FROM student_profile sp
+        WHERE sp.deleted = 0 AND sp.class_name IS NOT NULL AND sp.class_name &lt;&gt; ''
+        <if test="counselorId != null">AND sp.counselor_id = #{counselorId}</if>
+        ORDER BY sp.class_name
+    </select>
+
+    <select id="countGroupByStatus" resultType="java.util.Map">
+        SELECT sp.status AS status, COUNT(*) AS cnt
+        FROM student_profile sp
+        WHERE sp.deleted = 0
+        <if test="counselorId != null">AND sp.counselor_id = #{counselorId}</if>
+        GROUP BY sp.status
+    </select>
+
+    <select id="countGroupByClass" resultType="java.util.Map">
+        SELECT COALESCE(NULLIF(sp.class_name, ''), '未填班级') AS class_name, COUNT(*) AS cnt
+        FROM student_profile sp
+        WHERE sp.deleted = 0
+        <if test="counselorId != null">AND sp.counselor_id = #{counselorId}</if>
+        GROUP BY class_name
+        ORDER BY cnt DESC, class_name
+    </select>
+    <!-- 辅导员工作台·综测未出分：eval_summary 里该学期没有记录的在读学生 -->
+    <select id="listMissingEval" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        LEFT JOIN eval_summary m ON m.student_id = sp.user_id AND m.academic_term = #{term}
+        WHERE sp.deleted = 0 AND sp.status = 'active' AND m.id IS NULL
+        <if test="counselorId != null">AND sp.counselor_id = #{counselorId}</if>
+        ORDER BY sp.class_name, sp.student_no
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countMissingEval" resultType="int">
+        SELECT COUNT(*)
+        FROM student_profile sp
+        LEFT JOIN eval_summary m ON m.student_id = sp.user_id AND m.academic_term = #{term}
+        WHERE sp.deleted = 0 AND sp.status = 'active' AND m.id IS NULL
+        <if test="counselorId != null">AND sp.counselor_id = #{counselorId}</if>
+    </select>
+
+</mapper>

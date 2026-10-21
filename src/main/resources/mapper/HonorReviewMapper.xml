@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.HonorReviewMapper">
+
+    <!-- 审核意见要显示审核人姓名，JOIN users（real_name 优先，空则 username；不用 nickname，
+         审核意见的署名要能对上人事口径） -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.HonorReview">
+        <id column="id" property="id"/>
+        <result column="application_id" property="applicationId"/>
+        <result column="node" property="node"/>
+        <result column="verdict" property="verdict"/>
+        <result column="comment" property="comment"/>
+        <result column="reviewer_id" property="reviewerId"/>
+        <result column="reviewer_role" property="reviewerRole"/>
+        <result column="reviewed_at" property="reviewedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="reviewer_name" property="reviewerName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        r.id, r.application_id, r.node, r.verdict, r.comment, r.reviewer_id, r.reviewer_role,
+        r.reviewed_at, r.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.username) AS reviewer_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM honor_review r
+        LEFT JOIN users u ON u.id = r.reviewer_id AND u.deleted = 0
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.HonorReview"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO honor_review
+            (application_id, node, verdict, comment, reviewer_id, reviewer_role, reviewed_at, deleted)
+        VALUES
+            (#{applicationId}, #{node}, #{verdict}, #{comment}, #{reviewerId}, #{reviewerRole}, NOW(), 0)
+    </insert>
+
+    <!-- 正序：学生端要按「辅导员 → 学院 → 学工部」的顺序读，倒序会把流程读反 -->
+    <select id="listByApplication" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE r.application_id = #{applicationId} AND r.deleted = 0
+        ORDER BY r.id ASC
+    </select>
+
+    <select id="listByApplications" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE r.deleted = 0
+          AND r.application_id IN
+        <foreach collection="ids" item="appId" open="(" separator="," close=")">
+            #{appId}
+        </foreach>
+        ORDER BY r.application_id ASC, r.id ASC
+    </select>
+
+</mapper>

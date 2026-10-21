@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.umi.nest.mapper.PsycheFocusMapper">
+
+    <!-- 学工 P14：关注台账（仅 admin 与该生辅导员可见，S16 保密性）。 -->
+    <resultMap id="BaseResultMap" type="com.umi.nest.entity.PsycheFocus">
+        <id column="id" property="id"/>
+        <result column="student_id" property="studentId"/>
+        <result column="batch_id" property="batchId"/>
+        <result column="level" property="level"/>
+        <result column="source" property="source"/>
+        <result column="source_id" property="sourceId"/>
+        <result column="summary" property="summary"/>
+        <result column="measures" property="measures"/>
+        <result column="counselor_id" property="counselorId"/>
+        <result column="status" property="status"/>
+        <result column="opened_at" property="openedAt"/>
+        <result column="closed_at" property="closedAt"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="student_name" property="studentName"/>
+        <result column="student_no" property="studentNo"/>
+        <result column="class_name" property="className"/>
+        <result column="major" property="major"/>
+        <result column="counselor_name" property="counselorName"/>
+    </resultMap>
+
+    <sql id="Joined_Columns">
+        f.id, f.student_id, f.batch_id, f.level, f.source, f.source_id, f.summary, f.measures,
+        f.counselor_id, f.status, f.opened_at, f.closed_at, f.created_by, f.created_at,
+        f.updated_at, f.deleted,
+        COALESCE(NULLIF(u.real_name, ''), u.nickname, u.username) AS student_name,
+        COALESCE(u.student_id, '') AS student_no,
+        COALESCE(sp.class_name, '') AS class_name,
+        COALESCE(sp.major, '') AS major,
+        COALESCE(NULLIF(c.real_name, ''), c.nickname, c.username) AS counselor_name
+    </sql>
+
+    <sql id="Joined_From">
+        FROM psyche_focus f
+        LEFT JOIN users u ON u.id = f.student_id
+        LEFT JOIN student_profile sp ON sp.user_id = f.student_id AND sp.deleted = 0
+        LEFT JOIN users c ON c.id = f.counselor_id
+    </sql>
+
+    <!-- scope 非空 = teacher 口径：只能看名下学生（sp.counselor_id）或自己负责（f.counselor_id）的台账 -->
+    <sql id="List_Filters">
+        <if test="level != null and level != ''">AND f.level = #{level}</if>
+        <if test="status != null and status != ''">AND f.status = #{status}</if>
+        <if test="className != null and className != ''">AND sp.class_name = #{className}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.real_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.student_id LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.username LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="scope != null">AND (sp.counselor_id = #{scope} OR f.counselor_id = #{scope})</if>
+    </sql>
+
+    <insert id="insert" parameterType="com.umi.nest.entity.PsycheFocus"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO psyche_focus
+            (student_id, batch_id, level, source, source_id, summary, measures, counselor_id,
+             status, opened_at, closed_at, created_by, created_at, updated_at, deleted)
+        VALUES
+            (#{studentId}, #{batchId}, #{level}, #{source}, #{sourceId}, #{summary}, #{measures}, #{counselorId},
+             #{status}, #{openedAt}, #{closedAt}, #{createdBy}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE f.id = #{id} AND f.deleted = 0
+    </select>
+
+    <select id="list" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE f.deleted = 0
+        <include refid="List_Filters"/>
+        ORDER BY FIELD(f.level, 'risk', 'key', 'general'), f.id DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="count" resultType="int">
+        SELECT COUNT(*)
+        <include refid="Joined_From"/>
+        WHERE f.deleted = 0
+        <include refid="List_Filters"/>
+    </select>
+
+    <select id="listByStudent" resultMap="BaseResultMap">
+        SELECT <include refid="Joined_Columns"/>
+        <include refid="Joined_From"/>
+        WHERE f.student_id = #{studentId} AND f.deleted = 0
+        ORDER BY f.id DESC
+    </select>
+
+    <!-- 增量修改（CAS）：服务层已把没传的字段填成现值，status 必须还是 fromStatus -->
+    <update id="update">
+        UPDATE psyche_focus
+        SET level = #{focus.level},
+            summary = #{focus.summary},
+            measures = #{focus.measures},
+            counselor_id = #{focus.counselorId},
+            status = #{focus.status},
+            closed_at = #{focus.closedAt},
+            updated_at = NOW()
+        WHERE id = #{focus.id} AND deleted = 0 AND status = #{fromStatus}
+    </update>
+
+    <!-- 登记跟进后把台账从 open 推进到 following（CAS） -->
+    <update id="markFollowing">
+        UPDATE psyche_focus
+        SET status = 'following', updated_at = NOW()
+        WHERE id = #{id} AND deleted = 0 AND status = 'open'
+    </update>
+
+    <!-- 关注等级分布（只回聚合数）。batchId=null 表示全部批次；scope=null 表示 admin（全校） -->
+    <select id="countGroupByLevel" resultType="java.util.Map">
+        SELECT f.level AS level, COUNT(*) AS cnt
+        <include refid="Joined_From"/>
+        WHERE f.deleted = 0
+        <if test="batchId != null">AND f.batch_id = #{batchId}</if>
+        <if test="scope != null">AND (sp.counselor_id = #{scope} OR f.counselor_id = #{scope})</if>
+        GROUP BY f.level
+    </select>
+
+</mapper>
