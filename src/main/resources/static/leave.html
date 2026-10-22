@@ -2,7 +2,7 @@
 <html lang="zh-CN" data-theme="nestlight">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
     <title>请假与离校 · 学工平台</title>
   <!--
     主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
@@ -142,7 +142,7 @@
               <label class="label px-0 pb-1.5" for="leave-contact">
                 <span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">联系电话 / Contact</span>
               </label>
-              <input id="leave-contact" type="text" maxlength="64" class="input input-bordered" placeholder="本人手机号">
+              <input id="leave-contact" type="text" maxlength="64" class="input input-bordered" placeholder="本人手机号" inputmode="tel" autocomplete="tel">
             </div>
           </div>
 
@@ -363,7 +363,7 @@
   }
 
   async function cancelLeave(id) {
-    if (!window.confirm('确认撤回这条申请？撤回后需要重新提交。')) { return; }
+    if (!(await NestUI.dialog.confirm('确认撤回这条申请？撤回后需要重新提交。', { danger: true }))) { return; }
     const result = await callApi('/api/leave/' + id + '/cancel', { method: 'POST' });
     if (result.code === 200) {
       showMessage('已撤回', 'success');

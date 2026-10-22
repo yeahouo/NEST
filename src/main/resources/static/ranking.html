@@ -2,7 +2,7 @@
 <html lang="zh-CN" data-theme="nestlight">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
     <title>综测排名 · 学工平台</title>
   <!--
     主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
@@ -971,7 +971,7 @@
 
   async function runBonusAction(id, suffix, okMessage, label) {
     if (!id) { return; }
-    if (!window.confirm('确定要' + label + '这条加分申报吗？')) { return; }
+    if (!(await NestUI.dialog.confirm('确定要' + label + '这条加分申报吗？'))) { return; }
     var result = await callApi('/api/rank/bonus/' + encodeURIComponent(id) + suffix, { method: 'POST' });
     if (result.code !== 200) {
       showMessage(result.message || (label + '失败：当前状态不允许这一步，请刷新后重试。'), 'error');

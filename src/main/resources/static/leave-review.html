@@ -2,7 +2,7 @@
 <html lang="zh-CN" data-theme="nestlight">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
     <title>请假审批 · 学工平台</title>
   <!-- 主题自举必须内联、必须排在样式表之前（放到 defer 脚本里会闪白）；
        daisyUI 组件颜色跟的是 [data-theme]，与 .dark 类两处都要写。 -->
@@ -264,7 +264,7 @@
 
   async function decide(id, action) {
     const labels = { approve: '批准', close: '销假' };
-    if (!window.confirm('确认' + (labels[action] || action) + '这条申请？')) { return; }
+    if (!(await NestUI.dialog.confirm('确认' + (labels[action] || action) + '这条申请？'))) { return; }
     await postDecision(id, action, '');
   }
 

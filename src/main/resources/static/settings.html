@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html data-theme="nestlight" lang="en">
+<html data-theme="nestlight" lang="zh-CN">
 <head>
   <meta charset="utf-8"/>
-  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>账号设置 · 学工平台</title>
   <!--
     主题必须在样式表之前定下来。放到 defer 的共享脚本里会先按浅色画一帧、
@@ -239,15 +239,15 @@
           <form id="passwordForm" class="flex flex-col gap-4">
             <div class="form-control">
               <label class="label px-0 pb-1" for="currentPassword"><span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Current Password</span></label>
-              <input type="password" id="currentPassword" class="input input-bordered h-12 w-full" placeholder="Enter current password" required/>
+              <input type="password" id="currentPassword" class="input input-bordered h-12 w-full" placeholder="Enter current password" required autocomplete="current-password"/>
             </div>
             <div class="form-control">
               <label class="label px-0 pb-1" for="newPassword"><span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">New Password</span></label>
-              <input type="password" id="newPassword" class="input input-bordered h-12 w-full" placeholder="Enter new password" required/>
+              <input type="password" id="newPassword" class="input input-bordered h-12 w-full" placeholder="Enter new password" required autocomplete="new-password"/>
             </div>
             <div class="form-control">
               <label class="label px-0 pb-1" for="confirmPassword"><span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Confirm New Password</span></label>
-              <input type="password" id="confirmPassword" class="input input-bordered h-12 w-full" placeholder="Confirm new password" required/>
+              <input type="password" id="confirmPassword" class="input input-bordered h-12 w-full" placeholder="Confirm new password" required autocomplete="new-password"/>
             </div>
           <div id="passwordError" class="alert alert-error hidden text-center text-xs"></div>
             <button type="submit" class="nx-btn nx-btn-primary nx-btn-lg w-full hover:scale-[1.02]">
@@ -283,13 +283,13 @@
                   <option value="+1">+1</option>
                   <option value="+44">+44</option>
                 </select>
-                <input type="tel" id="newPhone" class="input input-bordered h-12 flex-1 font-mono" placeholder="138 1234 5678" required/>
+                <input type="tel" id="newPhone" class="input input-bordered h-12 flex-1 font-mono" placeholder="138 1234 5678" required inputmode="tel" autocomplete="tel"/>
               </div>
             </div>
             <div class="form-control">
               <label class="label px-0 pb-1" for="phoneVerifyCode"><span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Verification Code</span></label>
               <div class="flex gap-2">
-                <input type="text" id="phoneVerifyCode" class="input input-bordered h-12 flex-1 font-mono tracking-[0.3em]" placeholder="000000" required/>
+                <input type="text" id="phoneVerifyCode" class="input input-bordered h-12 flex-1 font-mono tracking-[0.3em]" placeholder="000000" required inputmode="numeric" autocomplete="one-time-code" maxlength="6"/>
                 <button type="button" id="sendPhoneCodeBtn" onclick="sendPhoneCode()" class="nx-btn nx-btn-soft whitespace-nowrap font-bold">
                   Send Code
                 </button>
@@ -329,7 +329,7 @@
               </div>
               <div class="form-control">
                 <label class="label px-0 pb-1" for="editStudentId"><span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65" id="edit-id-label">ID Number</span></label>
-                <input type="text" id="editStudentId" class="input input-bordered h-12 w-full font-mono" placeholder="e.g. 2023001"/>
+                <input type="text" id="editStudentId" class="input input-bordered h-12 w-full font-mono" placeholder="e.g. 2023001" inputmode="numeric" autocapitalize="none" spellcheck="false"/>
               </div>
             </div>
             <div class="form-control">
@@ -399,7 +399,7 @@
             <div class="form-control">
               <label class="label px-0 pb-1" for="emailVerifyCode"><span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">Verification Code</span></label>
               <div class="flex gap-2">
-                <input type="text" id="emailVerifyCode" class="input input-bordered h-12 flex-1 font-mono tracking-[0.3em]" placeholder="000000" required/>
+                <input type="text" id="emailVerifyCode" class="input input-bordered h-12 flex-1 font-mono tracking-[0.3em]" placeholder="000000" required inputmode="numeric" autocomplete="one-time-code" maxlength="6"/>
                 <button type="button" id="sendEmailCodeBtn" onclick="sendEmailCode()" class="nx-btn nx-btn-soft whitespace-nowrap font-bold">
                   Send Code
                 </button>

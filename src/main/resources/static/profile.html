@@ -2,7 +2,7 @@
 <html lang="zh-CN" data-theme="nestlight">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
     <title>我的学工档案 · 学工平台</title>
   <!--
     主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
@@ -118,7 +118,7 @@
               <label class="label px-0 pb-1.5" for="profile-contact">
                 <span class="label-text font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">家庭联系人 / Family contact</span>
               </label>
-              <input id="profile-contact" type="text" maxlength="64" class="input input-bordered" placeholder="父母或监护人的手机号">
+              <input id="profile-contact" type="text" maxlength="64" class="input input-bordered" placeholder="父母或监护人的手机号" inputmode="tel" autocomplete="tel">
             </div>
 
             <div class="form-control">

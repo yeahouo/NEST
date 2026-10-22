@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html data-theme="nestlight" lang="en">
+<html data-theme="nestlight" lang="zh-CN">
 <head>
   <meta charset="utf-8"/>
-  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>用户管理 · 学工平台</title>
   <!--
     主题必须在样式表之前定下来。放到 defer 的共享脚本里会先按浅色画一帧、
@@ -213,7 +213,7 @@
         </div>
         <div>
           <label class="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-base-content/65">Phone</label>
-          <input type="text" id="create-phone" placeholder="Phone (optional)" class="input input-bordered h-12 w-full">
+          <input type="text" id="create-phone" placeholder="Phone (optional)" class="input input-bordered h-12 w-full" inputmode="tel" autocomplete="tel">
         </div>
         <div class="mt-2 flex gap-3">
           <button onclick="closeCreateModal()" class="btn btn-ghost h-12 flex-1">Cancel</button>

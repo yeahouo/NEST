@@ -166,3 +166,14 @@ body.nx-page {
   background-color: transparent;
 }
 
+/* ── ⑦ 手机端：首页轮播左右箭头抬到 44×44 触控目标
+   桌面 2.5rem（40px）够用，@375 实测短边 40px 差 4px 按不准；
+   高度一变，垂直居中用的 top: calc(50% - 1.25rem) 要跟着改成 -1.375rem。 */
+@media (max-width: 1023px) {
+  .nx-carousel-nav {
+    width: 44px;
+    height: 44px;
+    top: calc(50% - 1.375rem);
+  }
+}
+

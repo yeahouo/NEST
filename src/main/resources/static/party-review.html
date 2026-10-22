@@ -2,7 +2,7 @@
 <html lang="zh-CN" data-theme="nestlight">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>学生党建 · 管理端 · 学工平台</title>
   <script>
     (function () {
@@ -1620,7 +1620,7 @@
 
       async function openPublicityLink(id, list) {
         var item = (list || []).filter(function (row) { return String(row.id) === String(id); })[0] || null;
-        var publicityId = window.prompt('输入要关联到该台账的公示 ID（party_publicity.id）：', item && item.stagePublicityId ? String(item.stagePublicityId) : '');
+        var publicityId = await NestUI.dialog.prompt('输入要关联到该台账的公示 ID（party_publicity.id）：', { defaultValue: item && item.stagePublicityId ? String(item.stagePublicityId) : '' });
         if (publicityId === null) { return; }
         var result = await callApi('/api/party/stages/' + encodeURIComponent(id) + '/publicity', {
           method: 'POST',
@@ -2134,7 +2134,7 @@
       }
 
       async function closePublicity(id) {
-        var result = valueOf('pb-result') || window.prompt('公示结果 / 结论（可留空）：', '');
+        var result = valueOf('pb-result') || (await NestUI.dialog.prompt('公示结果 / 结论（可留空）：', {}));
         var response = await callApi('/api/party/publicities/' + encodeURIComponent(id) + '/close', {
           method: 'POST',
           body: { result: result || null }

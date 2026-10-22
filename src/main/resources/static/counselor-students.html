@@ -2,7 +2,7 @@
 <html lang="zh-CN" data-theme="nestlight">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
     <title>学生名册 · 学工平台</title>
   <!--
     主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
@@ -539,7 +539,7 @@
   }
 
   async function syncMissing() {
-    if (!window.confirm('给还没建档的在读学生各建一条学工档案？这个操作可以重复执行，不会重复建档。')) { return; }
+    if (!(await NestUI.dialog.confirm('给还没建档的在读学生各建一条学工档案？这个操作可以重复执行，不会重复建档。'))) { return; }
     const result = await callApi('/api/counselor/students/sync', { method: 'POST' });
     if (result.code === 200) {
       showListMessage(result.message || '已补建', 'success');

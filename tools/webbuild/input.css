@@ -2087,3 +2087,84 @@ html[data-vt="theme"]::view-transition-new(root) {
   line-height: 1.5;
   overflow: visible;
 }
+
+/* ── H5 手机端：安全区 + 动态视口 ───────────────────────────────────────────
+   48 页统一声明 viewport-fit=cover 之后，页面会铺到刘海、状态栏和屏幕圆角
+   底下（不声明反而不会，但会留下左右黑边），必须自己把安全区让出来。
+
+   · 顶栏用 border-top 撑开，不改 padding-top。顶栏有两种写法（31 页 p-0 配
+     内层 navbar 的 py-2，12 页自己带 py-2），直接写 padding-top 必然吃掉其中
+     一种的原始留白；border 只加宽度，两种写法都不受影响。且 nx-glass 的
+     背景默认画到 border-box，刘海那块依旧有毛玻璃底，不会露出白条。
+   · env() 在非刘海设备上恒等于 0，桌面端与安卓直板机零影响。
+   · 100vh 是「地址栏还没收起」时的视口高度，移动端底部会顶出去一截；dvh
+     跟随可见视口，能收住。旧浏览器不认 dvh，会保留上面 100vh 的规则。 */
+@supports (padding: env(safe-area-inset-top)) {
+  .nx-topbar {
+    border-top: env(safe-area-inset-top) solid transparent;
+  }
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+@supports (min-height: 100dvh) {
+  .min-h-screen {
+    min-height: 100dvh;
+  }
+  .h-screen {
+    height: 100dvh;
+  }
+}
+
+/* ── H5 第三轮：触控目标残余（20 页 @375 审计实测）────────────────────────────
+   审计口径：touchSmall = 真可点但短边 <40px，below44 = 短边 <44px。
+   行内文字链（「查看全部 · …」「Forgot password?」「Register」）命中
+   WCAG 2.5.5「行内文字例外」，不抬高度——抬了会把卡片标题挤散。
+   这里只修三类真缺陷：
+   · .nx-cmdk-chip 固定 2.5rem（40px）高，宽度也只有 40px；
+   · 顶栏 brand 链接 40×40（logo 图标只有 40px，链接跟着缩）；
+   · 表格里的「查看材料」被挤成 12px 宽、四个字竖排——是 nowrap 缺失。 */
+@media (max-width: 1023px) {
+  .nx-cmdk-chip {
+    min-width: 44px;
+    min-height: 44px;
+    height: 44px;
+    justify-content: center;
+  }
+  .nx-topbar .navbar-start > a.flex.items-center {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  /* .btn 的 min-height 上面已经抬到 44px，宽度没管：图标型按钮会缩到 42px。
+     补 min-width 一并收口（表格里的 btn-xs 也不受影响，表格本来就能横滑）。 */
+  .btn,
+  .btn-sm,
+  .btn-xs {
+    min-width: 44px;
+  }
+  /* 表格单元格里的操作链接不许竖排折行，否则 CJK 会被压成 1 字 1 行 */
+  td a[target="_blank"],
+  td a.nx-link,
+  td a.font-mono {
+    white-space: nowrap;
+  }
+  /* 「查看材料」这类表格内独立操作链接：文字只有 14px 高，用 padding 撑出
+     44px 热区、再用等量负 margin 抵回去，视觉不变、点得中。 */
+  td a[target="_blank"],
+  td a.font-mono {
+    display: inline-block;
+    padding: 15px 6px;
+    margin: -15px -6px;
+  }
+  /* 品牌链接（顶栏 + 各页 header）：链接高度被 36–40px 的 logo 图标带着走。
+     只认「header 里的 flex 行内链接」与「含 .nx-logo 的链接」，不碰正文里
+     真正的行内文字链（那些命中 WCAG 2.5.5 行内例外，抬高度会把排版挤散）。 */
+  .nx-topbar a.flex.items-center,
+  header > a.flex.items-center,
+  a:has(> .nx-logo) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

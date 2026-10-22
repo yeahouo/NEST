@@ -2,7 +2,7 @@
 <html lang="zh-CN" data-theme="nestlight">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>第二课堂 · 审核与台账 · 学工平台</title>
   <script>
     (function () {
@@ -332,7 +332,7 @@
       <div class="mt-5 grid grid-cols-1 gap-3">
         <label class="form-control">
           <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">认定学分（可留空）</span>
-          <input class="input input-bordered" id="cf-credit" placeholder="留空则由板块换算规则计算" type="text">
+          <input class="input input-bordered" id="cf-credit" placeholder="留空则由板块换算规则计算" type="text" inputmode="decimal">
         </label>
       </div>
       <div id="cf-message" class="alert hidden mt-4 items-start gap-2"></div>
@@ -378,7 +378,7 @@
           </label>
           <label class="form-control">
             <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学分 / 学时</span>
-            <input class="input input-bordered" id="cg-credit" placeholder="留空 = 未设置" type="text">
+            <input class="input input-bordered" id="cg-credit" placeholder="留空 = 未设置" type="text" inputmode="decimal">
           </label>
         </div>
         <label class="form-control">
@@ -449,11 +449,11 @@
         <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
           <label class="form-control">
             <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学时（必填，0-100）</span>
-            <input class="input input-bordered" id="ag-hours" placeholder="如 4" type="text">
+            <input class="input input-bordered" id="ag-hours" placeholder="如 4" type="text" inputmode="decimal">
           </label>
           <label class="form-control">
             <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学分（留空 = 未设置）</span>
-            <input class="input input-bordered" id="ag-credit" placeholder="留空 = 未设置" type="text">
+            <input class="input input-bordered" id="ag-credit" placeholder="留空 = 未设置" type="text" inputmode="decimal">
           </label>
         </div>
         <label class="form-control">

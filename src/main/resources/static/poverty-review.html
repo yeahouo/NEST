@@ -2,7 +2,7 @@
 <html lang="zh-CN" data-theme="nestlight">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
     <title>困难认定管理 · 学工平台</title>
   <!--
     主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
@@ -1249,7 +1249,7 @@
   // ─────────────────────────────── 加入公示 ───────────────────────────
   async function submitPublicity(id) {
     if (!id) { return; }
-    if (!window.confirm('确认把申请 #' + id + ' 加入公示名单？公示内容只含姓名、性别、级别。')) { return; }
+    if (!(await NestUI.dialog.confirm('确认把申请 #' + id + ' 加入公示名单？公示内容只含姓名、性别、级别。'))) { return; }
     const result = await callApi('/api/aid/review/publicity', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

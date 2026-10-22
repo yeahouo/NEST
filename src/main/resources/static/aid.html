@@ -2,7 +2,7 @@
 <html lang="zh-CN" data-theme="nestlight">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
     <title>资助申请 · 学工平台</title>
   <!--
     主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
@@ -122,7 +122,7 @@
               </label>
               <label class="form-control">
                 <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">申请金额</span>
-                <input class="input input-bordered" id="aid-amount" placeholder="可留空" type="text"/>
+                <input class="input input-bordered" id="aid-amount" placeholder="可留空" type="text" inputmode="decimal"/>
               </label>
             </div>
             <label class="form-control">
@@ -193,7 +193,7 @@
                 </label>
                 <label class="form-control">
                   <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">登记金额（元）</span>
-                  <input class="input input-bordered" id="loan-amount" placeholder="如 12000" type="text"/>
+                  <input class="input input-bordered" id="loan-amount" placeholder="如 12000" type="text" inputmode="decimal"/>
                 </label>
               </div>
               <div class="grid gap-4 sm:grid-cols-3">

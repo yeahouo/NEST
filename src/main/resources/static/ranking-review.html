@@ -2,7 +2,7 @@
 <html lang="zh-CN" data-theme="nestlight">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
     <title>综测排名管理 · 学工平台</title>
   <!--
     主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
@@ -235,7 +235,7 @@
             </label>
             <label class="form-control">
               <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">学习成绩 A（学分加权）</span>
-              <input class="input input-bordered input-sm" id="academic-score-a" placeholder="如：86.35" type="text"/>
+              <input class="input input-bordered input-sm" id="academic-score-a" placeholder="如：86.35" type="text" inputmode="decimal"/>
             </label>
             <label class="form-control">
               <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">必修加权</span>
@@ -247,11 +247,11 @@
             </label>
             <label class="form-control">
               <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">总学分</span>
-              <input class="input input-bordered input-sm" id="academic-credits" placeholder="如：24" type="text"/>
+              <input class="input input-bordered input-sm" id="academic-credits" placeholder="如：24" type="text" inputmode="decimal"/>
             </label>
             <label class="form-control">
               <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">课程门数</span>
-              <input class="input input-bordered input-sm" id="academic-course-count" placeholder="如：9" type="text"/>
+              <input class="input input-bordered input-sm" id="academic-course-count" placeholder="如：9" type="text" inputmode="numeric"/>
             </label>
           </div>
 
@@ -606,7 +606,7 @@
       </label>
       <label class="form-control">
         <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">公示天数</span>
-        <input class="input input-bordered input-sm" id="batch-publicity-days" placeholder="5" type="text"/>
+        <input class="input input-bordered input-sm" id="batch-publicity-days" placeholder="5" type="text" inputmode="numeric"/>
       </label>
       <label class="form-control">
         <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">一等比例（%）</span>
@@ -1228,7 +1228,7 @@
 
   async function runBatchAction(batchId, action, okMessage, label, confirmText) {
     if (!batchId) { return; }
-    if (!window.confirm(confirmText || ('确定要' + label + '吗？'))) { return; }
+    if (!(await NestUI.dialog.confirm(confirmText || ('确定要' + label + '吗？')))) { return; }
     var result = await callApi('/api/rank/batches/' + encodeURIComponent(batchId) + '/' + action, { method: 'POST' });
     if (result.code !== 200) {
       showMessage(result.message || (label + '失败：批次状态可能已被其他人变更（并发校验未通过），请刷新后重试。'), 'error');

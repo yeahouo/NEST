@@ -2,7 +2,7 @@
 <html lang="zh-CN" data-theme="nestlight">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
     <title>资助审批 · 学工平台</title>
   <!--
     主题必须在样式表之前定下来（放到 defer 脚本里会先按浅色画一帧再翻深色 = 闪白）。
@@ -206,7 +206,7 @@
     <h2 class="font-serif text-2xl" id="approve-title">批准申请</h2>
     <label class="form-control mt-5">
       <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">核定金额</span>
-      <input class="input input-bordered" id="approve-amount" placeholder="可留空，留空则沿用学生填写的金额" type="text"/>
+      <input class="input input-bordered" id="approve-amount" placeholder="可留空，留空则沿用学生填写的金额" type="text" inputmode="decimal"/>
     </label>
     <label class="form-control mt-4">
       <span class="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-base-content/65">审批意见</span>
