@@ -453,7 +453,7 @@ public class DormRepository {
             ps.setInt(7, problem.totalCapacity());
             ps.setInt(8, result.hardViolationCount());
             ps.setInt(9, result.unassignedCount());
-            ps.setInt(10, result.blockingPairCount());
+            ps.setInt(10, result.blockCount());
             ps.setInt(11, result.maxBlockSize());
             ps.setString(12, json(result.diagnostics()));
             return ps;

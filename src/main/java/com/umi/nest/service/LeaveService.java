@@ -2,6 +2,7 @@ package com.umi.nest.service;
 
 import com.umi.nest.common.Result;
 import com.umi.nest.entity.LeaveRequest;
+import com.umi.nest.entity.StudentProfile;
 import com.umi.nest.mapper.LeaveRequestMapper;
 import com.umi.nest.mapper.StudentProfileMapper;
 import org.slf4j.Logger;
@@ -215,6 +216,10 @@ public class LeaveService {
         if (old == null) {
             return Result.error(404, "申请不存在");
         }
+        // 数据级授权：与收件箱同口径 —— 收件箱里看不到的假条，按 id 直调也不能审批。
+        if (!inInboxScope(actorId, role, old.getStudentId())) {
+            return Result.error(403, "这条申请不在你的名下学生范围内");
+        }
         String from;
         String to;
         switch (action == null ? "" : action) {
@@ -249,6 +254,25 @@ public class LeaveService {
         }
         log.info("leave {} id={} by={} role={}", action, id, actorId, role);
         return Result.success("已处理", leaveMapper.findById(id));
+    }
+
+    /**
+     * 该假条是否落在操作人的收件箱范围内（与 {@link #inbox} 的 scope 判定逐条一致）：
+     * admin 全校；名下有学生的辅导员只限 student_profile.counselor_id = 本人；
+     * 名下尚无学生的辅导员沿用收件箱的「看全部」口径。
+     */
+    private boolean inInboxScope(Long actorId, String role, Long studentId) {
+        if (!"teacher".equals(role)) {
+            return "admin".equals(role);
+        }
+        if (actorId == null) {
+            return false;
+        }
+        if (profileMapper.countByCounselor(actorId) == 0) {
+            return true;
+        }
+        StudentProfile profile = studentId == null ? null : profileMapper.findByUserId(studentId);
+        return profile != null && Objects.equals(profile.getCounselorId(), actorId);
     }
 
     /** 收件箱统计（辅导员工作台用）。 */
